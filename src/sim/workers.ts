@@ -243,7 +243,10 @@ function runJob(state: GameState, unit: Unit, job: Job, speed: number): void {
       if (!approach(state, unit, job, 1.25, speed)) return;
       unit.working = true;
       tile.work += dt * UNITS[unit.type].drillSpeed * state.mods.drillSpeed;
-      if (state.tick % 12 === 0) state.fx.push({ kind: 'sound', id: 'drill', x: job.x, y: job.y });
+      if (state.tick % 12 === 0) {
+        const machine = unit.type === 'heavy';
+        state.fx.push({ kind: 'sound', id: 'drill', x: job.x, y: job.y, machine });
+      }
       if (tile.work >= wall.drillTime) breakWall(state, job.x, job.y);
       return;
     }
@@ -257,7 +260,8 @@ function runJob(state: GameState, unit: Unit, job: Job, speed: number): void {
         tile.rubble -= 1;
         state.dirty.push(idx(state, job.x, job.y));
         if (tile.rubble <= 0) {
-          dropAround(state, 'stone', job.x, job.y);
+          // With the stores full, it would only be a pile nobody can ever bring in.
+          if (hasRoomFor(state, 'stone')) dropAround(state, 'stone', job.x, job.y);
           setTile(state, job.x, job.y, 'floor');
           removeJob(state, job.id);
         }

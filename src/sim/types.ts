@@ -114,6 +114,8 @@ export interface Unit {
   order: number | null;
   cooldown: number;
   targetId: number | null;
+  /** Where a guard stands watch, and patrols around. Set the first time it needs one. */
+  post?: { x: number; y: number };
   /** Ticks before this unit looks for a job again. */
   thinkIn: number;
   working: boolean;
@@ -188,7 +190,7 @@ export interface LogEntry {
 export type Fx =
   | { kind: 'laser'; x1: number; y1: number; x2: number; y2: number; hostile: boolean }
   | { kind: 'burst'; x: number; y: number; color: number }
-  | { kind: 'sound'; id: SoundId; x?: number; y?: number }
+  | { kind: 'sound'; id: SoundId; x?: number; y?: number; machine?: boolean }
   | { kind: 'voice'; id: VoiceId };
 
 export type SoundId = 'drill' | 'collect' | 'build' | 'alert' | 'laser' | 'collapse' | 'plot';

@@ -24,13 +24,13 @@ On livre des ressources au Noyau pour franchir des jalons, qui débloquent bâti
 livraison peut se faire en plusieurs fois. Les jalons sont rangés par paliers, et chaque palier
 demande ce que le précédent a permis de produire :
 
-| Palier | Nom          | Comment il s'ouvre      | Ce qu'il apporte                                    |
-| ------ | ------------ | ----------------------- | --------------------------------------------------- |
-| 0      | Installation | Dès le départ           | Habitat, oxygène, eau, serre, énergie, tourelle     |
-| 1      | Implantation | Rejoindre Port-Cendre   | Laboratoire, caserne, marché, forets trempés        |
-| 2      | Industrie    | Livraison de la phase 1 | Raffinerie, marteau-piqueur, dispensaire            |
-| 3      | Mécanisation | Livraison de la phase 2 | Atelier de véhicules, avant-postes, forge d'alliage |
-| 4      | Grand forage | Livraison de la phase 3 | Foreuse laser                                       |
+| Palier | Nom          | Comment il s'ouvre      | Ce qu'il apporte                                                         |
+| ------ | ------------ | ----------------------- | ------------------------------------------------------------------------ |
+| 0      | Installation | Dès le départ           | Énergie, entrepôt, tourelle, ventilateur                                 |
+| 1      | Implantation | Rejoindre Port-Cendre   | Habitat, oxygène, cultures, laboratoire, caserne, marché, forets trempés |
+| 2      | Industrie    | Livraison de la phase 1 | Raffinerie, marteau-piqueur, dispensaire                                 |
+| 3      | Mécanisation | Livraison de la phase 2 | Atelier de véhicules, avant-postes, forge d'alliage                      |
+| 4      | Grand forage | Livraison de la phase 3 | Foreuse laser                                                            |
 
 Aucun jalon ne demande de soufre : il se trouve derrière le basalte, que seul le laser perce.
 
@@ -40,7 +40,8 @@ il élargit la zone constructible et agrandit le Noyau.
 
 ## La zone de la cité et les avant-postes
 
-Les bâtiments du menu Cité ne se posent que dans un rayon autour du Noyau, qui grandit avec le rang.
+L'onglet Cité du menu de construction s'ouvre en rejoignant Port-Cendre. Ses bâtiments ne se posent
+que dans un rayon autour du Noyau, qui grandit avec le rang.
 Ceux du menu Exploration se posent partout. L'avant-poste sert de dépôt et de source à un réseau
 électrique séparé, pour s'installer loin de la cité.
 

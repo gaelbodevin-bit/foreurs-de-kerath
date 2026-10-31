@@ -24,6 +24,8 @@ interface Tracked {
   tx: number;
   ty: number;
   bar?: THREE.Sprite;
+  /** Where the character's swing was at the previous frame. */
+  swing?: number;
 }
 
 interface FxSprite {
@@ -46,6 +48,11 @@ const BAR_MID = barMaterial(0xf2c14b);
 const BAR_BAD = barMaterial(0xff5050);
 
 /** Below this frame rate, the view gives up its most expensive effects, one at a time. */
+/** Through `attack-melee-right`, where the arm comes back down on the rock. Measured from the clip. */
+const PICK_IMPACT = 0.5;
+/** That clip lasts 0.42 s: frantic at full speed, and no sound could keep up with it. */
+const PICK_SWING_SPEED = 0.6;
+
 const TARGET_FPS = 32;
 const SHADOW_MAP = 2048;
 
@@ -102,6 +109,7 @@ export class MissionView {
   quality = 0;
   /** The walking unit nearest the camera, for footsteps. */
   nearestWalker: { x: number; y: number } | null = null;
+  private strikes: { x: number; y: number }[] = [];
   private lastTick = -1;
   /** Seconds since the simulation last advanced: nobody walks on the spot during a pause. */
   private stale = 0;
@@ -320,6 +328,13 @@ export class MissionView {
     this.cityZone.scale.set(radius, radius, 1);
   }
 
+  /** The pickaxe blows landed since the last call: they are heard when they are seen. */
+  takeStrikes(): { x: number; y: number }[] {
+    const strikes = this.strikes;
+    this.strikes = [];
+    return strikes;
+  }
+
   setDragBox(area: { x0: number; y0: number; x1: number; y1: number } | null): void {
     this.dragBox.visible = area !== null;
     if (!area) return;
@@ -528,8 +543,19 @@ export class MissionView {
                 tool
               ]
             : 'interact-right';
-        rig.play(moving ? 'walk' : u.working ? working : idle);
+        const swinging = !moving && target !== undefined && tool === 'pick';
+        rig.play(moving ? 'walk' : u.working ? working : idle, swinging ? PICK_SWING_SPEED : 1);
         rig.update(dt);
+        if (swinging) {
+          const phase = rig.phase;
+          if ((entry.swing ?? phase) < PICK_IMPACT && phase >= PICK_IMPACT) {
+            this.strikes.push({ x: target.x + 0.5, y: target.y + 0.5 });
+            this.smoke.emit(target.x + 0.5, 0.4, target.y + 0.5, 0.6, 0.7, 0.8);
+          }
+          entry.swing = phase;
+        } else {
+          entry.swing = undefined;
+        }
         // The hammer shakes whoever holds it.
         if (target && tool === 'hammer') {
           entry.object.position.x += Math.sin(time * 71 + u.id) * 0.012;

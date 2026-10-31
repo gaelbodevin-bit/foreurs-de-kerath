@@ -97,6 +97,24 @@ describe('gouverneur et conseil', () => {
   });
 });
 
+describe('gardes', () => {
+  it('un garde au repos patrouille autour de son poste, sans s’en éloigner', () => {
+    const state = newGame(2);
+    const guard = state.units.find((u) => u.type === 'garde')!;
+    const post = { x: guard.x, y: guard.y };
+    let moved = 0;
+    let farthest = 0;
+    for (let i = 0; i < 1200; i++) {
+      const before = [guard.x, guard.y];
+      play(state, 1);
+      if (before[0] !== guard.x || before[1] !== guard.y) moved++;
+      farthest = Math.max(farthest, Math.hypot(guard.x - post.x, guard.y - post.y));
+    }
+    expect(moved).toBeGreaterThan(20);
+    expect(farthest).toBeLessThan(8);
+  });
+});
+
 describe('salles de monstres', () => {
   it('chaque partie en a, avec monstres endormis et butin enfermés', () => {
     for (const seed of [1, 2, 3]) {

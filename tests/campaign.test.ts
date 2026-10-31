@@ -119,17 +119,27 @@ describe('progression par jalons', () => {
     const state = newGame(1);
     state.stock.ore = 5;
     state.stock.stone = 100;
-    const needed = techById('shelter').parts!;
-    expect(deliverParts(state, 'shelter')).toBe(true);
+    const needed = techById('power').parts!;
+    expect(deliverParts(state, 'power')).toBe(true);
     expect(state.stock.ore).toBe(0);
-    expect(buildingLock(state, 'habitat')).not.toBeNull();
-    expect(partsLeft(state, 'shelter').ore).toBe((needed.ore ?? 0) - 5);
-    expect(canDeliver(state, 'shelter')).toBe(false);
+    expect(buildingLock(state, 'depot')).not.toBeNull();
+    expect(partsLeft(state, 'power').ore).toBe((needed.ore ?? 0) - 5);
+    expect(canDeliver(state, 'power')).toBe(false);
     state.stock.ore = 50;
-    expect(deliverParts(state, 'shelter')).toBe(true);
-    expect(buildingLock(state, 'habitat')).toBeNull();
-    expect(state.delivered.shelter).toBeUndefined();
+    expect(deliverParts(state, 'power')).toBe(true);
+    expect(buildingLock(state, 'depot')).toBeNull();
+    expect(state.delivered.power).toBeUndefined();
     expect(state.stock.ore).toBe(50 - ((needed.ore ?? 0) - 5));
+  });
+
+  it('les bâtiments de la cité attendent d’avoir rejoint Port-Cendre', () => {
+    const state = newGame(1);
+    for (const r of RESOURCE_IDS) state.stock[r] = 1000;
+    expect(techLock(state, 'shelter')).not.toBeNull();
+    state.techs.push('shelter');
+    expect(buildingLock(state, 'habitat')).toContain('Port-Cendre');
+    state.settlement!.reached = true;
+    expect(buildingLock(state, 'habitat')).toBeNull();
   });
 
   it('un palier fermé ne prend aucune livraison', () => {

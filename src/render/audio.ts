@@ -21,7 +21,7 @@ const SOUNDS: Record<SoundKey, SoundDef> = {
   },
   drill: {
     gain: 0.2,
-    gap: 0.45,
+    gap: 0.1,
     wet: 0.3,
     synth: { freq: 90, to: 70, time: 0.09, type: 'sawtooth', gain: 0.018 },
   },
@@ -88,7 +88,7 @@ const SOUNDS: Record<SoundKey, SoundDef> = {
 };
 
 const MUTE_KEY = 'foreurs-de-kerath/muted';
-const VOICE_LEVEL = 0.8;
+const VOICE_LEVEL = 0.32;
 
 function readMuted(): boolean {
   try {

@@ -44,6 +44,7 @@ import {
   canDeliver,
   currentTier,
   deliverParts,
+  hasReachedCity,
   objectiveProgress,
   techLock,
 } from '../sim/progress';
@@ -128,6 +129,7 @@ export class MissionScreen {
   private readonly minimap = h('canvas', { class: 'minimap', width: 180, height: 180 });
   private readonly buildButtons = new Map<BuildingType | 'path', HTMLButtonElement>();
   private readonly buildLocks = new Map<BuildingType, HTMLElement>();
+  private cityTab: HTMLButtonElement | null = null;
   private readonly speedButtons: HTMLButtonElement[] = [];
 
   constructor(
@@ -287,10 +289,9 @@ export class MissionScreen {
         }
       }
       pages.set(menu.id, page);
-      tabs.set(
-        menu.id,
-        h('button', { class: 'menu-tab', onclick: () => show(menu.id) }, menu.name),
-      );
+      const tab = h('button', { class: 'menu-tab', onclick: () => show(menu.id) }, menu.name);
+      if (menu.id === 'city') this.cityTab = tab;
+      tabs.set(menu.id, tab);
     }
     show('explore');
     return h(
@@ -329,10 +330,11 @@ export class MissionScreen {
     this.view.render(alpha, dt, now / 1000);
 
     for (const fx of this.state.fx) {
-      if (fx.kind === 'sound') this.playSound(fx.id, fx.x, fx.y);
+      if (fx.kind === 'sound') this.playSound(fx.id, fx.x, fx.y, fx.machine);
       else if (fx.kind === 'voice') this.speak(fx.id);
     }
     this.state.fx.length = 0;
+    for (const strike of this.view.takeStrikes()) this.audio.play('drill', strike.x, strike.y);
     this.updateSound(dt, halted);
 
     this.hudTimer -= dt;
@@ -364,12 +366,12 @@ export class MissionScreen {
     requestAnimationFrame(this.frame);
   };
 
-  /** Drilling sounds like the tool in the crew's hands. */
-  private playSound(id: SoundId, x?: number, y?: number): void {
+  /** Drilling sounds like the tool in the crew's hands. A pickaxe is heard from its animation. */
+  private playSound(id: SoundId, x?: number, y?: number, machine?: boolean): void {
     const tool = drillToolFor(this.state.mods.drillPower);
-    if (id === 'drill' && tool === 'hammer') this.audio.play('rattle', x, y);
-    else if (id === 'drill' && tool === 'laser') this.audio.play('laser', x, y);
-    else this.audio.play(id, x, y);
+    if (id !== 'drill') this.audio.play(id, x, y);
+    else if (machine || tool === 'hammer') this.audio.play('rattle', x, y);
+    else if (tool === 'laser') this.audio.play('laser', x, y);
   }
 
   private speak(id: VoiceId): void {
@@ -795,6 +797,11 @@ export class MissionScreen {
   }
 
   private updateBuildMenu(): void {
+    if (this.cityTab) {
+      const closed = !hasReachedCity(this.state);
+      this.cityTab.disabled = closed;
+      this.cityTab.title = closed ? 'S’ouvre en rejoignant Port-Cendre' : '';
+    }
     for (const [key, button] of this.buildButtons) {
       const cost = key === 'path' ? PATH_COST : BUILDINGS[key].cost;
       button.classList.toggle('poor', !canAfford(this.state, cost));

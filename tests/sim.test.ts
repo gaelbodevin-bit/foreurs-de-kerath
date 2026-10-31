@@ -199,6 +199,23 @@ describe('réseau et bâtiments', () => {
   });
 });
 
+describe('gravats et stock plein', () => {
+  it('déblayer avec la roche au plafond ne laisse pas de tas impossibles à ramasser', () => {
+    const state = newGame();
+    state.stock.stone = 150;
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    const i = idx(state, hq.x + 3, hq.y);
+    state.tiles[i].k = 'rubble';
+    state.tiles[i].rubble = 1;
+    designateArea(state, hq.x + 3, hq.y, hq.x + 3, hq.y);
+    run(state, 30);
+    expect(state.tiles[i].k).toBe('floor');
+    expect(
+      state.pickups.filter((p) => p.res === 'stone' && Math.hypot(p.x - hq.x, p.y - hq.y) < 6),
+    ).toEqual([]);
+  });
+});
+
 describe('faim', () => {
   it('sans rien faire, la colonie de départ tient plus de dix minutes avant le premier mort', () => {
     const state = newGame();

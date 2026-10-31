@@ -9,7 +9,7 @@ vraie couche de gestion de cité et une campagne planétaire. C'est une créatio
 aucun lien avec LEGO : ni personnage, ni nom, ni élément graphique ou sonore n'en provient. Les
 modèles et les textures viennent de packs CC0 de Kenney et de Poly Haven
 ([crédits](public/assets/CREDITS.md)). La Faune et le Cœur du Dormeur sont construits à partir de
-formes simples. Les bruitages viennent aussi de Kenney, l'ambiance de la grotte est synthétisée, et les voix sont générées avec Piper (voix SIWIS, CC BY 4.0).
+formes simples. Les bruitages viennent aussi de Kenney, l'ambiance de la grotte est synthétisée, et les voix sont générées avec Piper (voir les crédits pour leurs licences).
 
 ## Démarrer
 

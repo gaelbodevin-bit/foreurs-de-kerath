@@ -9,6 +9,7 @@ export const newGame = (seed = 42): GameState => createGame(seed);
 /** Opens the whole build menu, for tests about what buildings do rather than when they unlock. */
 export function unlockEverything(state: GameState): void {
   state.cityLevel = 4;
+  if (state.settlement) state.settlement.reached = true;
   state.techs = TECHS.map((t) => t.id);
 }
 

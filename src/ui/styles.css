@@ -716,6 +716,11 @@ p {
   border-radius: 6px;
 }
 
+.menu-tab:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
 .menu-tab.on {
   color: #07060a;
   background: var(--teal, #35e0c2);

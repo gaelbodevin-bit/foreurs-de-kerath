@@ -5,11 +5,16 @@ Aucune attribution n'est exigée, mais ces auteurs la méritent.
 
 ## Voix de l'équipage
 
-Les fichiers de `audio/voices` sont générés avec [Piper](https://github.com/OHF-Voice/piper1-gpl) et la
-voix `fr_FR-siwis-medium`, entraînée sur le
-[SIWIS French Speech Synthesis Database](https://datashare.is.ed.ac.uk/handle/10283/2353), publié sous
-licence [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Le texte, la hauteur et le rythme
-sont propres au jeu.
+Les fichiers de `audio/voices` sont générés avec [Piper](https://github.com/OHF-Voice/piper1-gpl). Le
+texte, la hauteur et le rythme sont propres au jeu.
+
+| Personnages      | Voix                 | Données d'entraînement                                                                                                 | Licence                                                         |
+| ---------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Orsa Veld        | `fr_FR-siwis-medium` | [SIWIS French Speech Synthesis Database](https://datashare.is.ed.ac.uk/handle/10283/2353)                              | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)       |
+| Bako, Harl, Nina | `fr_FR-upmc-medium`  | [UPMC, Pierre et Jessica](https://github.com/marytts/upmc-pierre-data)                                                 | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
+| Tomas Krell      | `fr_FR-gilles-low`   | [French Single Speaker Speech Dataset](https://www.kaggle.com/datasets/bryanpark/french-single-speaker-speech-dataset) | CC0                                                             |
+
+Les enregistrements générés à partir de voix sous CC BY-SA sont redistribués sous la même licence.
 
 ## Modèles, textures et bruitages
 

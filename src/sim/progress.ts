@@ -1,4 +1,4 @@
-import { BUILDINGS } from '../data/buildings';
+import { BUILDINGS, CITY_BUILDINGS } from '../data/buildings';
 import { CITY_LEVELS } from '../data/progression';
 import { regionById, REGIONS, sectorAt, type Objective, type RegionDef } from '../data/regions';
 import { RESOURCES } from '../data/resources';
@@ -118,10 +118,13 @@ export function updateProgress(state: GameState): void {
   }
 }
 
+export const hasReachedCity = (state: GameState): boolean => state.settlement?.reached ?? true;
+
 /** Why a building can't be placed yet, or null once it can. */
 export function buildingLock(state: GameState, type: BuildingType): string | null {
   const def = BUILDINGS[type];
   if (type === 'hq') return 'Indisponible';
+  if (CITY_BUILDINGS.has(type) && !hasReachedCity(state)) return 'Rejoignez d’abord Port-Cendre';
   if (def.tech && !state.techs.includes(def.tech))
     return `À débloquer : ${techById(def.tech).name}`;
   return null;
@@ -132,7 +135,7 @@ export const availableBuildings = (state: GameState): BuildingType[] =>
 
 /** The highest tier open: reaching the city opens the first, big deliveries open the others. */
 export function currentTier(state: GameState): number {
-  let tier = (state.settlement?.reached ?? true) ? 1 : 0;
+  let tier = hasReachedCity(state) ? 1 : 0;
   for (const id of state.techs) tier = Math.max(tier, techById(id).opensTier ?? 0);
   return tier;
 }

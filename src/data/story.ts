@@ -63,7 +63,7 @@ export const STORY_EVENTS: StoryEvent[] = [
     id: 'landing',
     speaker: 'Orsa Veld',
     title: 'Coupés de Port-Cendre',
-    text: "Chef d'expédition, bienvenue sous la croûte. Kerath est un monde creux : le cristal, le métal et l'air respirable se trouvent tous en profondeur. La Charte nous envoie en prendre le contrôle, avant que d'autres ne s'en emparent. Tout partira d'ici : ce campement doit devenir la capitale de Kerath, et il lui faudra un gouverneur.\n\nLes colons de Port-Cendre devaient nous accueillir, mais un éboulement a fermé la galerie à notre arrivée. Nous sommes isolés, et eux aussi.\n\nNotre priorité : les rejoindre. Ils sont signalés par l'anneau turquoise sur la mini-carte. Glissez sur la roche pour marquer le passage à forer. Nos pioches n'entament que la roche tendre : il faudra contourner la roche dure.\n\nNous n'avons presque rien monté. Ouvrez Progression (touche R) et livrez des ressources au Noyau pour débloquer abris, air, cultures et énergie.",
+    text: "Chef d'expédition, bienvenue sous la croûte. Kerath est un monde creux : le cristal, le métal et l'air respirable se trouvent tous en profondeur. La Charte nous envoie en prendre le contrôle, avant que d'autres ne s'en emparent. Tout partira d'ici : ce campement doit devenir la capitale de Kerath, et il lui faudra un gouverneur.\n\nLes colons de Port-Cendre devaient nous accueillir, mais un éboulement a fermé la galerie à notre arrivée. Nous sommes isolés, et eux aussi.\n\nNotre priorité : les rejoindre. Ils sont signalés par l'anneau turquoise sur la mini-carte. Glissez sur la roche pour marquer le passage à forer. Nos pioches n'entament que la roche tendre : il faudra contourner la roche dure.\n\nD'ici là, nous n'avons que le nécessaire. Ouvrez Progression (touche R) et livrez des ressources au Noyau pour débloquer l'énergie et la défense du site. Le reste attendra la cité.",
     when: { regions: ['ash'], minTime: 1 },
     choices: [{ label: 'En route, on creuse.', effects: [] }],
   },
@@ -71,7 +71,7 @@ export const STORY_EVENTS: StoryEvent[] = [
     id: 'city_reached',
     speaker: 'Orsa Veld',
     title: 'Gouverneur de Kerath',
-    text: "La galerie est ouverte ! Huit colons rejoignent notre campement, avec ce qu'ils ont pu sauver.\n\nIls vous reconnaissent comme gouverneur : la colonie est à vous, et le conseil aussi (touche K). Krell, Soum et moi y siégeons, le siège de la Défense est libre, et vous pourrez recruter qui vous voudrez.\n\nFaites respirer et logez ces gens, dans la zone de la cité. Un nouveau palier de jalons s'ouvre dans Progression : laboratoire, milice, puis la grande livraison qui lancera l'industrie. Le marteau-piqueur, les véhicules et le laser sont au bout de cette chaîne.\n\nQuel gouverneur serez-vous ?",
+    text: "La galerie est ouverte ! Huit colons rejoignent notre campement, avec ce qu'ils ont pu sauver.\n\nIls vous reconnaissent comme gouverneur : la colonie est à vous, et le conseil aussi (touche K). Krell, Soum et moi y siégeons, le siège de la Défense est libre, et vous pourrez recruter qui vous voudrez.\n\nL'onglet Cité du menu de construction est maintenant ouvert : faites respirer, nourrissez et logez ces gens. Un nouveau palier de jalons s'ouvre dans Progression : abris, air, cultures, laboratoire, puis la grande livraison qui lancera l'industrie. Le marteau-piqueur, les véhicules et le laser sont au bout de cette chaîne.\n\nQuel gouverneur serez-vous ?",
     when: { regions: ['ash'], flags: ['cityReached'] },
     choices: [
       {

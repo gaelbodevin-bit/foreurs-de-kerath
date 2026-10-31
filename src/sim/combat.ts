@@ -2,7 +2,7 @@ import { BUILDINGS } from '../data/buildings';
 import { REGIONS } from '../data/regions';
 import { ENEMIES, UNITS } from '../data/units';
 import { buildingCenter, log, spawnEnemy } from './entities';
-import { idx, inBounds, isWallKind, NEIGHBORS4, setTile } from './grid';
+import { idx, inBounds, isWalkableKind, isWallKind, NEIGHBORS4, setTile } from './grid';
 import { distanceField, findPath } from './pathfinding';
 import { rand, randPick } from './rng';
 import type { Building, Enemy, EnemyType, GameState, Unit } from './types';
@@ -11,6 +11,9 @@ import { breakWall, moveAlongPath, releaseJob, updateWorker } from './workers';
 
 const MAX_ROAMING_ENEMIES = 12;
 const MAX_RAID = 10;
+const PATROL_RADIUS = 4;
+/** Tried once a second while the guard has nothing else to do. */
+const PATROL_CHANCE = 0.3;
 
 /** Picks a seen wall touching the settled area, away from the HQ, and lets it burst open. */
 function findEmergePoint(state: GameState): { x: number; y: number } | null {
@@ -266,6 +269,20 @@ function hurtEnemy(state: GameState, e: Enemy, amount: number): void {
   e.hp -= amount * state.mods.combatDamage;
 }
 
+/** Every now and then, a short walk around the post: a guard on watch doesn't stand like a statue. */
+function patrol(state: GameState, unit: Unit): void {
+  unit.post ??= { x: unit.x, y: unit.y };
+  if (rand(state) >= PATROL_CHANCE) return;
+  const x = Math.floor(unit.post.x + (rand(state) * 2 - 1) * PATROL_RADIUS);
+  const y = Math.floor(unit.post.y + (rand(state) * 2 - 1) * PATROL_RADIUS);
+  if (!inBounds(state, x, y)) return;
+  const tile = state.tiles[idx(state, x, y)];
+  // Only on ground already known: a patrol shouldn't wander into a monsters' room.
+  if (!tile.seen || !isWalkableKind(tile.k) || tile.lair) return;
+  const path = findPath(state, Math.floor(unit.x), Math.floor(unit.y), x, y);
+  if (path && path.length <= PATROL_RADIUS * 3) unit.path = path;
+}
+
 function updateGuard(state: GameState, unit: Unit): void {
   const def = UNITS[unit.type];
   const attack = def.attack;
@@ -285,7 +302,11 @@ function updateGuard(state: GameState, unit: Unit): void {
   }
   if (unit.order !== null) {
     moveAlongPath(state, unit, speed);
-    if (unit.path.length === 0) unit.order = null;
+    if (unit.path.length === 0) {
+      unit.order = null;
+      // Sent here by the player: this is the new post.
+      unit.post = { x: unit.x, y: unit.y };
+    }
     return;
   }
   if (target) return;
@@ -303,6 +324,8 @@ function updateGuard(state: GameState, unit: Unit): void {
         Math.floor(prey.y),
       );
       if (path) unit.path = path.slice(0, 6);
+    } else {
+      patrol(state, unit);
     }
   }
 }

@@ -109,9 +109,9 @@ l'animation, le rayon et le son s'en déduisent à l'affichage.
 ## Voix
 
 Les répliques (`data/voiceLines.ts`) sont des fichiers audio pré-générés, sous-titrés en jeu.
-`tools/voices` les fabrique avec Piper et la voix `fr_FR-siwis-medium` : l'outil ne fait pas partie du
-jeu, seuls les WAV sont livrés. Après avoir modifié une réplique, il faut les régénérer. Une seule voix
-en donne cinq : `CREW` fixe pour chacune une vitesse de lecture, qui règle la hauteur, et un rythme.
+`tools/voices` les fabrique avec Piper : l'outil ne fait pas partie du jeu, seuls les WAV sont livrés.
+Après avoir modifié une réplique, il faut les régénérer. `CREW` attribue à chaque personnage une voix,
+une vitesse de lecture, qui règle la hauteur, et un rythme.
 `render/voice.ts` choisit qui parle et quand, et la simulation signale l'événement par un effet `voice`.
 
 ## Gaz

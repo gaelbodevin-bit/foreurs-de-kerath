@@ -117,11 +117,13 @@ export class CharacterRig {
     this.mixer = new THREE.AnimationMixer(root);
   }
 
-  play(name: string): void {
+  /** `speed` slows or quickens the clip: it only applies when the clip changes. */
+  play(name: string, speed = 1): void {
     if (name === this.current) return;
     const clip = this.clips.find((c) => c.name === name);
     if (!clip) return;
     const next = this.mixer.clipAction(clip).reset().play();
+    next.timeScale = speed;
     if (this.action) next.crossFadeFrom(this.action, 0.15, false);
     this.action = next;
     this.current = name;
@@ -129,6 +131,13 @@ export class CharacterRig {
 
   update(dt: number): void {
     this.mixer.update(dt);
+  }
+
+  /** How far through the current clip it is, from 0 to 1. */
+  get phase(): number {
+    if (!this.action) return 0;
+    const { duration } = this.action.getClip();
+    return duration > 0 ? (this.action.time % duration) / duration : 0;
   }
 }
 

@@ -63,14 +63,35 @@ function botTurn(state: GameState): void {
   const hq = state.buildings.find((b) => b.type === 'hq');
   if (!hq) return;
 
+  // First things first: the tunnel to Port-Cendre, one reachable stretch at a time.
+  const place = state.settlement;
+  if (place && !place.reached) {
+    const startX = hq.x + 1;
+    const startY = hq.y + 1;
+    const signX = Math.sign(place.x - startX);
+    for (let d = 1; d <= Math.abs(place.x - startX); d++) {
+      for (const ox of [0, signX]) {
+        const x = startX + signX * d + ox;
+        const y = startY + d;
+        const tile = state.tiles[y * state.w + x];
+        if (!tile.seen || !WALLS[tile.k]) continue;
+        if (!state.jobs.some((j) => j.kind === 'drill' && j.x === x && j.y === y)) {
+          designateArea(state, x, y, x, y);
+        }
+      }
+    }
+  }
+
   // Drill: everything visible with a seam first, soft rock to expand.
-  const openDrills = state.jobs.filter((j) => j.kind === 'drill').length;
+  // A wall seen only diagonally can stay marked for ever: it mustn't stop all further digging.
+  const marked = state.jobs.filter((j) => j.kind === 'drill');
+  const openDrills = marked.filter((j) => j.unitId !== null).length;
   const drillers = state.units.filter((u) => u.type === 'foreur' || u.type === 'heavy').length;
   const backlog = state.pickups.filter(
     (p) =>
       hasRoomFor(state, p.res) && state.tiles[Math.floor(p.y) * state.w + Math.floor(p.x)].seen,
   ).length;
-  if (openDrills < drillers + 2 && backlog < 16) {
+  if (openDrills < drillers + 2 && marked.length < 40 && backlog < 16) {
     const seams: number[] = [];
     const rock: number[] = [];
     state.tiles.forEach((t, i) => {
