@@ -1,5 +1,5 @@
 import { BUILD_MENUS, BUILDINGS, PATH_COST, type BuildMenuId } from '../data/buildings';
-import { regionById } from '../data/regions';
+import { CITY_LEVELS } from '../data/progression';
 import { DRILL_TOOLS, drillToolFor, RESOURCES, TILE_NAMES, WALLS } from '../data/resources';
 import { ADVISORS } from '../data/story';
 import { ENEMIES, INVESTIGATION_COST, POLICIES, TAX_LEVELS, UNITS } from '../data/units';
@@ -9,11 +9,9 @@ import { voice } from '../render/voice';
 import { canAfford, storageCapacity } from '../sim/economy';
 import { GAS_HARMFUL } from '../sim/gas';
 import {
-  availableBuildings,
   canPlaceBuilding,
   demolish,
   designateArea,
-  objectiveProgress,
   orderMove,
   placeBuilding,
   placePath,
@@ -22,6 +20,15 @@ import {
   togglePolicy,
   trainUnit,
 } from '../sim/game';
+import { contractStatus, deliverContract } from '../sim/contracts';
+import {
+  activeRegions,
+  buildingLock,
+  buyTech,
+  objectiveProgress,
+  techLock,
+  TECHS,
+} from '../sim/progress';
 import { answerEvent, eventById, eventText, investigate, visibleChoices } from '../sim/storyEngine';
 import type {
   BuildingType,
@@ -35,7 +42,9 @@ import type {
 import { RESOURCE_IDS, TICK_SECONDS } from '../sim/types';
 import { clear, h } from './dom';
 import { resourceIcon } from './icons';
+import { renderPlanetMap, renderSectorList } from './planet';
 
+type Modal = 'city' | 'dossier' | 'research' | 'planet';
 type Tool = { kind: 'select' } | { kind: 'path' } | { kind: 'build'; type: BuildingType };
 
 function costLabel(cost: Cost): DocumentFragment {
@@ -74,7 +83,7 @@ export class MissionScreen {
     null;
   private panning: { x: number; y: number } | null = null;
   private keys = new Set<string>();
-  private modal: 'city' | 'dossier' | null = null;
+  private modal: Modal | null = null;
   private shownEvent: string | null = null;
   private toastTimer = 0;
   private barkTimer = 0;
@@ -83,6 +92,8 @@ export class MissionScreen {
   private readonly resBar = h('div', { class: 'res-bar' });
   private readonly vitals = h('div', { class: 'vitals' });
   private readonly objectives = h('div', { class: 'panel objectives' });
+  private readonly contracts = h('div', { class: 'panel contracts' });
+  private readonly levelBadge = h('div', { class: 'region-name' });
   private readonly selection = h('div', { class: 'panel selection' });
   private readonly logBox = h('div', { class: 'log' });
   private readonly toast = h('div', { class: 'toast' });
@@ -91,6 +102,7 @@ export class MissionScreen {
   private readonly overlay = h('div', { class: 'overlay' });
   private readonly minimap = h('canvas', { class: 'minimap', width: 180, height: 180 });
   private readonly buildButtons = new Map<BuildingType | 'path', HTMLButtonElement>();
+  private readonly buildLocks = new Map<BuildingType, HTMLElement>();
   private readonly speedButtons: HTMLButtonElement[] = [];
 
   constructor(
@@ -137,7 +149,6 @@ export class MissionScreen {
   // --- Layout -------------------------------------------------------------------------------
 
   private buildTopBar(): HTMLElement {
-    const region = regionById(this.state.regionId);
     const speeds = [1, 2, 4].map((s) => {
       const b = h(
         'button',
@@ -155,13 +166,23 @@ export class MissionScreen {
     return h(
       'header',
       { class: 'top-bar' },
-      h('div', { class: 'region-name' }, region.name),
+      this.levelBadge,
       this.resBar,
       this.vitals,
       h(
         'div',
         { class: 'top-actions' },
         h('button', { class: 'chip accent', onclick: () => this.openModal('city') }, 'Cité (C)'),
+        h(
+          'button',
+          { class: 'chip accent', onclick: () => this.openModal('research') },
+          'Recherche (R)',
+        ),
+        h(
+          'button',
+          { class: 'chip accent', onclick: () => this.openModal('planet') },
+          'Planète (M)',
+        ),
         h(
           'button',
           { class: 'chip accent', onclick: () => this.openModal('dossier') },
@@ -181,13 +202,12 @@ export class MissionScreen {
           },
           this.audio.muted ? '🔇' : '🔊',
         ),
-        h('button', { class: 'chip', onclick: () => this.callbacks.onQuit(this.state) }, 'Planète'),
+        h('button', { class: 'chip', onclick: () => this.callbacks.onQuit(this.state) }, 'Menu'),
       ),
     );
   }
 
   private buildBuildMenu(): HTMLElement {
-    const available = availableBuildings(this.state.regionId);
     const pathButton = h(
       'button',
       { class: 'build-btn', onclick: () => this.setTool({ kind: 'path' }) },
@@ -208,10 +228,8 @@ export class MissionScreen {
       const page = h('div', { class: 'build-page' });
       if (menu.id === 'explore') page.append(pathButton);
       for (const group of menu.groups) {
-        const types = group.buildings.filter((type) => available.includes(type));
-        if (types.length === 0) continue;
         page.append(h('h4', {}, group.name));
-        for (const type of types) {
+        for (const type of group.buildings) {
           const def = BUILDINGS[type];
           const button = h(
             'button',
@@ -220,6 +238,9 @@ export class MissionScreen {
             h('span', { class: 'b-cost' }, costLabel(def.cost)),
           );
           button.title = def.desc;
+          const lock = h('span', { class: 'b-lock' });
+          button.append(lock);
+          this.buildLocks.set(type, lock);
           this.buildButtons.set(type, button);
           page.append(button);
         }
@@ -241,7 +262,7 @@ export class MissionScreen {
   }
 
   private buildRightColumn(): HTMLElement {
-    return h('aside', { class: 'right-col' }, this.objectives, this.selection);
+    return h('aside', { class: 'right-col' }, this.objectives, this.contracts, this.selection);
   }
 
   // --- Main loop ----------------------------------------------------------------------------
@@ -434,6 +455,12 @@ export class MissionScreen {
       case 'KeyC':
         this.openModal(this.modal === 'city' ? null : 'city');
         break;
+      case 'KeyR':
+        this.openModal(this.modal === 'research' ? null : 'research');
+        break;
+      case 'KeyM':
+        this.openModal(this.modal === 'planet' ? null : 'planet');
+        break;
       case 'KeyJ':
         this.openModal(this.modal === 'dossier' ? null : 'dossier');
         break;
@@ -601,6 +628,8 @@ export class MissionScreen {
     this.updateVitals();
     this.updateBuildMenu();
     this.updateObjectives();
+    this.updateContracts();
+    this.updateLevel();
     this.updateSelection();
     this.updateLog();
     this.updateHint();
@@ -647,6 +676,16 @@ export class MissionScreen {
         );
       }),
     );
+  }
+
+  private updateLevel(): void {
+    const { state } = this;
+    const next = CITY_LEVELS[state.cityLevel + 1];
+    const text = CITY_LEVELS[state.cityLevel].name;
+    if (this.levelBadge.textContent !== text) this.levelBadge.textContent = text;
+    this.levelBadge.title = next
+      ? `Prochain palier : ${next.name}, à ${next.population} habitants`
+      : 'Le plus haut rang de la colonie';
   }
 
   private updateVitals(): void {
@@ -703,25 +742,88 @@ export class MissionScreen {
           ? this.tool.kind === 'path'
           : this.tool.kind === 'build' && this.tool.type === key;
       button.classList.toggle('on', active);
+      if (key === 'path') continue;
+      const lock = buildingLock(this.state, key);
+      button.disabled = lock !== null;
+      button.classList.toggle('locked', lock !== null);
+      const label = this.buildLocks.get(key);
+      if (label && label.textContent !== (lock ?? '')) label.textContent = lock ?? '';
     }
   }
 
   private updateObjectives(): void {
-    const region = regionById(this.state.regionId);
-    const rows = region.objectives.map((o) => objectiveProgress(this.state, o));
-    this.patch(this.objectives, rows.map((r) => `${r.value}`).join(), () => [
-      h('h3', {}, 'Objectifs'),
-      ...rows.map((r) =>
-        h(
-          'div',
-          { class: r.value >= r.goal ? 'obj done' : 'obj' },
-          h('span', {}, r.label),
-          h('b', {}, `${Math.min(r.value, r.goal)} / ${r.goal}`),
+    const { state } = this;
+    const groups = activeRegions(state).map((region) => ({
+      region,
+      rows: region.objectives.map((o) => objectiveProgress(state, o, region)),
+    }));
+    const sig = groups.map((g) => g.region.id + g.rows.map((r) => r.value).join()).join();
+    this.patch(this.objectives, sig, () =>
+      groups.flatMap(({ region, rows }) => [
+        h('h3', {}, region.name),
+        ...rows.map((r) =>
           h(
             'div',
-            { class: 'bar' },
-            h('i', { style: `width:${Math.min(100, (r.value / r.goal) * 100)}%` }),
+            { class: r.value >= r.goal ? 'obj done' : 'obj' },
+            h('span', {}, r.label),
+            h('b', {}, `${Math.min(r.value, r.goal)} / ${r.goal}`),
+            h(
+              'div',
+              { class: 'bar' },
+              h('i', { style: `width:${Math.min(100, (r.value / r.goal) * 100)}%` }),
+            ),
           ),
+        ),
+      ]),
+    );
+  }
+
+  private updateContracts(): void {
+    const { state } = this;
+    const rows = state.contracts.map((c) => ({ c, status: contractStatus(state, c) }));
+    const sig = rows
+      .map(
+        ({ c, status }) =>
+          `${c.id}${status.label}${status.ready}${Math.ceil((c.expiresAt - state.time) / 5)}`,
+      )
+      .join();
+    this.contracts.hidden = rows.length === 0;
+    this.patch(this.contracts, sig, () => [
+      h('h3', {}, 'Missions'),
+      ...rows.map(({ c, status }) =>
+        h(
+          'div',
+          {
+            class: c.x === undefined ? 'contract' : 'contract placed',
+            title: c.text,
+            onclick: () => {
+              if (c.x === undefined || c.y === undefined) return;
+              this.view.focus.x = c.x;
+              this.view.focus.z = c.y;
+            },
+          },
+          h('b', {}, c.title),
+          h('em', {}, `${Math.max(0, Math.ceil(c.expiresAt - state.time))} s`),
+          h('span', { class: 'dim' }, status.label),
+          h(
+            'span',
+            { class: 'reward' },
+            costLabel(c.reward.stock),
+            c.reward.research > 0 ? ` ${c.reward.research} 🔬` : null,
+          ),
+          status.ready
+            ? h(
+                'button',
+                {
+                  class: 'chip accent',
+                  onclick: () => {
+                    deliverContract(state, c.id);
+                    this.hudTimer = 0;
+                  },
+                },
+                'Livrer',
+              )
+            : null,
         ),
       ),
     ]);
@@ -920,13 +1022,20 @@ export class MissionScreen {
       ctx.stroke();
       ctx.lineWidth = 1;
     }
+    ctx.strokeStyle = '#ffb347';
+    for (const c of state.contracts) {
+      if (c.x === undefined || c.y === undefined) continue;
+      ctx.beginPath();
+      ctx.arc((c.x + 0.5) * sx, (c.y + 0.5) * sy, 2 * sx, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.strokeStyle = 'rgba(255,255,255,.6)';
     ctx.strokeRect((this.view.focus.x - 8) * sx, (this.view.focus.z - 6) * sy, 16 * sx, 12 * sy);
   }
 
   // --- Modals -------------------------------------------------------------------------------
 
-  private openModal(modal: 'city' | 'dossier' | null): void {
+  private openModal(modal: Modal | null): void {
     this.modal = modal;
     this.overlay.dataset.sig = '';
     this.updateOverlay();
@@ -950,6 +1059,8 @@ export class MissionScreen {
     }
     this.overlay.classList.add('show');
     if (this.modal === 'city') this.renderCity();
+    else if (this.modal === 'research') this.renderResearch();
+    else if (this.modal === 'planet') this.renderPlanet();
     else this.renderDossier();
   }
 
@@ -1059,6 +1170,67 @@ export class MissionScreen {
               ),
             );
           }),
+        ),
+      ),
+    ]);
+  }
+
+  private renderResearch(): void {
+    const { state } = this;
+    const sig = `res${Math.floor(state.research)}${state.techs.length}`;
+    const labs = state.buildings.filter((b) => b.type === 'lab' && b.built >= 1).length;
+    this.patch(this.overlay, sig, () => [
+      h(
+        'div',
+        { class: 'dialog wide' },
+        this.closeButton(),
+        h('h2', {}, `Recherche : ${Math.floor(state.research)} 🔬`),
+        h(
+          'p',
+          { class: 'dim' },
+          labs > 0
+            ? `${labs} laboratoire${labs > 1 ? 's' : ''} en service. Les missions et les secteurs conquis rapportent aussi des points.`
+            : 'Aucun laboratoire : la recherche n’avance que par les missions et les secteurs conquis.',
+        ),
+        h(
+          'div',
+          { class: 'techs' },
+          ...TECHS.map((tech) => {
+            const lock = techLock(state, tech.id);
+            return h(
+              'button',
+              {
+                class: state.techs.includes(tech.id) ? 'tech owned' : 'tech',
+                disabled: lock !== null || state.research < tech.cost,
+                onclick: () => {
+                  buyTech(state, tech.id);
+                  this.hudTimer = 0;
+                  this.updateOverlay();
+                },
+              },
+              h('b', {}, tech.name),
+              h('span', {}, tech.desc),
+              h('em', {}, lock ?? `${tech.cost} 🔬`),
+            );
+          }),
+        ),
+      ),
+    ]);
+  }
+
+  private renderPlanet(): void {
+    const { state } = this;
+    this.patch(this.overlay, `pla${state.conquered.length}`, () => [
+      h(
+        'div',
+        { class: 'dialog wide planet-view' },
+        this.closeButton(),
+        h('h2', {}, 'Kerath'),
+        h(
+          'div',
+          { class: 'planet-layout' },
+          h('div', { class: 'globe' }, renderPlanetMap(state)),
+          renderSectorList(state),
         ),
       ),
     ]);

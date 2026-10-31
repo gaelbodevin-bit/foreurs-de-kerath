@@ -1,14 +1,7 @@
-import { registerRegionIntrigue } from '../sim/economy';
-import { regionById } from '../data/regions';
 import type { GameState } from '../sim/types';
-import type { Campaign } from './campaign';
 
-const KEY = 'foreurs-de-kerath/save/v1';
-
-export interface SaveData {
-  campaign: Campaign;
-  mission: GameState | null;
-}
+/** The version moved when the game became a single continuous world: older saves don't load. */
+const KEY = 'foreurs-de-kerath/save/v2';
 
 export interface SaveStorage {
   getItem(key: string): string | null;
@@ -16,26 +9,22 @@ export interface SaveStorage {
   removeItem(key: string): void;
 }
 
-export function writeSave(storage: SaveStorage, data: SaveData): boolean {
+export function writeSave(storage: SaveStorage, state: GameState): boolean {
   try {
     // Visual effects and pending redraws do not need to survive a reload.
-    const mission = data.mission ? { ...data.mission, fx: [], dirty: [] } : null;
-    storage.setItem(KEY, JSON.stringify({ campaign: data.campaign, mission }));
+    storage.setItem(KEY, JSON.stringify({ ...state, fx: [], dirty: [] }));
     return true;
   } catch {
     return false;
   }
 }
 
-export function readSave(storage: SaveStorage): SaveData | null {
+export function readSave(storage: SaveStorage): GameState | null {
   try {
     const raw = storage.getItem(KEY);
     if (!raw) return null;
-    const data = JSON.parse(raw) as SaveData;
-    if (data.campaign?.version !== 1) return null;
-    if (data.mission)
-      registerRegionIntrigue(data.mission.regionId, regionById(data.mission.regionId).intrigue);
-    return data;
+    const data = JSON.parse(raw) as GameState;
+    return data.version === 2 ? data : null;
   } catch {
     return null;
   }

@@ -12,6 +12,32 @@ export interface TechDef {
 
 export const TECHS: TechDef[] = [
   {
+    id: 'refining',
+    name: 'Raffinage',
+    desc: 'Débloque la raffinerie : le minerai devient du métal.',
+    cost: 6,
+  },
+  {
+    id: 'vehicles',
+    name: 'Atelier de véhicules',
+    desc: 'Débloque l’atelier : foreuses lourdes et mules de transport.',
+    cost: 10,
+    requires: 'refining',
+  },
+  {
+    id: 'alloys',
+    name: 'Métallurgie',
+    desc: 'Débloque la forge d’alliage.',
+    cost: 12,
+    requires: 'refining',
+  },
+  {
+    id: 'medicine',
+    name: 'Médecine de galerie',
+    desc: 'Débloque le dispensaire.',
+    cost: 5,
+  },
+  {
     id: 'drills1',
     name: 'Forets trempés',
     desc: 'Forage 25 % plus rapide.',
@@ -72,7 +98,7 @@ export const TECHS: TechDef[] = [
   {
     id: 'finance',
     name: 'Fiscalité planétaire',
-    desc: 'Recettes fiscales +30 %, 60 crédits de départ.',
+    desc: 'Recettes fiscales +30 %, et 60 crédits tout de suite.',
     cost: 8,
     mods: { taxes: 0.3 },
     stock: { credits: 60 },
@@ -80,7 +106,7 @@ export const TECHS: TechDef[] = [
   {
     id: 'intel',
     name: 'Contre-espionnage',
-    desc: 'Le complot progresse 30 % moins vite.',
+    desc: 'Le complot progresse 30 % moins vite. Débloque le bureau de sûreté.',
     cost: 9,
     mods: { conspiracyGain: -0.3 },
   },

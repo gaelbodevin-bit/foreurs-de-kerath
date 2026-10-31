@@ -1,11 +1,10 @@
 import { WALLS } from '../data/resources';
+import { REGIONS, sectorAt, WORLD_SIZE } from '../data/regions';
 import { isWallKind, NEIGHBORS4 } from './grid';
 import { makeValueNoise, Rng } from './rng';
 import type { EnemyType, Tile, TileKind } from './types';
 
 export interface MapParams {
-  size: number;
-  seed: number;
   caverns: number;
   /** 0 (soft) to 1 (mostly hard rock). */
   hardness: number;
@@ -17,7 +16,7 @@ export interface MapParams {
   /** Caverns filled with toxic gas, harmless until the player digs into them. */
   gasZones?: number;
   structures?: Partial<Record<EnemyType, number>>;
-  /** Places a sealed settlement across the map, behind a band of fallen rock. */
+  /** Places a sealed settlement in this sector, behind a band of fallen rock. */
   settlement?: boolean;
 }
 
@@ -39,28 +38,34 @@ interface Cavern {
 const START_RADIUS = 4;
 const SETTLEMENT_RADIUS = 3;
 const SETTLEMENT_OFFSET = 10;
+/** How wide the band of tough rock between two sectors is, in tiles on each side. */
+const BORDER = 1.6;
+/** The sectors of this rank and beyond are walled with what only a laser cuts. */
+const BASALT_FROM_TIER = 2;
 
-export function generateMap(params: MapParams): GeneratedMap {
-  const rng = new Rng(params.seed);
-  const w = params.size;
-  const h = params.size;
-  const noise = makeValueNoise(params.seed ^ 0x51ed, 7);
+/**
+ * The whole planet as one map. Each sector has its own geology, and the rock between sectors is what
+ * paces the game: the first borders need a jackhammer, the later ones a laser.
+ */
+export function generateWorld(seed: number): GeneratedMap {
+  const rng = new Rng(seed);
+  const w = WORLD_SIZE;
+  const h = WORLD_SIZE;
+  const noise = makeValueNoise(seed ^ 0x51ed, 7);
   const tiles: Tile[] = [];
 
-  const softLimit = 0.46 - params.hardness * 0.28;
-  const looseLimit = 0.66 - params.hardness * 0.2;
-  const hardLimit = 0.9 - params.hardness * 0.2;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const edge = x < 1 || y < 1 || x >= w - 1 || y >= h - 1;
       const v = noise(x, y);
+      const { hardness } = REGIONS[sectorAt(x, y, w, h).index].map;
       const k: TileKind = edge
         ? 'solid'
-        : v < softLimit
+        : v < 0.46 - hardness * 0.28
           ? 'dirt'
-          : v < looseLimit
+          : v < 0.66 - hardness * 0.2
             ? 'loose'
-            : v < hardLimit
+            : v < 0.9 - hardness * 0.2
               ? 'hard'
               : 'basalt';
       tiles.push({ k, seen: false, work: 0, rubble: 0, regrow: 0 });
@@ -69,8 +74,8 @@ export function generateMap(params: MapParams): GeneratedMap {
   const at = (x: number, y: number) => tiles[y * w + x];
   const inner = (x: number, y: number) => x > 0 && y > 0 && x < w - 1 && y < h - 1;
 
-  const start = { x: Math.floor(w / 2), y: Math.floor(h / 2) };
-  carveBlob(start.x, start.y, START_RADIUS, 'floor', 0);
+  const home = REGIONS[0].planet;
+  const start = { x: Math.round((home.x / 100) * w), y: Math.round((home.y / 100) * h) };
 
   function carveBlob(cx: number, cy: number, r: number, kind: TileKind, jitter: number): void {
     for (let y = cy - r - 1; y <= cy + r + 1; y++) {
@@ -81,73 +86,8 @@ export function generateMap(params: MapParams): GeneratedMap {
       }
     }
   }
+  carveBlob(start.x, start.y, START_RADIUS, 'floor', 0);
 
-  const caverns: Cavern[] = [];
-  for (
-    let attempt = 0;
-    attempt < params.caverns * 30 && caverns.length < params.caverns;
-    attempt++
-  ) {
-    const r = rng.int(2, 4);
-    const x = rng.int(r + 2, w - r - 3);
-    const y = rng.int(r + 2, h - r - 3);
-    if (Math.hypot(x - start.x, y - start.y) < START_RADIUS + r + 3) continue;
-    if (caverns.some((c) => Math.hypot(c.x - x, c.y - y) < c.r + r + 2)) continue;
-    caverns.push({ x, y, r });
-    carveBlob(x, y, r, 'floor', 1.2);
-  }
-
-  // Structures sit in the farthest caverns so the player meets them late.
-  const byDistance = [...caverns].sort(
-    (a, b) => Math.hypot(b.x - start.x, b.y - start.y) - Math.hypot(a.x - start.x, a.y - start.y),
-  );
-  const structures: GeneratedMap['structures'] = [];
-  const used = new Set<Cavern>();
-  for (const [type, count] of Object.entries(params.structures ?? {}) as [EnemyType, number][]) {
-    for (let i = 0; i < count; i++) {
-      const cavern = byDistance.find((c) => !used.has(c));
-      if (!cavern) break;
-      used.add(cavern);
-      structures.push({ type, x: cavern.x, y: cavern.y });
-    }
-  }
-
-  const free = () => caverns.filter((c) => !used.has(c));
-  const decorate = (count: number | undefined, kind: TileKind, spread: number) => {
-    for (let i = 0; i < (count ?? 0); i++) {
-      const options = free();
-      if (options.length === 0) return;
-      const c = rng.pick(options);
-      used.add(c);
-      // Keep a walkable ring so a pool never seals off the far side of a cavern.
-      splash(c.x, c.y, kind, Math.max(1, c.r - spread));
-    }
-  };
-  function splash(cx: number, cy: number, kind: TileKind, r: number): void {
-    for (let y = cy - r; y <= cy + r; y++) {
-      for (let x = cx - r; x <= cx + r; x++) {
-        if (inner(x, y) && at(x, y).k === 'floor' && Math.hypot(x - cx, y - cy) <= r - 0.3) {
-          at(x, y).k = kind;
-        }
-      }
-    }
-  }
-  decorate(params.lavaPools, 'lava', 2);
-  decorate(params.waterPools, 'water', 2);
-  decorate(params.fungusPatches, 'fungus', 1);
-  for (let i = 0; i < (params.gasZones ?? 0); i++) {
-    const options = free();
-    if (options.length === 0) break;
-    const c = rng.pick(options);
-    used.add(c);
-    for (let y = c.y - c.r - 1; y <= c.y + c.r + 1; y++) {
-      for (let x = c.x - c.r - 1; x <= c.x + c.r + 1; x++) {
-        if (inner(x, y) && at(x, y).k === 'floor') at(x, y).gas = 1;
-      }
-    }
-  }
-
-  // Veins: short random walks through rock.
   const paintVein = (kind: TileKind, cx: number, cy: number, length: number) => {
     let x = cx;
     let y = cy;
@@ -158,9 +98,102 @@ export function generateMap(params: MapParams): GeneratedMap {
       y = Math.max(1, Math.min(h - 2, y + dy));
     }
   };
-  for (const [kind, count] of Object.entries(params.seams) as [TileKind, number][]) {
-    for (let i = 0; i < count; i++) {
-      paintVein(kind, rng.int(2, w - 3), rng.int(2, h - 3), rng.int(3, 6));
+
+  /** A random spot well inside a sector, or null if none turned up. */
+  const spotIn = (index: number, margin: number): { x: number; y: number } | null => {
+    for (let tries = 0; tries < 400; tries++) {
+      const x = rng.int(2, w - 3);
+      const y = rng.int(2, h - 3);
+      const sector = sectorAt(x, y, w, h);
+      if (sector.index === index && sector.margin >= margin) return { x, y };
+    }
+    return null;
+  };
+
+  const structures: GeneratedMap['structures'] = [];
+  REGIONS.forEach((region, index) => {
+    const { map } = region;
+    const caverns: Cavern[] = [];
+    for (let attempt = 0; attempt < map.caverns * 30 && caverns.length < map.caverns; attempt++) {
+      const r = rng.int(2, 4);
+      const spot = spotIn(index, r + BORDER + 2);
+      if (!spot) break;
+      if (Math.hypot(spot.x - start.x, spot.y - start.y) < START_RADIUS + r + 3) continue;
+      if (caverns.some((c) => Math.hypot(c.x - spot.x, c.y - spot.y) < c.r + r + 2)) continue;
+      caverns.push({ ...spot, r });
+      carveBlob(spot.x, spot.y, r, 'floor', 1.2);
+    }
+
+    // Structures sit in the sector's farthest caverns, so that they are met late.
+    const byDistance = [...caverns].sort(
+      (a, b) => Math.hypot(b.x - start.x, b.y - start.y) - Math.hypot(a.x - start.x, a.y - start.y),
+    );
+    const used = new Set<Cavern>();
+    for (const [type, count] of Object.entries(map.structures ?? {}) as [EnemyType, number][]) {
+      for (let i = 0; i < count; i++) {
+        const cavern = byDistance.find((c) => !used.has(c));
+        if (!cavern) break;
+        used.add(cavern);
+        structures.push({ type, x: cavern.x, y: cavern.y });
+      }
+    }
+
+    const free = () => caverns.filter((c) => !used.has(c));
+    const splash = (cx: number, cy: number, kind: TileKind, r: number) => {
+      for (let y = cy - r; y <= cy + r; y++) {
+        for (let x = cx - r; x <= cx + r; x++) {
+          if (inner(x, y) && at(x, y).k === 'floor' && Math.hypot(x - cx, y - cy) <= r - 0.3) {
+            at(x, y).k = kind;
+          }
+        }
+      }
+    };
+    const decorate = (count: number | undefined, kind: TileKind, spread: number) => {
+      for (let i = 0; i < (count ?? 0); i++) {
+        const options = free();
+        if (options.length === 0) return;
+        const c = rng.pick(options);
+        used.add(c);
+        // Keep a walkable ring so a pool never seals off the far side of a cavern.
+        splash(c.x, c.y, kind, Math.max(1, c.r - spread));
+      }
+    };
+    decorate(map.lavaPools, 'lava', 2);
+    decorate(map.waterPools, 'water', 2);
+    decorate(map.fungusPatches, 'fungus', 1);
+    for (let i = 0; i < (map.gasZones ?? 0); i++) {
+      const options = free();
+      if (options.length === 0) break;
+      const c = rng.pick(options);
+      used.add(c);
+      for (let y = c.y - c.r - 1; y <= c.y + c.r + 1; y++) {
+        for (let x = c.x - c.r - 1; x <= c.x + c.r + 1; x++) {
+          if (inner(x, y) && at(x, y).k === 'floor') at(x, y).gas = 1;
+        }
+      }
+    }
+
+    for (const [kind, count] of Object.entries(map.seams) as [TileKind, number][]) {
+      for (let i = 0; i < count; i++) {
+        const spot = spotIn(index, BORDER);
+        if (spot) paintVein(kind, spot.x, spot.y, rng.int(3, 6));
+      }
+    }
+    for (let i = 0; i < (map.relics ?? 0); i++) {
+      const spot = spotIn(index, BORDER + 1);
+      if (!spot || !isWallKind(at(spot.x, spot.y).k)) continue;
+      at(spot.x, spot.y).k = 'relicVault';
+    }
+  });
+
+  // Last among the terrain, so that no cavern or vein leaves a gap in the wall.
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const sector = sectorAt(x, y, w, h);
+      if (sector.margin >= BORDER) continue;
+      const tier = Math.max(REGIONS[sector.index].tier, REGIONS[sector.other].tier);
+      at(x, y).k = tier >= BASALT_FROM_TIER ? 'basalt' : 'hard';
+      at(x, y).gas = 0;
     }
   }
 
@@ -176,7 +209,7 @@ export function generateMap(params: MapParams): GeneratedMap {
     at(start.x + dx, start.y + dy).k = kind;
     paintVein(kind, start.x + dx, start.y + dy, 3);
   }
-  // A few drillable tiles between the start and those seams, even in hard rock regions.
+  // A few drillable tiles between the start and those seams.
   for (const [dx, dy] of NEIGHBORS4) {
     for (let d = START_RADIUS + 1; d <= START_RADIUS + 3; d++) {
       const t = at(start.x + dx * d, start.y + dy * d);
@@ -184,27 +217,12 @@ export function generateMap(params: MapParams): GeneratedMap {
     }
   }
 
-  for (let i = 0; i < (params.relics ?? 0); i++) {
-    for (let tries = 0; tries < 200; tries++) {
-      const x = rng.int(2, w - 3);
-      const y = rng.int(2, h - 3);
-      if (!isWallKind(at(x, y).k) || at(x, y).k === 'relicVault') continue;
-      if (Math.hypot(x - start.x, y - start.y) < 9) continue;
-      at(x, y).k = 'relicVault';
-      break;
-    }
-  }
-
-  // Last, so that the other maps keep their layout. The rockfall seals the settlement all round,
-  // and the straight line to it is always within reach of a pickaxe.
+  // The rockfall seals the settlement all round, and the straight line to it is always within reach
+  // of a pickaxe. It lies on the side away from the other sectors, so that it stays in the first.
   let settlement: GeneratedMap['settlement'] = null;
-  if (params.settlement) {
-    const [signX, signY] = rng.pick([
-      [1, 1],
-      [1, -1],
-      [-1, 1],
-      [-1, -1],
-    ]);
+  if (REGIONS[0].map.settlement) {
+    const signX = rng.pick([1, -1]);
+    const signY = 1;
     settlement = {
       x: start.x + signX * SETTLEMENT_OFFSET,
       y: start.y + signY * SETTLEMENT_OFFSET,

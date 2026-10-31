@@ -113,6 +113,40 @@ export const VOICE_LINES: Record<VoiceId, LineSet> = {
     urgent: true,
     lines: say('orsa', 'Ils sont là ! Port-Cendre répond !', 'Ça y est, on les entend !'),
   },
+  contract: {
+    gap: 12,
+    lines: [
+      ...say('krell', 'Gouverneur, une demande de plus.', 'On nous réclame encore quelque chose.'),
+      ...say(
+        'orsa',
+        'Ça vient d’arriver sur le bureau.',
+        'Regardez ça quand vous aurez une minute.',
+      ),
+    ],
+  },
+  contractDone: {
+    gap: 10,
+    lines: [
+      ...say('krell', 'C’est réglé, et payé.', 'Un dossier de moins sur la pile.'),
+      ...say('nina', 'Ça, c’est plié !'),
+    ],
+  },
+  sector: {
+    gap: 0,
+    urgent: true,
+    lines: [
+      ...say('harl', 'Le secteur est à nous !', 'Ça, on ne nous le reprendra pas.'),
+      ...say('orsa', 'Une région de plus sur la carte.'),
+    ],
+  },
+  levelUp: {
+    gap: 0,
+    urgent: true,
+    lines: [
+      ...say('krell', 'La colonie grandit, Gouverneur.', 'Il va falloir de nouveaux registres.'),
+      ...say('orsa', 'Regardez-moi ça. On dirait presque une vraie ville.'),
+    ],
+  },
   win: {
     gap: 0,
     urgent: true,

@@ -204,6 +204,7 @@ p {
 
 .build-btn {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 6px;
   width: 100%;
@@ -745,4 +746,83 @@ p {
   display: block;
   font-size: 11px;
   color: var(--amber, #ffb347);
+}
+
+.build-btn.locked {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.b-lock {
+  display: block;
+  flex-basis: 100%;
+  font-size: 10px;
+  color: var(--amber, #ffb347);
+}
+
+.b-lock:empty {
+  display: none;
+}
+
+.contract {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1px 6px;
+  padding: 5px 0;
+  font-size: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.contract:first-of-type {
+  border-top: 0;
+}
+
+.contract.placed {
+  cursor: pointer;
+}
+
+.contract em {
+  font-style: normal;
+  color: var(--amber, #ffb347);
+}
+
+.contract .reward {
+  grid-column: 1 / -1;
+  font-size: 11px;
+}
+
+.contract button {
+  grid-column: 1 / -1;
+  margin-top: 3px;
+}
+
+.contracts[hidden] {
+  display: none;
+}
+
+.sector-list {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.sector {
+  padding: 6px 0;
+  font-size: 13px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sector b {
+  margin-right: 8px;
+}
+
+.sector.held b {
+  color: var(--teal, #35e0c2);
+}
+
+.sector.open b {
+  color: var(--amber, #ffb347);
+}
+
+.sector p {
+  margin: 2px 0 0;
 }

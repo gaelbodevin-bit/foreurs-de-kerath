@@ -1,5 +1,5 @@
 import { BUILDINGS } from '../data/buildings';
-import { regionById } from '../data/regions';
+import { REGIONS } from '../data/regions';
 import { ENEMIES, UNITS } from '../data/units';
 import { buildingCenter, log, spawnEnemy } from './entities';
 import { idx, inBounds, isWallKind, NEIGHBORS4, setTile } from './grid';
@@ -10,6 +10,7 @@ import { TICK_SECONDS } from './types';
 import { breakWall, moveAlongPath, releaseJob, updateWorker } from './workers';
 
 const MAX_ROAMING_ENEMIES = 12;
+const MAX_RAID = 10;
 
 /** Picks a seen wall touching the settled area, away from the HQ, and lets it burst open. */
 function findEmergePoint(state: GameState): { x: number; y: number } | null {
@@ -56,8 +57,10 @@ export function spawnRaid(state: GameState, type: EnemyType, count: number): num
 
 function updateWaves(state: GameState): void {
   if (state.time < state.waves.nextAt) return;
-  const def = regionById(state.regionId).waves;
-  const size = Math.round(def.size + def.growth * state.waves.count);
+  // The raids come from the deepest front open at the moment, and never grow past a limit.
+  const open = REGIONS.filter((r) => state.sectorStart[r.id] !== undefined);
+  const def = open[open.length - 1].waves;
+  const size = Math.min(MAX_RAID, Math.round(def.size + def.growth * state.waves.count));
   const hordes = new Map<EnemyType, number>();
   for (let i = 0; i < size; i++) {
     const type = randPick(state, def.pool);

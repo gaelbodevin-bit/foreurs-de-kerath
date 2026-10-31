@@ -22,8 +22,14 @@ export const eventById = (id: string): StoryEvent => {
 function triggerMet(state: GameState, event: StoryEvent): boolean {
   const w = event.when;
   const s = state.story;
-  if (w.regions && !w.regions.includes(state.regionId)) return false;
-  if (w.minTime !== undefined && state.time < w.minTime) return false;
+  // A sector's events count their time from the moment that sector opened.
+  if (w.regions) {
+    const opened = w.regions.flatMap((r) => state.sectorStart[r] ?? []);
+    if (opened.length === 0) return false;
+    if (state.time - Math.min(...opened) < (w.minTime ?? 0)) return false;
+  } else if (w.minTime !== undefined && state.time < w.minTime) {
+    return false;
+  }
   if (w.flags && !w.flags.every((f) => s.flags[f])) return false;
   if (w.noFlags && w.noFlags.some((f) => s.flags[f])) return false;
   if (w.minClues !== undefined && s.clues.length < w.minClues) return false;

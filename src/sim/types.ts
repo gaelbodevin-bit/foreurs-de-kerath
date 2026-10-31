@@ -184,6 +184,10 @@ export type VoiceId =
   | 'sabotage'
   | 'gas'
   | 'reunited'
+  | 'contract'
+  | 'contractDone'
+  | 'sector'
+  | 'levelUp'
   | 'win'
   | 'lose';
 
@@ -250,8 +254,34 @@ export interface Settlement {
   reached: boolean;
 }
 
+export type ContractKind = 'deliver' | 'build' | 'survey' | 'rescue' | 'defend' | 'refugees';
+
+export interface ContractReward {
+  stock: Cost;
+  research: number;
+  morale: number;
+}
+
+/** A request that turns up while playing, on top of the sector objectives. */
+export interface Contract {
+  id: number;
+  kind: ContractKind;
+  title: string;
+  text: string;
+  expiresAt: number;
+  reward: ContractReward;
+  res?: ResourceId;
+  amount?: number;
+  building?: BuildingType;
+  x?: number;
+  y?: number;
+  /** Counter value when the contract started, for whatever it measures. */
+  baseline?: number;
+  goal?: number;
+}
+
 export interface GameState {
-  regionId: string;
+  version: 2;
   w: number;
   h: number;
   tiles: Tile[];
@@ -272,7 +302,16 @@ export interface GameState {
   story: StoryState;
   waves: WaveState;
   kills: Partial<Record<EnemyType, number>>;
+  /** Points waiting to be spent. */
   research: number;
+  techs: string[];
+  /** Index into CITY_LEVELS. It never goes back down, even if the population does. */
+  cityLevel: number;
+  conquered: string[];
+  /** Time each sector opened. Sectors not listed haven't opened yet. */
+  sectorStart: Record<string, number>;
+  contracts: Contract[];
+  nextContractAt: number;
   outcome: 'playing' | 'won' | 'lost';
   outcomeReason: string;
   log: LogEntry[];

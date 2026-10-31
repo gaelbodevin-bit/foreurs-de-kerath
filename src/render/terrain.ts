@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { BUILDINGS } from '../data/buildings';
 import { RESOURCES } from '../data/resources';
 import { isWallKind } from '../sim/grid';
 import type { GameState, Tile, TileKind } from '../sim/types';
@@ -11,13 +12,14 @@ const TEXTURE_TILES = 3;
 /** The textures are mid-grey and multiply the tile colours, which would otherwise look dull. */
 const TEXTURED_BOOST = 2.3;
 const LAVA_BRIGHTNESS = 3.4;
+const ROAD_HEIGHT = 0.025;
 
 const hex = (c: number) => new THREE.Color(c);
 const BASE: Record<TileKind, THREE.Color> = {
   floor: hex(0x5a4a3e),
   rubble: hex(0x6e5f50),
-  // The plating's colours are in its texture.
-  path: hex(0xffffff),
+  // The ground under a road: the lane itself is drawn on top.
+  path: hex(0x5a4a3e),
   fungus: hex(0x4e6b3a),
   lava: hex(0xff5a1f),
   water: hex(0x1f5f8f),
@@ -135,62 +137,64 @@ function lavaTexture(): THREE.Texture {
   return texture;
 }
 
+const ROAD_CELL = 128;
+const ROAD_ROWS = 4;
+
 /**
- * One tile of technical floor: a riveted steel plate crossed by a power conduit. The conduit runs
- * to all four edges, so that adjacent tiles join up into a network. `glow` draws only the light.
+ * Every way a road can join its neighbours, one per cell: 16 combinations of north (1), east (2),
+ * south (4) and west (8). Only the lane is drawn: the rock shows through around it, and roads link
+ * up into a network instead of tiling the ground. `glow` draws only the cable running down the lane.
  */
-function pathTexture(glow: boolean): THREE.Texture {
-  const size = 128;
+function roadAtlas(glow: boolean): THREE.Texture {
   const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = ROAD_CELL * ROAD_ROWS;
+  canvas.height = ROAD_CELL * ROAD_ROWS;
   const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
-  const mid = size / 2;
   if (glow) {
     ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, size, size);
-  } else {
-    const plate = ctx.createLinearGradient(0, 0, size, size);
-    plate.addColorStop(0, '#7d8791');
-    plate.addColorStop(1, '#59626c');
-    ctx.fillStyle = plate;
-    ctx.fillRect(0, 0, size, size);
-    // A dark seam and a lit bevel, so that each plate reads as a separate piece of metal.
-    ctx.strokeStyle = '#23272d';
-    ctx.lineWidth = 5;
-    ctx.strokeRect(0, 0, size, size);
-    ctx.strokeStyle = 'rgba(255,255,255,.22)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(5, 5, size - 10, size - 10);
-    for (const [x, y] of [
-      [15, 15],
-      [size - 15, 15],
-      [15, size - 15],
-      [size - 15, size - 15],
-    ]) {
-      ctx.fillStyle = '#2e333a';
-      ctx.beginPath();
-      ctx.arc(x, y, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#a7b0ba';
-      ctx.beginPath();
-      ctx.arc(x - 1, y - 1, 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // The channel the conduit sits in.
-    ctx.fillStyle = '#1d2126';
-    ctx.fillRect(mid - 11, 0, 22, size);
-    ctx.fillRect(0, mid - 11, size, 22);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
-  ctx.fillStyle = glow ? '#ffffff' : '#7fe9d8';
-  ctx.fillRect(mid - 4, 0, 8, size);
-  ctx.fillRect(0, mid - 4, size, 8);
-  ctx.beginPath();
-  ctx.arc(mid, mid, 11, 0, Math.PI * 2);
-  ctx.fill();
+  const mid = ROAD_CELL / 2;
+  const arms = [
+    [1, mid, 0],
+    [2, ROAD_CELL, mid],
+    [4, mid, ROAD_CELL],
+    [8, 0, mid],
+  ] as const;
+  for (let mask = 0; mask < 16; mask++) {
+    ctx.save();
+    ctx.translate((mask % ROAD_ROWS) * ROAD_CELL, Math.floor(mask / ROAD_ROWS) * ROAD_CELL);
+    ctx.beginPath();
+    ctx.rect(0, 0, ROAD_CELL, ROAD_CELL);
+    ctx.clip();
+    const lane = (width: number, style: string, dash: number[] = []) => {
+      ctx.lineWidth = width;
+      ctx.strokeStyle = style;
+      ctx.lineCap = 'round';
+      ctx.setLineDash(dash);
+      ctx.beginPath();
+      for (const [bit, x, y] of arms) {
+        if (!(mask & bit)) continue;
+        ctx.moveTo(mid, mid);
+        ctx.lineTo(x, y);
+      }
+      if (mask === 0) {
+        ctx.moveTo(mid, mid);
+        ctx.lineTo(mid + 0.01, mid);
+      }
+      ctx.stroke();
+    };
+    if (glow) {
+      lane(4, '#fff', [10, 22]);
+    } else {
+      lane(64, 'rgba(14,12,12,.55)');
+      lane(54, '#35312d');
+      lane(44, '#4b463f');
+      lane(4, '#1d1b19');
+    }
+    ctx.restore();
+  }
   const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
   texture.anisotropy = 8;
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
@@ -229,16 +233,18 @@ export class TerrainView {
     roughness: 0.38,
     metalness: 0,
   });
-  private readonly pathMap = pathTexture(false);
-  private readonly pathGlow = pathTexture(true);
+  private readonly pathMap = roadAtlas(false);
+  private readonly pathGlow = roadAtlas(true);
   private readonly pathMaterial = new THREE.MeshStandardMaterial({
     vertexColors: true,
     map: this.pathMap,
+    transparent: true,
+    depthWrite: false,
     emissive: 0x35e0c2,
     emissiveMap: this.pathGlow,
-    emissiveIntensity: 1.6,
-    roughness: 0.5,
-    metalness: 0.35,
+    emissiveIntensity: 1.3,
+    roughness: 0.85,
+    metalness: 0.1,
   });
   private readonly boost = getTexture('wallColor') ? TEXTURED_BOOST : 1;
   private readonly chunks = new Map<number, Record<LayerName, THREE.Mesh>>();
@@ -368,6 +374,18 @@ export class TerrainView {
       return light;
     };
     const color = new THREE.Color();
+    const occupied = new Set<number>();
+    for (const b of state.buildings) {
+      const size = BUILDINGS[b.type].size;
+      for (let dy = 0; dy < size; dy++) {
+        for (let dx = 0; dx < size; dx++) occupied.add((b.y + dy) * state.w + b.x + dx);
+      }
+    }
+    const links = (x: number, y: number) => {
+      if (x < 0 || y < 0 || x >= state.w || y >= state.h) return false;
+      const i = y * state.w + x;
+      return state.tiles[i].k === 'path' || occupied.has(i);
+    };
     const x1 = Math.min(state.w, (cx + 1) * CHUNK);
     const y1 = Math.min(state.h, (cy + 1) * CHUNK);
     for (let y = cy * CHUNK; y < y1; y++) {
@@ -386,17 +404,14 @@ export class TerrainView {
             ? 'lava'
             : tile.k === 'water'
               ? 'water'
-              : tile.k === 'path'
-                ? 'path'
-                : glowing
-                  ? 'glow'
-                  : isWallKind(tile.k)
-                    ? 'wall'
-                    : 'floor';
+              : glowing
+                ? 'glow'
+                : isWallKind(tile.k)
+                  ? 'wall'
+                  : 'floor';
         const layer = layers[name];
         // Water has no texture to dim it, so it does without the boost made up for that.
-        // Plating brings its own colours, and needs that boost even less.
-        const scale = name === 'water' ? 0.45 / this.boost : name === 'path' ? 1 / this.boost : 1;
+        const scale = name === 'water' ? 0.45 / this.boost : 1;
         // Fold each quad along the diagonal that keeps slopes smooth.
         const flip = Math.abs(a - d) > Math.abs(b - c);
         const tris = flip
@@ -420,8 +435,7 @@ export class TerrainView {
           const [vx, vy, vz] = tris[t];
           layer.positions.push(vx, vy, vz);
           // Sliding with height keeps the texture from stretching down the slopes.
-          if (name === 'path') layer.uvs.push(vx, vz);
-          else layer.uvs.push((vx + vy * 0.6) / TEXTURE_TILES, (vz + vy * 0.6) / TEXTURE_TILES);
+          layer.uvs.push((vx + vy * 0.6) / TEXTURE_TILES, (vz + vy * 0.6) / TEXTURE_TILES);
           // Baked shading on glowing tiles, which get no scene light to show their shape.
           if (glowing || !tile.seen) {
             const shade = glowing ? 0.65 + (vy / WALL_HEIGHT) * 0.45 : 1;
@@ -434,6 +448,14 @@ export class TerrainView {
               color.b * scale * light.shade + light.b,
             );
           }
+        }
+        if (tile.seen && tile.k === 'path') {
+          const mask =
+            (links(x, y - 1) ? 1 : 0) +
+            (links(x + 1, y) ? 2 : 0) +
+            (links(x, y + 1) ? 4 : 0) +
+            (links(x - 1, y) ? 8 : 0);
+          this.addRoad(layers.path, x, y, mask, lightAt);
         }
       }
     }
@@ -460,6 +482,31 @@ export class TerrainView {
       }
     }
     for (const name of LAYERS) this.assign(chunk[name], layers[name]);
+  }
+
+  /** A flat quad just above the ground, showing the atlas cell for this combination of links. */
+  private addRoad(
+    layer: Layer,
+    x: number,
+    y: number,
+    mask: number,
+    lightAt: (x: number, y: number) => CornerLight,
+  ): void {
+    const u0 = (mask % ROAD_ROWS) / ROAD_ROWS;
+    const row = Math.floor(mask / ROAD_ROWS);
+    for (const [dx, dz] of [
+      [0, 0],
+      [0, 1],
+      [1, 1],
+      [0, 0],
+      [1, 1],
+      [1, 0],
+    ]) {
+      layer.positions.push(x + dx, ROAD_HEIGHT, y + dz);
+      layer.uvs.push(u0 + dx / ROAD_ROWS, 1 - (row + dz) / ROAD_ROWS);
+      const { shade } = lightAt(x + dx, y + dz);
+      layer.colors.push(shade, shade, shade);
+    }
   }
 
   private assign(mesh: THREE.Mesh, { positions, colors, uvs }: Layer): void {

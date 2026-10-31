@@ -51,10 +51,26 @@ export interface StoryEvent {
 
 export const STORY_EVENTS: StoryEvent[] = [
   {
+    id: 'lab_ready',
+    speaker: 'Dr Ilyane Soum',
+    title: 'Le laboratoire tourne',
+    text: "Mes équipes sont au travail, Gouverneur. Chaque laboratoire alimenté produit des points de recherche, à dépenser quand vous voulez dans le panneau Recherche (touche R).\n\nCommencez par ce qui vous bloque. La roche qui sépare ce secteur des suivants ne cédera qu'au marteau-piqueur, ou à une foreuse lourde sortie de l'atelier de véhicules.",
+    when: { built: 'lab' },
+    choices: [{ label: 'Compris.', effects: [] }],
+  },
+  {
+    id: 'city_town',
+    speaker: 'Tomas Krell',
+    title: 'Un vrai bourg',
+    text: "Quatorze habitants, Gouverneur, et les registres commencent à ressembler à ceux d'une ville. Nous pouvons maintenant bâtir un laboratoire, une caserne, un marché et une place publique. Regardez le menu de construction.",
+    when: { flags: ['level1'] },
+    choices: [{ label: 'Continuons.', effects: [] }],
+  },
+  {
     id: 'landing',
     speaker: 'Orsa Veld',
     title: 'Coupés de Port-Cendre',
-    text: "Gouverneur, bienvenue sous la croûte. Kerath est un monde creux : le cristal, le métal et l'air respirable se trouvent tous en profondeur. La Charte nous envoie prendre le contrôle de la planète, région après région, avant que d'autres ne s'en emparent.\n\nNotre première cité, Port-Cendre, devait nous accueillir ici. Mais un éboulement a fermé la galerie à notre arrivée : nous sommes isolés, et ses habitants aussi.\n\nNotre priorité : rejoindre la cité, signalée par l'anneau turquoise sur la mini-carte. Glissez sur la roche pour marquer le passage à forer. Nos pioches n'entament que la roche tendre : il faudra contourner la roche dure.",
+    text: "Gouverneur, bienvenue sous la croûte. Kerath est un monde creux : le cristal, le métal et l'air respirable se trouvent tous en profondeur. La Charte nous envoie en prendre le contrôle, avant que d'autres ne s'en emparent. Tout partira d'ici : ce campement doit devenir la capitale de Kerath.\n\nLes colons de Port-Cendre devaient nous accueillir, mais un éboulement a fermé la galerie à notre arrivée. Nous sommes isolés, et eux aussi.\n\nNotre priorité : les rejoindre. Ils sont signalés par l'anneau turquoise sur la mini-carte. Glissez sur la roche pour marquer le passage à forer. Nos pioches n'entament que la roche tendre : il faudra contourner la roche dure.",
     when: { regions: ['ash'], minTime: 1 },
     choices: [{ label: 'En route, on creuse.', effects: [] }],
   },
@@ -62,7 +78,7 @@ export const STORY_EVENTS: StoryEvent[] = [
     id: 'city_reached',
     speaker: 'Orsa Veld',
     title: 'Port-Cendre est rejointe',
-    text: "La galerie est ouverte ! Huit habitants de Port-Cendre rejoignent notre base, avec ce qu'ils ont pu sauver.\n\nÀ présent, il faut les faire respirer et les loger. Reliez chaque bâtiment au réseau avec le sol technique : il coûte cher, alors tracez court.\n\nChaque victoire rapportera de la recherche. Les forets trempés accélèrent le forage, le marteau-piqueur perce la roche dure, et la foreuse laser vient à bout du basalte.",
+    text: "La galerie est ouverte ! Huit colons rejoignent notre campement, avec ce qu'ils ont pu sauver.\n\nÀ présent, il faut les faire respirer et les loger. Reliez chaque bâtiment au réseau avec des voies : elles coûtent cher, alors tracez court.\n\nÀ 14 habitants, nous serons un bourg et pourrons bâtir un laboratoire. C'est la clé de tout : le marteau-piqueur pour la roche dure, la foreuse laser pour le basalte, l'atelier de véhicules.",
     when: { regions: ['ash'], flags: ['cityReached'] },
     choices: [{ label: 'Au travail.', effects: [] }],
   },

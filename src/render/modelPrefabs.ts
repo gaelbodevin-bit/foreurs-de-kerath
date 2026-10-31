@@ -41,58 +41,169 @@ interface Accent {
   smoke?: boolean;
 }
 
+/** A hand-placed primitive, for what the model packs don't have: tanks, pipes, awnings, windows. */
+interface Detail {
+  shape: 'box' | 'cyl' | 'dome';
+  color: number;
+  /** Lit from within, and goes dark when the building loses power. */
+  glow?: boolean;
+  x?: number;
+  y: number;
+  z?: number;
+  w: number;
+  h: number;
+  d: number;
+}
+
 interface BuildingModel {
+  /** The colour of the building's function, on the rim of its foundation. */
+  trim: number;
   parts: Part[];
   accents: Accent[];
+  details: Detail[];
 }
+
+const HOUSING = 0xffb347;
+const INDUSTRY = 0xff8c3a;
+const SCIENCE = 0xb79cff;
+const WATER = 0x4ea8f0;
+const GREEN = 0x9ccc5a;
+
+const STEEL = 0x8f98a3;
+const DARK = 0x3a3d42;
+const RUST = 0x8a5a3c;
+const WHITE = 0xd8dde2;
+const OLIVE = 0x5d6b4a;
 
 const BUILDING_MODELS: Record<BuildingType, BuildingModel> = {
   hq: {
+    trim: TEAL,
     parts: [
       { model: 'hangarRoundA', fit: 2 },
       { model: 'dish', fit: 0.5, x: 0.7, z: -0.7, spin: true },
     ],
     accents: [{ color: TEAL, y: 1.2, size: 0.2, shape: 'gem' }],
+    details: [
+      { shape: 'box', color: DARK, x: 0, y: 0.16, z: 0.86, w: 0.5, h: 0.32, d: 0.2 },
+      { shape: 'box', color: TEAL, glow: true, x: 0, y: 0.2, z: 0.97, w: 0.34, h: 0.14, d: 0.02 },
+    ],
   },
   depot: {
-    parts: [{ model: 'hangarSmallB', fit: 0.95 }],
-    accents: [{ color: AMBER, y: 0.55, size: 0.05 }],
+    trim: TEAL,
+    parts: [{ model: 'hangarSmallB', fit: 0.8, z: -0.05 }],
+    accents: [{ color: AMBER, y: 0.5, size: 0.04 }],
+    details: [
+      { shape: 'box', color: RUST, x: -0.3, y: 0.08, z: 0.34, w: 0.16, h: 0.16, d: 0.16 },
+      { shape: 'box', color: OLIVE, x: -0.11, y: 0.07, z: 0.36, w: 0.14, h: 0.14, d: 0.14 },
+      { shape: 'box', color: RUST, x: -0.28, y: 0.21, z: 0.34, w: 0.12, h: 0.1, d: 0.12 },
+    ],
   },
   generator: {
-    parts: [{ model: 'generator', fit: 1.75 }],
-    accents: [{ color: TEAL, y: 1.2, size: 0.17, shape: 'gem' }],
+    trim: TEAL,
+    parts: [{ model: 'generator', fit: 1.5, z: -0.1 }],
+    accents: [{ color: TEAL, y: 1.1, size: 0.15, shape: 'gem' }],
+    details: [
+      { shape: 'cyl', color: STEEL, x: -0.66, y: 0.3, z: 0.66, w: 0.2, h: 0.6, d: 0.2 },
+      { shape: 'cyl', color: STEEL, x: 0.66, y: 0.3, z: 0.66, w: 0.2, h: 0.6, d: 0.2 },
+      {
+        shape: 'cyl',
+        color: TEAL,
+        glow: true,
+        x: -0.66,
+        y: 0.62,
+        z: 0.66,
+        w: 0.14,
+        h: 0.04,
+        d: 0.14,
+      },
+      {
+        shape: 'cyl',
+        color: TEAL,
+        glow: true,
+        x: 0.66,
+        y: 0.62,
+        z: 0.66,
+        w: 0.14,
+        h: 0.04,
+        d: 0.14,
+      },
+      { shape: 'box', color: DARK, x: 0, y: 0.1, z: 0.66, w: 1.2, h: 0.05, d: 0.05 },
+    ],
   },
   oxygen: {
-    parts: [{ model: 'barrelLarge', fit: 0.85 }],
-    accents: [{ color: 0x9fe6ff, y: 0.8, size: 0.13 }],
+    trim: 0x9fe6ff,
+    parts: [{ model: 'barrelLarge', fit: 0.66 }],
+    accents: [{ color: 0x9fe6ff, y: 0.78, size: 0.1 }],
+    details: [
+      { shape: 'cyl', color: STEEL, x: 0.33, y: 0.28, z: 0.3, w: 0.07, h: 0.56, d: 0.07 },
+      { shape: 'cyl', color: STEEL, x: -0.33, y: 0.2, z: 0.3, w: 0.07, h: 0.4, d: 0.07 },
+    ],
   },
   habitat: {
-    parts: [{ model: 'hangarGlass', fit: 0.98 }],
-    accents: [{ color: AMBER, y: 0.55, size: 0.07 }],
+    trim: HOUSING,
+    parts: [{ model: 'hangarGlass', fit: 0.84 }],
+    accents: [{ color: HOUSING, y: 0.5, size: 0.05 }],
+    details: [
+      { shape: 'cyl', color: HOUSING, glow: true, y: 0.16, w: 0.8, h: 0.05, d: 0.8 },
+      { shape: 'box', color: DARK, x: 0, y: 0.1, z: 0.42, w: 0.18, h: 0.2, d: 0.06 },
+      { shape: 'box', color: GREEN, x: 0.32, y: 0.06, z: 0.36, w: 0.12, h: 0.1, d: 0.12 },
+    ],
   },
   melter: {
-    parts: [{ model: 'barrelMachine', fit: 0.75 }],
-    accents: [{ color: 0x4ea8f0, y: 0.6, size: 0.11 }],
+    trim: WATER,
+    parts: [{ model: 'barrelMachine', fit: 0.62, x: -0.06 }],
+    accents: [{ color: WATER, y: 0.6, size: 0.09 }],
+    details: [
+      { shape: 'cyl', color: 0x9fd8ff, x: 0.32, y: 0.2, z: 0.26, w: 0.2, h: 0.4, d: 0.2 },
+      { shape: 'box', color: STEEL, x: 0.14, y: 0.3, z: 0.26, w: 0.2, h: 0.04, d: 0.04 },
+    ],
   },
   farm: {
-    parts: [{ model: 'platformLarge', fit: 1.9 }],
+    trim: GREEN,
+    parts: [{ model: 'platformLarge', fit: 1.86 }],
     accents: [
-      { color: 0x9ccc5a, x: -0.5, z: -0.5, y: 0.26, size: 0.27, shape: 'cap' },
-      { color: 0x9ccc5a, x: 0.5, z: -0.5, y: 0.3, size: 0.3, shape: 'cap' },
-      { color: 0x9ccc5a, x: -0.5, z: 0.5, y: 0.3, size: 0.3, shape: 'cap' },
-      { color: 0x9ccc5a, x: 0.5, z: 0.5, y: 0.26, size: 0.27, shape: 'cap' },
+      { color: GREEN, x: -0.5, z: -0.5, y: 0.34, size: 0.27, shape: 'cap' },
+      { color: 0xc7e07a, x: 0.5, z: -0.5, y: 0.4, size: 0.3, shape: 'cap' },
+      { color: 0xc7e07a, x: -0.5, z: 0.5, y: 0.4, size: 0.3, shape: 'cap' },
+      { color: GREEN, x: 0.5, z: 0.5, y: 0.34, size: 0.27, shape: 'cap' },
+    ],
+    details: [
+      { shape: 'cyl', color: 0xefe6c8, x: -0.5, y: 0.22, z: -0.5, w: 0.1, h: 0.24, d: 0.1 },
+      { shape: 'cyl', color: 0xefe6c8, x: 0.5, y: 0.25, z: -0.5, w: 0.1, h: 0.3, d: 0.1 },
+      { shape: 'cyl', color: 0xefe6c8, x: -0.5, y: 0.25, z: 0.5, w: 0.1, h: 0.3, d: 0.1 },
+      { shape: 'cyl', color: 0xefe6c8, x: 0.5, y: 0.22, z: 0.5, w: 0.1, h: 0.24, d: 0.1 },
+      { shape: 'box', color: WATER, x: 0, y: 0.13, z: 0, w: 1.5, h: 0.03, d: 0.06 },
+      { shape: 'box', color: WATER, x: 0, y: 0.13, z: 0, w: 0.06, h: 0.03, d: 1.5 },
     ],
   },
   refinery: {
+    trim: INDUSTRY,
     parts: [
-      { model: 'hangarLargeA', fit: 1.9 },
+      { model: 'hangarLargeA', fit: 1.4, x: -0.2, z: 0.2 },
       { model: 'chimney', fit: 0.28, x: 0.65, z: -0.65 },
     ],
     accents: [{ color: 0xff8c3a, x: 0.65, z: -0.65, y: 1.5, size: 0.08, smoke: true }],
+    details: [
+      { shape: 'cyl', color: RUST, x: -0.6, y: 0.32, z: -0.62, w: 0.42, h: 0.64, d: 0.42 },
+      { shape: 'cyl', color: STEEL, x: -0.6, y: 0.66, z: -0.62, w: 0.3, h: 0.05, d: 0.3 },
+      { shape: 'box', color: STEEL, x: 0.02, y: 0.44, z: -0.64, w: 1.1, h: 0.06, d: 0.06 },
+      {
+        shape: 'box',
+        color: INDUSTRY,
+        glow: true,
+        x: -0.2,
+        y: 0.26,
+        z: 0.92,
+        w: 0.5,
+        h: 0.1,
+        d: 0.02,
+      },
+    ],
   },
   foundry: {
+    trim: 0xff7d54,
     parts: [
-      { model: 'hangarLargeB', fit: 1.9 },
+      { model: 'hangarLargeB', fit: 1.5, z: 0.15 },
       { model: 'chimney', fit: 0.3, x: 0.65, z: -0.65 },
       { model: 'chimney', fit: 0.3, x: -0.65, z: -0.65 },
     ],
@@ -100,55 +211,167 @@ const BUILDING_MODELS: Record<BuildingType, BuildingModel> = {
       { color: 0xff7d54, x: 0.65, z: -0.65, y: 1.6, size: 0.1, smoke: true },
       { color: 0xff7d54, x: -0.65, z: -0.65, y: 1.6, size: 0.1, smoke: true },
     ],
+    details: [
+      { shape: 'box', color: DARK, x: 0, y: 0.16, z: 0.92, w: 0.7, h: 0.32, d: 0.04 },
+      {
+        shape: 'box',
+        color: 0xff6a2a,
+        glow: true,
+        x: 0,
+        y: 0.14,
+        z: 0.95,
+        w: 0.5,
+        h: 0.22,
+        d: 0.02,
+      },
+    ],
   },
   market: {
+    trim: 0xffc23d,
     parts: [
-      { model: 'platformLarge', fit: 1.9 },
-      { model: 'barrels', fit: 0.8, x: -0.4, z: -0.4, y: 0.08 },
-      { model: 'computer', fit: 0.7, x: 0.4, z: 0.45, y: 0.08 },
+      { model: 'platformLarge', fit: 1.86 },
+      { model: 'barrels', fit: 0.5, x: -0.55, z: 0.55, y: 0.08 },
     ],
-    accents: [{ color: 0xffc23d, x: 0.4, z: -0.4, y: 0.45, size: 0.17, shape: 'gem' }],
+    accents: [{ color: 0xffc23d, x: 0, z: 0.45, y: 0.5, size: 0.11, shape: 'gem' }],
+    details: [
+      // Three stalls, each with its own awning.
+      { shape: 'box', color: 0xc14b3a, x: -0.5, y: 0.52, z: -0.45, w: 0.6, h: 0.05, d: 0.5 },
+      { shape: 'box', color: RUST, x: -0.5, y: 0.2, z: -0.45, w: 0.5, h: 0.24, d: 0.3 },
+      { shape: 'box', color: 0x3f7fb5, x: 0.5, y: 0.52, z: -0.45, w: 0.6, h: 0.05, d: 0.5 },
+      { shape: 'box', color: RUST, x: 0.5, y: 0.2, z: -0.45, w: 0.5, h: 0.24, d: 0.3 },
+      { shape: 'box', color: 0xd9a441, x: 0.55, y: 0.52, z: 0.5, w: 0.55, h: 0.05, d: 0.5 },
+      { shape: 'box', color: RUST, x: 0.55, y: 0.2, z: 0.5, w: 0.45, h: 0.24, d: 0.28 },
+    ],
   },
   plaza: {
-    parts: [{ model: 'platformSmall', fit: 0.92 }],
-    accents: [{ color: 0x7fd8ff, y: 0.42, size: 0.12 }],
+    trim: 0x7fd8ff,
+    parts: [{ model: 'platformSmall', fit: 0.9 }],
+    accents: [{ color: 0x7fd8ff, y: 0.36, size: 0.07 }],
+    details: [
+      { shape: 'cyl', color: WHITE, y: 0.14, w: 0.5, h: 0.08, d: 0.5 },
+      { shape: 'cyl', color: 0x4ea8f0, glow: true, y: 0.19, w: 0.38, h: 0.02, d: 0.38 },
+      { shape: 'cyl', color: WHITE, y: 0.26, w: 0.05, h: 0.16, d: 0.05 },
+      { shape: 'cyl', color: 0xefe6c8, x: -0.33, y: 0.2, z: -0.33, w: 0.05, h: 0.2, d: 0.05 },
+      { shape: 'cyl', color: 0xefe6c8, x: 0.33, y: 0.2, z: 0.33, w: 0.05, h: 0.2, d: 0.05 },
+      {
+        shape: 'dome',
+        color: GREEN,
+        glow: true,
+        x: -0.33,
+        y: 0.3,
+        z: -0.33,
+        w: 0.13,
+        h: 0.09,
+        d: 0.13,
+      },
+      {
+        shape: 'dome',
+        color: GREEN,
+        glow: true,
+        x: 0.33,
+        y: 0.3,
+        z: 0.33,
+        w: 0.13,
+        h: 0.09,
+        d: 0.13,
+      },
+    ],
   },
   clinic: {
-    parts: [{ model: 'hangarRoundB', fit: 1.95 }],
+    trim: RED,
+    parts: [{ model: 'hangarRoundB', fit: 1.8 }],
     accents: [{ color: RED, y: 1.1, size: 0.5, shape: 'cross' }],
+    details: [
+      { shape: 'cyl', color: WHITE, y: 0.16, w: 1.8, h: 0.08, d: 1.8 },
+      {
+        shape: 'box',
+        color: 0xbfe9ff,
+        glow: true,
+        x: 0,
+        y: 0.26,
+        z: 0.86,
+        w: 0.36,
+        h: 0.16,
+        d: 0.02,
+      },
+    ],
   },
   lab: {
+    trim: SCIENCE,
     parts: [
-      { model: 'hangarGlass', fit: 1.95 },
-      { model: 'dish', fit: 0.6, x: 0.65, z: 0.65, spin: true },
+      { model: 'hangarGlass', fit: 1.7 },
+      { model: 'dish', fit: 0.6, x: 0.68, z: 0.68, spin: true },
     ],
-    accents: [{ color: 0xb79cff, y: 1.05, size: 0.16 }],
+    accents: [{ color: SCIENCE, y: 1, size: 0.14 }],
+    details: [
+      { shape: 'cyl', color: SCIENCE, glow: true, y: 0.22, w: 1.62, h: 0.05, d: 1.62 },
+      { shape: 'cyl', color: STEEL, x: -0.72, y: 0.55, z: -0.72, w: 0.04, h: 1.1, d: 0.04 },
+      {
+        shape: 'dome',
+        color: SCIENCE,
+        glow: true,
+        x: -0.72,
+        y: 1.12,
+        z: -0.72,
+        w: 0.06,
+        h: 0.06,
+        d: 0.06,
+      },
+      { shape: 'box', color: DARK, x: -0.68, y: 0.14, z: 0.62, w: 0.34, h: 0.28, d: 0.3 },
+    ],
   },
   security: {
-    parts: [{ model: 'structure', fit: 0.9 }],
-    accents: [{ color: RED, y: 1, size: 0.1 }],
+    trim: RED,
+    parts: [{ model: 'structure', fit: 0.74 }],
+    accents: [{ color: RED, y: 1.18, size: 0.07 }],
+    details: [
+      { shape: 'cyl', color: STEEL, y: 0.92, w: 0.04, h: 0.5, d: 0.04 },
+      { shape: 'box', color: 0xbfe9ff, glow: true, x: 0, y: 0.3, z: 0.38, w: 0.3, h: 0.1, d: 0.02 },
+    ],
   },
   barracks: {
-    parts: [{ model: 'hangarSmallA', fit: 1.9 }],
-    accents: [{ color: RED, y: 1.05, size: 0.09 }],
+    trim: RED,
+    parts: [{ model: 'hangarSmallA', fit: 1.5, z: -0.1 }],
+    accents: [{ color: RED, y: 1, size: 0.07 }],
+    details: [
+      { shape: 'box', color: OLIVE, x: 0, y: 0.08, z: 0.84, w: 1.7, h: 0.16, d: 0.06 },
+      { shape: 'cyl', color: STEEL, x: -0.82, y: 0.5, z: 0.82, w: 0.04, h: 1, d: 0.04 },
+      { shape: 'box', color: 0xc14b3a, x: -0.64, y: 0.86, z: 0.82, w: 0.34, h: 0.2, d: 0.02 },
+    ],
   },
   workshop: {
+    trim: AMBER,
     parts: [
-      { model: 'hangarLargeA', fit: 1.9, turn: 1 },
-      { model: 'wireless', fit: 0.5, x: -0.7, z: 0.7 },
+      { model: 'hangarLargeA', fit: 1.5, z: -0.2, turn: 1 },
+      { model: 'wireless', fit: 0.34, x: -0.74, z: -0.74 },
+      { model: 'rover', fit: 0.6, x: 0.42, z: 0.68 },
     ],
-    accents: [{ color: AMBER, y: 0.8, size: 0.08 }],
+    accents: [{ color: AMBER, y: 0.8, size: 0.06 }],
+    details: [
+      // A gantry crane over the bay.
+      { shape: 'box', color: 0xd9a441, x: -0.72, y: 0.5, z: 0.7, w: 0.07, h: 1, d: 0.07 },
+      { shape: 'box', color: 0xd9a441, x: -0.3, y: 0.98, z: 0.7, w: 0.9, h: 0.07, d: 0.07 },
+      { shape: 'box', color: STEEL, x: 0.08, y: 0.76, z: 0.7, w: 0.03, h: 0.42, d: 0.03 },
+      { shape: 'box', color: DARK, x: -0.32, y: 0.1, z: 0.7, w: 0.5, h: 0.2, d: 0.4 },
+    ],
   },
   vent: {
+    trim: 0xc4e04a,
     parts: [
-      { model: 'barrelMachine', fit: 0.7 },
-      { model: 'dish', fit: 0.45, y: 0.55, spin: true },
+      { model: 'barrelMachine', fit: 0.6 },
+      { model: 'dish', fit: 0.4, y: 0.55, spin: true },
     ],
-    accents: [{ color: 0xc4e04a, y: 0.42, size: 0.08 }],
+    accents: [{ color: 0xc4e04a, y: 0.42, size: 0.06 }],
+    details: [
+      { shape: 'box', color: 0xd9a441, x: 0.36, y: 0.06, z: 0, w: 0.04, h: 0.12, d: 0.7 },
+      { shape: 'box', color: 0xd9a441, x: -0.36, y: 0.06, z: 0, w: 0.04, h: 0.12, d: 0.7 },
+    ],
   },
   turret: {
-    parts: [{ model: 'turret', fit: 0.85 }],
-    accents: [{ color: RED, y: 0.5, size: 0.05 }],
+    trim: RED,
+    parts: [{ model: 'turret', fit: 0.74 }],
+    accents: [{ color: RED, y: 0.5, size: 0.04 }],
+    details: [],
   },
 };
 
@@ -194,6 +417,85 @@ function makeAccent(accent: Accent): THREE.Object3D {
   return group;
 }
 
+const matteMaterials = new Map<number, THREE.MeshStandardMaterial>();
+
+function matte(color: number): THREE.MeshStandardMaterial {
+  let material = matteMaterials.get(color);
+  if (!material) {
+    material = new THREE.MeshStandardMaterial({ color, roughness: 0.72, metalness: 0.12 });
+    matteMaterials.set(color, material);
+  }
+  return material;
+}
+
+const cylinderGeometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 16);
+
+function makeDetail(detail: Detail): THREE.Mesh {
+  const material = detail.glow ? glow(detail.color) : matte(detail.color);
+  const geometry =
+    detail.shape === 'box' ? barGeometry : detail.shape === 'cyl' ? cylinderGeometry : capGeometry;
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(detail.x ?? 0, detail.y, detail.z ?? 0);
+  mesh.scale.set(detail.w, detail.h, detail.d);
+  mesh.castShadow = !detail.glow;
+  mesh.receiveShadow = !detail.glow;
+  return mesh;
+}
+
+/** The slab every building stands on: it gives the city a common, built-up look. */
+function foundation(size: number, trim: number): THREE.Group {
+  const pad = new THREE.Group();
+  const side = size * 0.98;
+  const slab = new THREE.Mesh(barGeometry, matte(0x45474c));
+  slab.scale.set(side, 0.06, side);
+  slab.position.y = 0.03;
+  slab.receiveShadow = true;
+  const rim = new THREE.Mesh(barGeometry, matte(trim));
+  rim.scale.set(side * 0.94, 0.012, side * 0.94);
+  rim.position.y = 0.062;
+  const top = new THREE.Mesh(barGeometry, matte(0x55575c));
+  top.scale.set(side * 0.87, 0.016, side * 0.87);
+  top.position.y = 0.066;
+  top.receiveShadow = true;
+  pad.add(slab, rim, top);
+  return pad;
+}
+
+/**
+ * What the headquarters gains as the colony climbs in rank: the first thing a player sees grow.
+ * Index 0 goes with the first rank above the camp.
+ */
+function headquartersGrowth(): THREE.Object3D[] {
+  const tower = (x: number, z: number, height: number, light: number): THREE.Group => {
+    const group = new THREE.Group();
+    group.add(
+      makeDetail({ shape: 'cyl', color: WHITE, x, y: height / 2, z, w: 0.3, h: height, d: 0.3 }),
+      makeDetail({
+        shape: 'cyl',
+        color: light,
+        glow: true,
+        x,
+        y: height * 0.8,
+        z,
+        w: 0.32,
+        h: 0.04,
+        d: 0.32,
+      }),
+      makeDetail({ shape: 'dome', color: STEEL, x, y: height, z, w: 0.17, h: 0.12, d: 0.17 }),
+    );
+    return group;
+  };
+  const ring = new THREE.Group();
+  ring.add(makeDetail({ shape: 'cyl', color: TEAL, glow: true, y: 1.42, w: 0.9, h: 0.03, d: 0.9 }));
+  ring.add(makeDetail({ shape: 'cyl', color: STEEL, y: 1.15, w: 0.05, h: 0.6, d: 0.05 }));
+  return [
+    tower(-0.78, -0.78, 1, AMBER),
+    tower(-0.78, 0.78, 1.25, TEAL),
+    tower(0.78, 0.78, 1.5, AMBER),
+    ring,
+  ];
+}
+
 export function buildingFromModels(type: BuildingType): THREE.Group | null {
   const spec = BUILDING_MODELS[type];
   if (!hasModels(spec.parts.map((p) => p.model))) return null;
@@ -202,12 +504,19 @@ export function buildingFromModels(type: BuildingType): THREE.Group | null {
   const root = new THREE.Group();
   root.position.set(center, 0, center);
   g.add(root);
+  root.add(foundation(BUILDINGS[type].size, spec.trim));
+  for (const detail of spec.details) root.add(makeDetail(detail));
+  if (type === 'hq') {
+    const growth = headquartersGrowth();
+    root.add(...growth);
+    g.userData.growth = growth;
+  }
   const spinning: THREE.Object3D[] = [];
   const smoke: THREE.Vector3[] = [];
   for (const part of spec.parts) {
     const piece = placeModel(part.model, part.fit);
     if (!piece) return null;
-    piece.position.set(part.x ?? 0, part.y ?? 0, part.z ?? 0);
+    piece.position.set(part.x ?? 0, (part.y ?? 0) + 0.07, part.z ?? 0);
     piece.rotation.y = ((part.turn ?? 0) * Math.PI) / 2;
     if (part.spin) spinning.push(piece);
     root.add(piece);

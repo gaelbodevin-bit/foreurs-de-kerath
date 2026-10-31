@@ -1,79 +1,57 @@
 import { BUILDINGS } from '../data/buildings';
-import { regionById, type Objective } from '../data/regions';
+import { REGIONS, sectorAt } from '../data/regions';
+import { FIRST_CONTRACT_AT } from '../data/progression';
+import { ADVISOR_IDS } from '../data/story';
 import { RESOURCES, TILE_NAMES, WALLS } from '../data/resources';
-import { ENEMIES, UNITS } from '../data/units';
+import { UNITS } from '../data/units';
 import { updateCombat } from './combat';
-import {
-  addStock,
-  canAfford,
-  pay,
-  registerRegionIntrigue,
-  storageCapacity,
-  updateEconomy,
-  updateNetwork,
-} from './economy';
+import { addStock, canAfford, pay, storageCapacity, updateEconomy, updateNetwork } from './economy';
 import { createBuilding, log, spawnEnemy, spawnUnit } from './entities';
 import { updateGas } from './gas';
 import { idx, inBounds, isWalkableKind, NEIGHBORS4, reveal, setTile, tileAt } from './grid';
-import { generateMap } from './mapgen';
+import { generateWorld } from './mapgen';
 import { findPath } from './pathfinding';
-import { rand } from './rng';
+import { buildingLock, isWorldConquered, updateProgress } from './progress';
+import { rand, Rng } from './rng';
+import { updateContracts } from './contracts';
 import { updateStory } from './storyEngine';
-import type {
-  AdvisorId,
-  BuildingType,
-  Cost,
-  GameState,
-  Modifiers,
-  PolicyId,
-  StoryState,
-  UnitType,
-} from './types';
-import { emptyStock, RESOURCE_IDS, TICK_SECONDS } from './types';
+import type { BuildingType, Cost, GameState, PolicyId, StoryState, UnitType } from './types';
+import { baseModifiers, emptyStock, RESOURCE_IDS, TICK_SECONDS } from './types';
 import { addJob, dropCarried, removeJob, updateRepairs } from './workers';
-
-export interface MissionContext {
-  seed: number;
-  mods: Modifiers;
-  startBonus: Cost;
-  flags: Record<string, boolean>;
-  clues: string[];
-  mole: AdvisorId;
-  moleCaught: boolean;
-  accused: AdvisorId[];
-  firedEvents: string[];
-}
 
 const SETTLEMENT_SURVIVORS = 8;
 /** Keeps the crew from building over the settlement's own structures. */
 const SETTLEMENT_CLEARANCE = 3.5;
+const START_STOCK: Cost = { ore: 32, crystal: 6, stone: 20, food: 30, water: 8, credits: 80 };
+const START_POPULATION = 6;
+const START_FOREURS = 4;
+const START_GUARDS = 1;
+const FIRST_RAID_AT = 360;
 
-export function createMission(regionId: string, ctx: MissionContext): GameState {
-  const region = regionById(regionId);
-  const map = generateMap({ ...region.map, seed: region.map.seed ^ ctx.seed });
-  registerRegionIntrigue(regionId, region.intrigue);
+/** The one and only game: a single map, a single city, from the landing to the end of the campaign. */
+export function createGame(seed: number): GameState {
+  const map = generateWorld(seed);
   const stock = emptyStock();
-  for (const r of RESOURCE_IDS) {
-    stock[r] = (region.start.stock[r] ?? 0) + (ctx.startBonus[r] ?? 0);
-  }
+  for (const r of RESOURCE_IDS) stock[r] = START_STOCK[r] ?? 0;
   const story: StoryState = {
-    fired: [...ctx.firedEvents],
-    flags: { ...ctx.flags },
+    fired: [],
+    flags: {},
     pending: [],
-    clues: [...ctx.clues],
-    moleCaught: ctx.moleCaught,
-    mole: ctx.mole,
-    accused: [...ctx.accused],
+    clues: [],
+    moleCaught: false,
+    // The traitor is drawn once per game: replays cannot rely on memorising the culprit.
+    mole: new Rng(seed).pick(ADVISOR_IDS),
+    accused: [],
   };
   const state: GameState = {
-    regionId,
+    version: 2,
     w: map.w,
     h: map.h,
     tiles: map.tiles,
     settlement: map.settlement ? { ...map.settlement, reached: false } : null,
     tick: 0,
     time: 0,
-    rng: (region.map.seed * 31 + ctx.seed) | 0,
+    rng: (seed * 31 + 1101) | 0,
     nextId: 1,
     stock,
     units: [],
@@ -82,7 +60,7 @@ export function createMission(regionId: string, ctx: MissionContext): GameState 
     pickups: [],
     jobs: [],
     city: {
-      population: region.start.population,
+      population: START_POPULATION,
       morale: 60,
       moraleShock: 0,
       oxygen: 100,
@@ -97,22 +75,28 @@ export function createMission(regionId: string, ctx: MissionContext): GameState 
     },
     power: { produced: 0, demand: 0, ratio: 1 },
     story,
-    waves: { nextAt: region.waves.first, count: 0 },
+    waves: { nextAt: FIRST_RAID_AT, count: 0 },
     kills: {},
     research: 0,
+    techs: [],
+    cityLevel: 0,
+    conquered: [],
+    sectorStart: { [REGIONS[0].id]: 0 },
+    contracts: [],
+    nextContractAt: FIRST_CONTRACT_AT,
     outcome: 'playing',
     outcomeReason: '',
     log: [],
     fx: [],
     dirty: [],
-    mods: ctx.mods,
+    mods: baseModifiers(),
     networkDirty: true,
   };
 
   createBuilding(state, 'hq', map.start.x - 1, map.start.y - 1, 1);
   updateNetwork(state);
   reveal(state, map.start.x, map.start.y);
-  for (let i = 0; i < region.start.foreurs; i++) {
+  for (let i = 0; i < START_FOREURS; i++) {
     spawnUnit(
       state,
       'foreur',
@@ -120,11 +104,11 @@ export function createMission(regionId: string, ctx: MissionContext): GameState 
       map.start.y + 1.5 + Math.floor(i / 3),
     );
   }
-  for (let i = 0; i < (region.start.guards ?? 0); i++) {
+  for (let i = 0; i < START_GUARDS; i++) {
     spawnUnit(state, 'garde', map.start.x + i - 1 + 0.5, map.start.y - 1.5);
   }
   for (const s of map.structures) spawnEnemy(state, s.type, s.x + 0.5, s.y + 0.5);
-  log(state, `Arrivée : ${region.name}.`, 'info');
+  log(state, 'Arrivée sur Kerath.', 'info');
   return state;
 }
 
@@ -141,6 +125,8 @@ export function stepGame(state: GameState): void {
     updateHazards(state);
     updateSettlement(state);
     updateGas(state);
+    updateProgress(state);
+    updateContracts(state);
     updateStory(state);
     updateOutcome(state);
   }
@@ -165,12 +151,13 @@ function updateSettlement(state: GameState): void {
 }
 
 function updateHazards(state: GameState): void {
-  const erosion = regionById(state.regionId).erosion * state.mods.hazard;
   for (let i = 0; i < state.tiles.length; i++) {
     const tile = state.tiles[i];
     if (tile.regrow > 0) tile.regrow -= 1;
-    if (erosion === 0 || tile.k !== 'lava' || !tile.seen) continue;
-    if (rand(state) >= erosion) continue;
+    if (tile.k !== 'lava' || !tile.seen) continue;
+    // Each sector has its own lava: some crusts over, some keeps eating the ground.
+    const sector = sectorAt(i % state.w, Math.floor(i / state.w), state.w, state.h).index;
+    if (rand(state) >= REGIONS[sector].erosion * state.mods.hazard) continue;
     const [dx, dy] = NEIGHBORS4[Math.floor(rand(state) * 4)];
     const x = (i % state.w) + dx;
     const y = Math.floor(i / state.w) + dy;
@@ -191,50 +178,6 @@ const tileIsUnder = (type: BuildingType, bx: number, by: number, x: number, y: n
   return x >= bx && y >= by && x < bx + size && y < by + size;
 };
 
-export function objectiveProgress(
-  state: GameState,
-  o: Objective,
-): { value: number; goal: number; label: string } {
-  switch (o.kind) {
-    case 'resource':
-      return {
-        value: Math.floor(state.stock[o.res]),
-        goal: o.amount,
-        label: `Stocker : ${RESOURCES[o.res].name}`,
-      };
-    case 'population':
-      return {
-        value: Math.floor(state.city.population),
-        goal: o.amount,
-        label: 'Population de la cité',
-      };
-    case 'build':
-      return {
-        value: state.buildings.filter((b) => b.type === o.building && b.built >= 1).length,
-        goal: o.amount,
-        label: `Construire : ${BUILDINGS[o.building].name}`,
-      };
-    case 'destroy':
-      return {
-        value: state.kills[o.enemy] ?? 0,
-        goal: o.amount,
-        label: `Détruire : ${ENEMIES[o.enemy].name}`,
-      };
-    case 'survive':
-      return {
-        value: Math.floor(state.time),
-        goal: o.seconds,
-        label: 'Tenir la position (secondes)',
-      };
-    case 'reach':
-      return {
-        value: (state.settlement?.reached ?? true) ? 1 : 0,
-        goal: 1,
-        label: `Rejoindre ${o.place}`,
-      };
-  }
-}
-
 function updateOutcome(state: GameState): void {
   if (!state.buildings.some((b) => b.type === 'hq')) {
     state.outcome = 'lost';
@@ -246,14 +189,9 @@ function updateOutcome(state: GameState): void {
     state.outcomeReason = 'Il ne reste plus personne dans la colonie.';
     return;
   }
-  const region = regionById(state.regionId);
-  const done = region.objectives.every((o) => {
-    const p = objectiveProgress(state, o);
-    return p.value >= p.goal;
-  });
-  if (done && state.story.pending.length === 0) {
+  if (isWorldConquered(state) && state.story.pending.length === 0) {
     state.outcome = 'won';
-    state.outcomeReason = `${region.name} est sous votre contrôle.`;
+    state.outcomeReason = 'Kerath est sous votre contrôle.';
   }
 }
 
@@ -263,11 +201,6 @@ export interface CommandResult {
   ok: boolean;
   reason?: string;
 }
-
-export const availableBuildings = (regionId: string): BuildingType[] => {
-  const tier = regionById(regionId).tier;
-  return (Object.keys(BUILDINGS) as BuildingType[]).filter((t) => BUILDINGS[t].tier <= tier);
-};
 
 /** Marks a rectangle for work: walls to drill, rubble to clear, fungus to harvest. Dragging over marked tiles cancels them. */
 export function designateArea(
@@ -337,8 +270,8 @@ export function placeBuilding(
   y: number,
 ): CommandResult {
   const def = BUILDINGS[type];
-  if (def.tier > regionById(state.regionId).tier)
-    return { ok: false, reason: 'Technologie indisponible ici.' };
+  const lock = buildingLock(state, type);
+  if (lock) return { ok: false, reason: `Pas encore disponible : ${lock}.` };
   const placement = canPlaceBuilding(state, type, x, y);
   if (!placement.ok) return placement;
   if (!canAfford(state, def.cost)) return { ok: false, reason: 'Ressources insuffisantes.' };

@@ -1,11 +1,16 @@
-import { missionContext, newCampaign } from '../src/campaign/campaign';
-import { createMission, designateArea, placeBuilding, placePath, stepGame } from '../src/sim/game';
+import { TECHS } from '../src/data/techs';
+import { createGame, designateArea, placeBuilding, placePath, stepGame } from '../src/sim/game';
 import { WALLS } from '../src/data/resources';
 import { answerEvent } from '../src/sim/storyEngine';
 import type { BuildingType, GameState } from '../src/sim/types';
 
-export const newMission = (regionId = 'ash', seed = 42): GameState =>
-  createMission(regionId, missionContext(newCampaign(seed)));
+export const newGame = (seed = 42): GameState => createGame(seed);
+
+/** Opens the whole build menu, for tests about what buildings do rather than when they unlock. */
+export function unlockEverything(state: GameState): void {
+  state.cityLevel = 4;
+  state.techs = TECHS.map((t) => t.id);
+}
 
 export function run(state: GameState, seconds: number, answer = true): void {
   for (let i = 0; i < seconds * 10; i++) {
@@ -16,6 +21,7 @@ export function run(state: GameState, seconds: number, answer = true): void {
 
 /** Puts a finished, staffed building on open ground near the HQ, without playing out construction. */
 export function instantBuilding(state: GameState, type: BuildingType, x: number, y: number): void {
+  unlockEverything(state);
   const result = placeBuilding(state, type, x, y);
   if (!result.ok) throw new Error(result.reason);
   const b = state.buildings[state.buildings.length - 1];

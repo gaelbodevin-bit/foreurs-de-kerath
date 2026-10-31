@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { PATH_COST } from '../src/data/buildings';
 import { regionById } from '../src/data/regions';
 import { drillToolFor, WALLS } from '../src/data/resources';
-import { TECHS } from '../src/campaign/campaign';
-import { objectiveProgress, placePath, stepGame } from '../src/sim/game';
+import { TECHS } from '../src/data/techs';
+import { placePath, stepGame } from '../src/sim/game';
+import { objectiveProgress } from '../src/sim/progress';
 import { idx, reveal } from '../src/sim/grid';
 import { answerEvent } from '../src/sim/storyEngine';
 import type { GameState } from '../src/sim/types';
-import { newMission } from './helpers';
+import { newGame } from './helpers';
 
 const reachObjective = () => {
   const objective = regionById('ash').objectives.find((o) => o.kind === 'reach');
@@ -26,7 +27,7 @@ function play(state: GameState, ticks: number): void {
 describe('rejoindre Port-Cendre', () => {
   it('la cité existe, cachée derrière la roche', () => {
     for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
-      const state = newMission('ash', seed);
+      const state = newGame(seed);
       const place = state.settlement;
       expect(place).toBeTruthy();
       expect(state.tiles[idx(state, place!.x, place!.y)].seen).toBe(false);
@@ -36,7 +37,7 @@ describe('rejoindre Port-Cendre', () => {
 
   it('le passage direct reste à la portée de la pioche', () => {
     for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
-      const state = newMission('ash', seed);
+      const state = newGame(seed);
       const hq = state.buildings.find((b) => b.type === 'hq')!;
       const place = state.settlement!;
       const startX = hq.x + 1;
@@ -52,7 +53,7 @@ describe('rejoindre Port-Cendre', () => {
   });
 
   it('ouvrir la galerie accomplit l’objectif et ramène des habitants', () => {
-    const state = newMission('ash', 3);
+    const state = newGame(3);
     const place = state.settlement!;
     const before = state.city.population;
     reveal(state, place.x, place.y);
@@ -63,9 +64,9 @@ describe('rejoindre Port-Cendre', () => {
     expect(state.story.fired).toContain('city_reached');
   });
 
-  it('une mission sans cité compte l’objectif comme atteint', () => {
-    const state = newMission('glass', 3);
-    expect(state.settlement).toBeNull();
+  it('une partie sans cité à rejoindre compte l’objectif comme atteint', () => {
+    const state = newGame(3);
+    state.settlement = null;
     expect(objectiveProgress(state, { kind: 'reach', place: 'Nulle part' }).value).toBe(1);
   });
 });
@@ -95,7 +96,7 @@ describe('outils de forage', () => {
 
 describe('sol technique', () => {
   it('se paie au prix fort à la pose', () => {
-    const state = newMission('ash', 3);
+    const state = newGame(3);
     const hq = state.buildings.find((b) => b.type === 'hq')!;
     const x = hq.x + 3;
     const y = hq.y + 1;

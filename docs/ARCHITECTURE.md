@@ -16,8 +16,6 @@ le garantit). Trois propriétés en découlent :
    ui/  ───────────────────────────────────────────────►  sim/  ◄── data/
     │                                                      │
     └──────► render/  ◄──── lit l'état à chaque image ─────┘
-                                                           │
-                       campaign/  ◄── résultat de mission ─┘
 ```
 
 L'interface ne modifie jamais l'état directement : elle passe par les commandes de `sim/game.ts`.
@@ -31,7 +29,8 @@ n'influencent pas les règles.
 1. `updateEconomy` : réseau électrique, recettes, formation, puis cité (oxygène, nourriture, impôts,
    moral, complot, population)
 2. `updateCombat` : vagues, ennemis, foreurs et gardes, tourelles, retrait des morts
-3. Chaque seconde : réparations, lave, intrigues, conditions de victoire
+3. Chaque seconde : réparations, lave, gaz, secteurs et rang de la cité, missions, intrigues, fin de
+   partie
 
 La partie est suspendue tant qu'une décision d'intrigue attend une réponse (`story.pending`).
 
@@ -40,7 +39,9 @@ La partie est suspendue tant qu'une décision d'intrigue attend une réponse (`s
 | Fichier              | Rôle                                                            |
 | -------------------- | --------------------------------------------------------------- |
 | `sim/types.ts`       | Toutes les structures de l'état                                 |
-| `sim/mapgen.ts`      | Génération des cartes à partir de `MapParams`                   |
+| `sim/mapgen.ts`      | Génération de la carte unique, secteur par secteur              |
+| `sim/progress.ts`    | Secteurs, rang de la cité, déblocages et recherche              |
+| `sim/contracts.ts`   | Missions qui arrivent en continu                                |
 | `sim/pathfinding.ts` | A\* pour les trajets, champ de distance pour choisir les tâches |
 | `sim/workers.ts`     | File de tâches et exécution : forage, transport, chantier       |
 | `sim/economy.ts`     | Réseau, production et cité                                      |
@@ -48,14 +49,15 @@ La partie est suspendue tant qu'une décision d'intrigue attend une réponse (`s
 | `sim/storyEngine.ts` | Déclenchement des intrigues, effets, sabotage, enquête          |
 | `render/terrain.ts`  | Le terrain, un seul champ de hauteur découpé en blocs           |
 | `render/view.ts`     | Synchronisation état-scène, caméra, sélection à la souris       |
-| `ui/mission.ts`      | Boucle de jeu, commandes et panneaux de la mission              |
-| `ui/planet.ts`       | Carte de la planète, recherche et écrans de fin                 |
+| `ui/mission.ts`      | Boucle de jeu, commandes et panneaux                            |
+| `ui/planet.ts`       | Carte de la planète, écran titre et écran de fin                |
 
 ## Ajouter du contenu
 
 Le contenu se déclare dans `src/data`, sans toucher aux règles :
 
-- **Une région** : une entrée dans `regions.ts`. La somme de `control` doit rester à 100 (testé).
+- **Un secteur** : une entrée dans `regions.ts`. Sa position `planet` place aussi son centre sur la
+  carte, et la somme de `control` doit rester à 100 (testé).
 - **Une intrigue** : une entrée dans `story.ts`, avec son déclencheur et ses effets.
 - **Un bâtiment de production** : une entrée dans `buildings.ts` avec sa `recipe`, plus sa
   silhouette dans `render/prefabs.ts` (le compilateur signale le cas manquant).
@@ -118,6 +120,6 @@ ventilateur alimenté l'aspire autour de lui.
 
 ## Sauvegarde
 
-`campaign/save.ts` écrit la campagne et la mission en cours dans `localStorage`, toutes les 20 s et
-à chaque changement d'écran. Toute modification incompatible de `GameState` doit changer la clé de
+`campaign/save.ts` écrit la partie dans `localStorage`, toutes les 20 s et à chaque changement
+d'écran. Toute modification incompatible de `GameState` doit changer la clé de
 version pour que les anciennes sauvegardes soient ignorées proprement.

@@ -1,15 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { BUILD_MENUS, BUILDINGS } from '../src/data/buildings';
 import { VOICE_LINES } from '../src/data/voiceLines';
-import { REGIONS } from '../src/data/regions';
 import { WALLS } from '../src/data/resources';
 import { createBuilding } from '../src/sim/entities';
 import { designateArea, stepGame } from '../src/sim/game';
 import { updateGas } from '../src/sim/gas';
-import { generateMap } from '../src/sim/mapgen';
+import { generateWorld } from '../src/sim/mapgen';
 import { answerEvent } from '../src/sim/storyEngine';
 import type { BuildingType, GameState } from '../src/sim/types';
-import { newMission } from './helpers';
+import { newGame } from './helpers';
 
 const totalGas = (state: GameState) => state.tiles.reduce((sum, t) => sum + (t.gas ?? 0), 0);
 
@@ -21,20 +20,18 @@ function gasAround(state: GameState, x: number, y: number): void {
 }
 
 describe('zones de gaz', () => {
-  it('chaque région en contient, enfermées loin du départ', () => {
-    for (const region of REGIONS) {
-      const map = generateMap(region.map);
-      const gas = map.tiles.flatMap((t, i) => (t.gas ? [i] : []));
-      expect(gas.length, region.id).toBeGreaterThan(0);
-      for (const i of gas) {
-        const distance = Math.hypot((i % map.w) - map.start.x, Math.floor(i / map.w) - map.start.y);
-        expect(distance).toBeGreaterThan(4);
-      }
+  it('la carte en contient, enfermées loin du départ', () => {
+    const map = generateWorld(3);
+    const gas = map.tiles.flatMap((t, i) => (t.gas ? [i] : []));
+    expect(gas.length).toBeGreaterThan(0);
+    for (const i of gas) {
+      const distance = Math.hypot((i % map.w) - map.start.x, Math.floor(i / map.w) - map.start.y);
+      expect(distance).toBeGreaterThan(4);
     }
   });
 
   it('empoisonne les foreurs, pas les machines', () => {
-    const state = newMission('ash', 3);
+    const state = newGame(3);
     const foreur = state.units.find((u) => u.type === 'foreur')!;
     const before = foreur.hp;
     gasAround(state, Math.floor(foreur.x), Math.floor(foreur.y));
@@ -44,7 +41,7 @@ describe('zones de gaz', () => {
   });
 
   it('un ventilateur alimenté l’aspire, pas un ventilateur éteint', () => {
-    const state = newMission('ash', 3);
+    const state = newGame(3);
     const hq = state.buildings.find((b) => b.type === 'hq')!;
     // Only the gas in reach counts: the map has a sealed cavern of its own.
     for (const tile of state.tiles) tile.gas = 0;
@@ -62,7 +59,7 @@ describe('zones de gaz', () => {
 
 describe('gravats', () => {
   it('se déblaient même quand il reste de la roche à forer', () => {
-    const state = newMission('ash', 3);
+    const state = newGame(3);
     const hq = state.buildings.find((b) => b.type === 'hq')!;
     const walls: number[] = [];
     state.tiles.forEach((t, i) => {
@@ -115,7 +112,7 @@ describe('répliques', () => {
 });
 
 it('la simulation avance avec du gaz sur la carte', () => {
-  const state = newMission('ash', 5);
+  const state = newGame(5);
   for (let t = 0; t < 300; t++) {
     while (state.story.pending.length > 0) answerEvent(state, 0);
     stepGame(state);

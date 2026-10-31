@@ -1,4 +1,5 @@
 import { BUILDINGS, type BuildingDef } from '../data/buildings';
+import { REGIONS } from '../data/regions';
 import { RESOURCES } from '../data/resources';
 import { POLICIES, TAX_LEVELS, UNITS } from '../data/units';
 import { idx, NEIGHBORS4 } from './grid';
@@ -257,9 +258,9 @@ function updateCity(state: GameState, inputs: CityInputs): void {
   }
 }
 
-/** Set once per mission from the region definition, kept here to avoid an import cycle. */
-const intrigueByRegion = new Map<string, number>();
-export const registerRegionIntrigue = (regionId: string, intrigue: number): void => {
-  intrigueByRegion.set(regionId, intrigue);
-};
-const regionIntrigue = (state: GameState): number => intrigueByRegion.get(state.regionId) ?? 0;
+/** The plots of the deepest sector open so far are the ones that reach the city. */
+const regionIntrigue = (state: GameState): number =>
+  Math.max(
+    0,
+    ...REGIONS.filter((r) => state.sectorStart[r.id] !== undefined).map((r) => r.intrigue),
+  );

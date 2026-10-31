@@ -15,8 +15,10 @@ export interface BuildingDef {
   cost: Cost;
   buildTime: number;
   hp: number;
-  /** Region tier from which the building is available. */
-  tier: number;
+  /** City rank from which the building can be placed. */
+  level?: number;
+  /** Research that unlocks it. */
+  tech?: string;
   power?: number;
   powerOutput?: number;
   /** Seconds one crystal burns for. */
@@ -42,7 +44,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: {},
     buildTime: 1,
     hp: 900,
-    tier: 99,
+    level: 99,
     powerOutput: 4,
     storage: 150,
     housing: 8,
@@ -57,7 +59,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { ore: 10, stone: 6 },
     buildTime: 6,
     hp: 140,
-    tier: 0,
     power: 1,
   },
   depot: {
@@ -67,7 +68,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { ore: 12, stone: 4 },
     buildTime: 7,
     hp: 220,
-    tier: 0,
     storage: 100,
   },
   generator: {
@@ -77,7 +77,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { ore: 18, stone: 6 },
     buildTime: 10,
     hp: 300,
-    tier: 0,
     powerOutput: 14,
     burnTime: 45,
     jobs: 2,
@@ -89,7 +88,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { ore: 12, crystal: 3 },
     buildTime: 8,
     hp: 180,
-    tier: 0,
     power: 3,
     jobs: 1,
     oxygen: 0.12,
@@ -101,7 +99,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { ore: 10, stone: 8 },
     buildTime: 7,
     hp: 160,
-    tier: 0,
     power: 1,
     housing: 10,
   },
@@ -112,7 +109,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { ore: 10, stone: 3 },
     buildTime: 6,
     hp: 150,
-    tier: 0,
     power: 2,
     jobs: 1,
     recipe: { inputs: { ice: 1 }, outputs: { water: 2 }, cycle: 8 },
@@ -124,7 +120,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { ore: 14, stone: 4 },
     buildTime: 8,
     hp: 170,
-    tier: 0,
     power: 2,
     jobs: 2,
     recipe: { inputs: { water: 1 }, outputs: { food: 3 }, cycle: 12 },
@@ -136,7 +131,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { ore: 20, crystal: 4, stone: 6 },
     buildTime: 12,
     hp: 280,
-    tier: 1,
+    tech: 'refining',
     power: 3,
     jobs: 2,
     recipe: { inputs: { ore: 2 }, outputs: { metal: 1 }, cycle: 9 },
@@ -148,7 +143,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { metal: 15, crystal: 8, stone: 10 },
     buildTime: 16,
     hp: 320,
-    tier: 2,
+    tech: 'alloys',
     power: 5,
     jobs: 3,
     recipe: { inputs: { metal: 2, sulfur: 1 }, outputs: { alloy: 1 }, cycle: 14 },
@@ -160,7 +155,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { ore: 12, stone: 12, credits: 30 },
     buildTime: 9,
     hp: 180,
-    tier: 0,
+    level: 1,
     power: 1,
     jobs: 2,
     taxBonus: 0.25,
@@ -173,7 +168,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { stone: 15, credits: 15 },
     buildTime: 6,
     hp: 80,
-    tier: 0,
+    level: 1,
     morale: 5,
   },
   clinic: {
@@ -183,19 +178,19 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { ore: 15, crystal: 6, credits: 40 },
     buildTime: 10,
     hp: 200,
-    tier: 1,
+    tech: 'medicine',
     power: 2,
     jobs: 2,
     morale: 9,
   },
   lab: {
     name: 'Laboratoire',
-    desc: 'Produit des points de recherche, conservés à travers toute la campagne.',
+    desc: 'Produit des points de recherche, à dépenser pour débloquer outils, véhicules et usines.',
     size: 2,
     cost: { ore: 16, crystal: 8, credits: 40 },
     buildTime: 12,
     hp: 200,
-    tier: 1,
+    level: 1,
     power: 4,
     jobs: 3,
     research: 1 / 30,
@@ -207,7 +202,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { ore: 10, stone: 8, credits: 60 },
     buildTime: 9,
     hp: 220,
-    tier: 1,
+    tech: 'intel',
     power: 2,
     jobs: 2,
     conspiracy: 0.05,
@@ -219,19 +214,19 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { ore: 16, stone: 8, credits: 30 },
     buildTime: 10,
     hp: 350,
-    tier: 0,
+    level: 1,
     power: 2,
     jobs: 2,
     trains: ['garde'],
   },
   workshop: {
-    name: 'Atelier mécanique',
+    name: 'Atelier de véhicules',
     desc: 'Assemble la foreuse lourde (roche dure, or) et la mule de transport.',
     size: 2,
     cost: { ore: 20, crystal: 5, stone: 8 },
     buildTime: 12,
     hp: 320,
-    tier: 1,
+    tech: 'vehicles',
     power: 3,
     jobs: 2,
     trains: ['heavy', 'hauler'],
@@ -243,7 +238,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { ore: 12, crystal: 3 },
     buildTime: 6,
     hp: 240,
-    tier: 0,
     power: 2,
     turret: { range: 7, damage: 11, cooldown: 0.9 },
   },
@@ -267,7 +261,8 @@ export const BUILD_MENUS: BuildMenu[] = [
     groups: [
       { name: 'Réseau', buildings: ['generator', 'depot'] },
       { name: 'Terrain', buildings: ['vent'] },
-      { name: 'Défense', buildings: ['turret', 'barracks', 'workshop'] },
+      { name: 'Véhicules', buildings: ['workshop'] },
+      { name: 'Défense', buildings: ['turret', 'barracks'] },
     ],
   },
   {

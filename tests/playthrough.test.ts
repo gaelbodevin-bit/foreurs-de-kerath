@@ -1,21 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS } from '../src/data/buildings';
-import { regionById, REGIONS } from '../src/data/regions';
+import { deliverContract, contractStatus } from '../src/sim/contracts';
+import { TECHS } from '../src/data/techs';
+import { activeRegions, availableBuildings, buyTech, planetControl } from '../src/sim/progress';
 import {
-  applyMissionResult,
-  missionContext,
-  newCampaign,
-  buyTech,
-  TECHS,
-  type Campaign,
-} from '../src/campaign/campaign';
-import {
-  availableBuildings,
   canPlaceBuilding,
-  createMission,
+  createGame,
   designateArea,
   placeBuilding,
-  objectiveProgress,
   orderMove,
   placePath,
   stepGame,
@@ -25,8 +17,6 @@ import { canAfford, hasRoomFor } from '../src/sim/economy';
 import { WALLS } from '../src/data/resources';
 import { answerEvent } from '../src/sim/storyEngine';
 import type { BuildingType, GameState } from '../src/sim/types';
-
-const TRACE = import.meta.env.VITE_TRACE === '1';
 
 const count = (s: GameState, t: BuildingType) => s.buildings.filter((b) => b.type === t).length;
 
@@ -117,7 +107,15 @@ function botTurn(state: GameState): void {
   }
 
   // Build order: oxygen and housing track population; industry then defence.
-  const available = availableBuildings(state.regionId);
+  // Spend research as soon as it comes in, and hand in what can be handed in.
+  for (const tech of TECHS) buyTech(state, tech.id);
+  for (const c of [...state.contracts]) {
+    if (contractStatus(state, c).ready && c.res && state.stock[c.res] > (c.amount ?? 0) + 15) {
+      deliverContract(state, c.id);
+    }
+  }
+
+  const available = availableBuildings(state);
   const want: BuildingType[] = [];
   const mouths = state.city.population + state.units.length;
   if (mouths > 13 + count(state, 'oxygen') * 12) want.push('oxygen');
@@ -130,7 +128,7 @@ function botTurn(state: GameState): void {
     count(state, 'generator') < 1 + state.power.demand / 12
   )
     want.unshift('generator');
-  if (count(state, 'turret') < 2 + state.waves.count) want.push('turret');
+  if (count(state, 'turret') < Math.min(6, 2 + state.waves.count)) want.push('turret');
   if (count(state, 'barracks') < 1) want.push('barracks');
   if (count(state, 'refinery') < 2) want.push('refinery');
   if (count(state, 'workshop') < 1) want.push('workshop');
@@ -139,8 +137,9 @@ function botTurn(state: GameState): void {
   if (count(state, 'foundry') < 1) want.push('foundry');
   if (count(state, 'clinic') < 1) want.push('clinic');
   // Once the city is big enough for the mission, stop spending and let the stocks fill up.
-  const region = regionById(state.regionId);
-  const goalPop = region.objectives.reduce((n, o) => (o.kind === 'population' ? o.amount : n), 12);
+  const goalPop = activeRegions(state)
+    .flatMap((r) => r.objectives)
+    .reduce((n, o) => (o.kind === 'population' ? Math.max(n, o.amount) : n), 12);
   const settled = state.city.population >= goalPop && state.city.oxygen > 40;
   const shopping = settled
     ? want.filter((t) =>
@@ -208,18 +207,12 @@ function botTurn(state: GameState): void {
   }
 }
 
-function playRegion(campaign: Campaign, regionId: string, maxMinutes: number): GameState {
-  const state = createMission(regionId, missionContext(campaign));
-  const ticks = maxMinutes * 600;
+function playGame(seed: number, minutes: number): GameState {
+  const state = createGame(seed);
+  const ticks = minutes * 600;
   for (let i = 0; i < ticks && state.outcome === 'playing'; i++) {
     botTurn(state);
     stepGame(state);
-    if (TRACE && state.tick % 300 === 0) {
-      const s = state.stock;
-      console.info(
-        `${regionId} t=${state.time} pop=${state.city.population}/${state.city.housing} mor=${state.city.morale.toFixed(0)} o2=${state.city.oxygen.toFixed(0)} cons=${state.city.conspiracy.toFixed(0)} ore=${s.ore} cry=${s.crystal} sto=${s.stone} ice=${s.ice} wat=${s.water} food=${s.food.toFixed(0)} cr=${s.credits.toFixed(0)} met=${s.metal} alloy=${s.alloy} P=${state.power.produced.toFixed(0)}/${state.power.demand} units=${state.units.length} en=${state.enemies.length} jobs=${state.jobs.length} b=${state.buildings.map((b) => b.type + (b.built < 1 ? '*' : '')).join(',')}`,
-      );
-    }
     state.fx = [];
     state.dirty = [];
   }
@@ -227,38 +220,34 @@ function playRegion(campaign: Campaign, regionId: string, maxMinutes: number): G
 }
 
 describe('partie complète (joueur automatique)', () => {
-  it('le Val de Cendre se gagne en moins de 25 minutes', () => {
-    const state = playRegion(newCampaign(11), 'ash', 25);
-    expect(state.outcomeReason).toContain(regionById('ash').name);
-    expect(state.outcome).toBe('won');
+  it('le premier secteur tombe en moins de 25 minutes, et la cité a grandi', () => {
+    let state = createGame(11);
+    for (let i = 0; i < 25 * 600 && !state.conquered.includes('ash'); i++) {
+      botTurn(state);
+      stepGame(state);
+      state.fx = [];
+      state.dirty = [];
+    }
+    expect(state.conquered).toContain('ash');
+    expect(state.cityLevel).toBeGreaterThanOrEqual(1);
+    state = createGame(11);
+    expect(state.conquered).toEqual([]);
   });
 
   it('la simulation est reproductible', () => {
-    const a = playRegion(newCampaign(3), 'ash', 2);
-    const b = playRegion(newCampaign(3), 'ash', 2);
+    const a = playGame(3, 3);
+    const b = playGame(3, 3);
     expect(a.stock).toEqual(b.stock);
     expect(a.rng).toBe(b.rng);
+    expect(a.contracts.map((c) => c.id)).toEqual(b.contracts.map((c) => c.id));
   });
 
-  it('les régions suivantes tiennent la route sans plantage', () => {
-    let campaign = newCampaign(11);
-    const report: string[] = [];
-    for (const region of REGIONS) {
-      const state = playRegion(campaign, region.id, 30);
-      const goals = region.objectives
-        .map((o) => {
-          const p = objectiveProgress(state, o);
-          return `${p.label} ${p.value}/${p.goal}`;
-        })
-        .join(' | ');
-      report.push(
-        `${region.id}: ${state.outcome} t=${Math.round(state.time)} units=${state.units.length} en=${state.enemies.length} seen=${state.tiles.filter((t) => t.seen).length} :: ${goals}`,
-      );
-      state.outcome = 'won';
-      campaign = applyMissionResult(campaign, state);
-      for (const tech of TECHS) campaign = buyTech(campaign, tech.id) ?? campaign;
-      expect(Number.isFinite(state.stock.credits)).toBe(true);
-    }
-    console.info(report.join('\n'));
+  it('une longue partie tient la route sur une seule carte, sans plantage', () => {
+    const state = playGame(11, 60);
+    console.info(
+      `${state.outcome} t=${Math.round(state.time)} pop=${Math.floor(state.city.population)} rang=${state.cityLevel} contrôle=${planetControl(state)} % secteurs=${state.conquered.join(',')} techs=${state.techs.length} bât=${state.buildings.length} unités=${state.units.length} vu=${state.tiles.filter((t) => t.seen).length} raison=${state.outcomeReason}`,
+    );
+    expect(Number.isFinite(state.stock.credits)).toBe(true);
+    expect(state.w).toBe(90);
   }, 240_000);
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { REGIONS } from '../src/data/regions';
 import { BUILDINGS } from '../src/data/buildings';
 import { STORY_EVENTS } from '../src/data/story';
-import { generateMap } from '../src/sim/mapgen';
+import { generateWorld } from '../src/sim/mapgen';
 import { idx, isWalkableKind } from '../src/sim/grid';
 import { findPath } from '../src/sim/pathfinding';
 import { spawnEnemy } from '../src/sim/entities';
@@ -16,48 +16,45 @@ import {
 } from '../src/sim/game';
 import { updateNetwork } from '../src/sim/economy';
 import { answerEvent, eventById, investigate, updateStory } from '../src/sim/storyEngine';
-import { drillAround, instantBuilding, newMission, run } from './helpers';
+import { drillAround, instantBuilding, newGame, run } from './helpers';
 
 describe('génération de carte', () => {
-  it.each(REGIONS.map((r) => [r.id, r] as const))(
-    '%s : tout reste accessible en forant',
-    (_id, region) => {
-      const map = generateMap(region.map);
-      const passable = (x: number, y: number) => {
-        const k = map.tiles[y * map.w + x].k;
-        return k !== 'solid' && k !== 'lava' && k !== 'water';
-      };
-      const seen = new Set<number>([map.start.y * map.w + map.start.x]);
-      const stack = [...seen];
-      while (stack.length > 0) {
-        const cur = stack.pop() as number;
-        const x = cur % map.w;
-        const y = Math.floor(cur / map.w);
-        for (const [dx, dy] of [
-          [1, 0],
-          [-1, 0],
-          [0, 1],
-          [0, -1],
-        ]) {
-          const nx = x + dx;
-          const ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= map.w || ny >= map.h || !passable(nx, ny)) continue;
-          const ni = ny * map.w + nx;
-          if (!seen.has(ni)) {
-            seen.add(ni);
-            stack.push(ni);
-          }
+  it.each([1, 2, 3, 4])('graine %i : tout reste accessible en forant', (seed) => {
+    const map = generateWorld(seed);
+    const passable = (x: number, y: number) => {
+      const k = map.tiles[y * map.w + x].k;
+      return k !== 'solid' && k !== 'lava' && k !== 'water';
+    };
+    const seen = new Set<number>([map.start.y * map.w + map.start.x]);
+    const stack = [...seen];
+    while (stack.length > 0) {
+      const cur = stack.pop() as number;
+      const x = cur % map.w;
+      const y = Math.floor(cur / map.w);
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= map.w || ny >= map.h || !passable(nx, ny)) continue;
+        const ni = ny * map.w + nx;
+        if (!seen.has(ni)) {
+          seen.add(ni);
+          stack.push(ni);
         }
       }
-      for (const s of map.structures) expect(seen.has(s.y * map.w + s.x)).toBe(true);
-      const found = map.tiles.map((t) => t.k);
-      for (const kind of ['oreSeam', 'crystalSeam', 'iceSeam']) expect(found).toContain(kind);
-    },
-  );
+    }
+    for (const s of map.structures) expect(seen.has(s.y * map.w + s.x)).toBe(true);
+    const found = map.tiles.map((t) => t.k);
+    for (const kind of ['oreSeam', 'crystalSeam', 'iceSeam']) expect(found).toContain(kind);
+  });
 
   it('est déterministe', () => {
-    const a = generateMap(REGIONS[1].map);
-    const b = generateMap(REGIONS[1].map);
+    const a = generateWorld(11);
+    const b = generateWorld(11);
     expect(a.tiles.map((t) => t.k)).toEqual(b.tiles.map((t) => t.k));
   });
 });
@@ -86,7 +83,7 @@ describe('données', () => {
 
 describe('forage et transport', () => {
   it('un filon foré finit dans les réserves', () => {
-    const state = newMission();
+    const state = newGame();
     const before = state.stock.crystal;
     const seam = state.tiles.findIndex((t) => t.seen && t.k === 'crystalSeam');
     expect(seam).toBeGreaterThan(-1);
@@ -103,7 +100,7 @@ describe('forage et transport', () => {
   });
 
   it('forer une paroi révèle la zone qui se trouve derrière', () => {
-    const state = newMission();
+    const state = newGame();
     const seenBefore = state.tiles.filter((t) => t.seen).length;
     drillAround(state, 7);
     run(state, 90);
@@ -111,7 +108,7 @@ describe('forage et transport', () => {
   });
 
   it('un second glissement sur les mêmes parois annule le marquage', () => {
-    const state = newMission();
+    const state = newGame();
     const seam = state.tiles.findIndex((t) => t.seen && t.k === 'oreSeam');
     const x = seam % state.w;
     const y = Math.floor(seam / state.w);
@@ -121,7 +118,7 @@ describe('forage et transport', () => {
   });
 
   it('les foreurs ne peuvent pas percer la roche dure sans équipement', () => {
-    const state = newMission();
+    const state = newGame();
     const hard = state.tiles.findIndex((t) => t.k === 'dirt' && t.seen);
     state.tiles[hard].k = 'hard';
     designateArea(
@@ -137,11 +134,10 @@ describe('forage et transport', () => {
 });
 
 describe('réseau et bâtiments', () => {
-  const hqOf = (state: ReturnType<typeof newMission>) =>
-    state.buildings.find((b) => b.type === 'hq')!;
+  const hqOf = (state: ReturnType<typeof newGame>) => state.buildings.find((b) => b.type === 'hq')!;
 
   it('refuse de bâtir sur une paroi ou en double', () => {
-    const state = newMission();
+    const state = newGame();
     const hq = hqOf(state);
     expect(canPlaceBuilding(state, 'depot', hq.x, hq.y).ok).toBe(false);
     const wall = state.tiles.findIndex((t) => t.seen && t.k === 'oreSeam');
@@ -151,7 +147,7 @@ describe('réseau et bâtiments', () => {
   });
 
   it('un bâtiment isolé reste hors tension, une voie énergétique le raccorde', () => {
-    const state = newMission();
+    const state = newGame();
     const hq = hqOf(state);
     instantBuilding(state, 'oxygen', hq.x + 3, hq.y);
     updateNetwork(state);
@@ -163,7 +159,7 @@ describe('réseau et bâtiments', () => {
   });
 
   it('les foreurs construisent ce qui est posé et posent les voies', () => {
-    const state = newMission();
+    const state = newGame();
     const hq = hqOf(state);
     expect(placeBuilding(state, 'depot', hq.x + 3, hq.y).ok).toBe(true);
     expect(placePath(state, hq.x + 2, hq.y, hq.x + 2, hq.y)).toBe(1);
@@ -173,7 +169,7 @@ describe('réseau et bâtiments', () => {
   });
 
   it('les recettes transforment les stocks seulement avec énergie et personnel', () => {
-    const state = newMission();
+    const state = newGame();
     const hq = hqOf(state);
     instantBuilding(state, 'melter', hq.x + 2, hq.y);
     state.stock.ice = 10;
@@ -185,7 +181,7 @@ describe('réseau et bâtiments', () => {
   });
 
   it('la formation d’un foreur retire un citoyen', () => {
-    const state = newMission();
+    const state = newGame();
     run(state, 1);
     const population = state.city.population;
     const units = state.units.length;
@@ -198,7 +194,7 @@ describe('réseau et bâtiments', () => {
 
 describe('cité', () => {
   it('la population croît tant qu’il reste des logements et de quoi manger', () => {
-    const state = newMission();
+    const state = newGame();
     const population = state.city.population;
     run(state, 90);
     expect(state.city.population).toBeGreaterThan(population);
@@ -206,8 +202,8 @@ describe('cité', () => {
   });
 
   it('les impôts rapportent des crédits mais pèsent sur le moral', () => {
-    const light = newMission();
-    const heavy = newMission();
+    const light = newGame();
+    const heavy = newGame();
     heavy.city.taxLevel = 3;
     light.city.taxLevel = 0;
     run(light, 120);
@@ -217,7 +213,7 @@ describe('cité', () => {
   });
 
   it('la famine tue et le manque d’air aussi', () => {
-    const state = newMission();
+    const state = newGame();
     state.stock.food = 0;
     state.city.oxygen = 0;
     const population = state.city.population;
@@ -228,7 +224,7 @@ describe('cité', () => {
 
 describe('combat', () => {
   it('une tourelle sous tension abat un rongeur', () => {
-    const state = newMission();
+    const state = newGame();
     const hq = state.buildings.find((b) => b.type === 'hq')!;
     instantBuilding(state, 'turret', hq.x + 2, hq.y);
     state.city.population = 8;
@@ -239,7 +235,7 @@ describe('combat', () => {
   });
 
   it('la perte du Noyau de commande met fin à la mission', () => {
-    const state = newMission();
+    const state = newGame();
     state.buildings.find((b) => b.type === 'hq')!.hp = 0.1;
     state.buildings.splice(0, 1);
     run(state, 2);
@@ -247,7 +243,7 @@ describe('combat', () => {
   });
 
   it('les ennemis trouvent un chemin jusqu’à la cité', () => {
-    const state = newMission();
+    const state = newGame();
     const hq = state.buildings.find((b) => b.type === 'hq')!;
     const open = state.tiles.findIndex((t) => t.seen && isWalkableKind(t.k));
     const path = findPath(state, open % state.w, Math.floor(open / state.w), hq.x, hq.y);
@@ -257,7 +253,7 @@ describe('combat', () => {
 
 describe('intrigues', () => {
   it('un événement suspend la partie jusqu’à la décision', () => {
-    const state = newMission();
+    const state = newGame();
     run(state, 3, false);
     expect(state.story.pending).toContain('landing');
     const tick = state.tick;
@@ -270,7 +266,7 @@ describe('intrigues', () => {
 
   it('les indices désignent le vrai traître', () => {
     for (const mole of ['orsa', 'krell', 'soum'] as const) {
-      const state = newMission();
+      const state = newGame();
       state.story.mole = mole;
       state.time = 500;
       state.tick = 5000;
@@ -280,7 +276,7 @@ describe('intrigues', () => {
   });
 
   it('accuser juste démantèle le complot, accuser à tort l’aggrave', () => {
-    const right = newMission('vantor');
+    const right = newGame();
     const moleIndex = ['orsa', 'krell', 'soum'].indexOf(right.story.mole);
     right.city.conspiracy = 60;
     right.story.pending = ['accusation'];
@@ -288,7 +284,7 @@ describe('intrigues', () => {
     expect(right.story.moleCaught).toBe(true);
     expect(right.city.conspiracy).toBe(15);
 
-    const wrong = newMission('vantor');
+    const wrong = newGame();
     wrong.city.conspiracy = 60;
     wrong.story.pending = ['accusation'];
     answerEvent(wrong, (moleIndex + 1) % 3);
@@ -297,7 +293,7 @@ describe('intrigues', () => {
   });
 
   it('un complot à son comble déclenche un soulèvement', () => {
-    const state = newMission();
+    const state = newGame();
     drillAround(state, 6);
     run(state, 30);
     state.city.conspiracy = 100;
@@ -307,7 +303,7 @@ describe('intrigues', () => {
   });
 
   it('enquêter fait reculer le complot et coûte des crédits', () => {
-    const state = newMission();
+    const state = newGame();
     state.city.conspiracy = 50;
     state.stock.credits = 100;
     expect(investigate(state).ok).toBe(true);

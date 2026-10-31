@@ -75,7 +75,6 @@ export class MissionView {
   private readonly raycaster = new THREE.Raycaster();
   private readonly lamp = new THREE.PointLight(0xfff0d0, 10, 18, 1.6);
   private readonly key = new THREE.DirectionalLight(0xffe9d6, 2.6);
-  private readonly tool: DrillTool;
   private readonly settlement: THREE.Group | null;
   private readonly decor: DecorView;
   private readonly composer: EffectComposer;
@@ -106,7 +105,6 @@ export class MissionView {
     private readonly canvas: HTMLCanvasElement,
     readonly state: GameState,
   ) {
-    this.tool = drillToolFor(state.mods.drillPower);
     this.scene.add(this.gas.object);
     this.settlement = state.settlement ? settlementFromModels() : null;
     if (this.settlement && state.settlement) {
@@ -415,6 +413,9 @@ export class MissionView {
         }
       });
       if (entry.bar) entry.bar.position.x = def.size / 2;
+      (entry.object.userData.growth as THREE.Object3D[] | undefined)?.forEach((part, i) => {
+        part.visible = state.cityLevel > i;
+      });
       if (b.built >= 1 && !off && this.stale < 0.3) {
         const { spinning, smoke } = entry.object.userData as {
           spinning?: THREE.Object3D[];
@@ -441,8 +442,16 @@ export class MissionView {
     }
 
     const alpha = this.tickAlpha;
+    const heldTool = drillToolFor(state.mods.drillPower);
     for (const u of state.units) {
-      const entry = this.track(`u${u.id}`, () => makeUnit(u.type, this.tool), u.x, u.y, seen);
+      // The tool is part of the key, so that a new tool swaps the model.
+      const entry = this.track(
+        `u${u.id}${heldTool}`,
+        () => makeUnit(u.type, heldTool),
+        u.x,
+        u.y,
+        seen,
+      );
       if (tickChanged) {
         entry.px = entry.tx;
         entry.py = entry.ty;

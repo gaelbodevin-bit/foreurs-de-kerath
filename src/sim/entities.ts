@@ -66,6 +66,7 @@ export function createBuilding(
   };
   state.buildings.push(building);
   state.networkDirty = true;
+  state.dirty.push(y * state.w + x);
   return building;
 }
 
