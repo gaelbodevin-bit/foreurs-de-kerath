@@ -144,7 +144,7 @@ export function generateWorld(seed: number): GeneratedMap {
       }
     }
 
-    // Before anything else claims a cavern. Never where Port-Cendre may stand, and if no cavern fits,
+    // Before anything else claims a cavern. Never where CITY may stand, and if no cavern fits,
     // a room is dug for the purpose: every sector, the first above all, should have one to find.
     const farFromCity = (x: number, y: number) =>
       index > 0 ||

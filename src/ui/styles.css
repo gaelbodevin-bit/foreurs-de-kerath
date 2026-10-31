@@ -880,3 +880,35 @@ p {
 .cancel-tool[hidden] {
   display: none;
 }
+
+.sound-panel {
+  position: absolute;
+  top: calc(var(--top-bar, 48px) + 8px);
+  right: 282px;
+  z-index: 6;
+  width: 230px;
+}
+
+.sound-panel[hidden] {
+  display: none;
+}
+
+.volume {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+}
+
+.volume em {
+  font-style: normal;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.volume input {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--accent);
+}

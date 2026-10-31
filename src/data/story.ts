@@ -62,8 +62,8 @@ export const STORY_EVENTS: StoryEvent[] = [
   {
     id: 'landing',
     speaker: 'Orsa Veld',
-    title: 'Coupés de Port-Cendre',
-    text: "Chef d'expédition, bienvenue sous la croûte. Kerath est un monde creux : le cristal, le métal et l'air respirable se trouvent tous en profondeur. La Charte nous envoie en prendre le contrôle, avant que d'autres ne s'en emparent. Tout partira d'ici : ce campement doit devenir la capitale de Kerath, et il lui faudra un gouverneur.\n\nLes colons de Port-Cendre devaient nous accueillir, mais un éboulement a fermé la galerie à notre arrivée. Nous sommes isolés, et eux aussi.\n\nNotre priorité : les rejoindre. Ils sont signalés par l'anneau turquoise sur la mini-carte. Glissez sur la roche pour marquer le passage à forer. Nos pioches n'entament que la roche tendre : il faudra contourner la roche dure.\n\nD'ici là, nous n'avons que le nécessaire : le menu de construction se limite à ce qui sert à explorer.",
+    title: 'Coupés de CITY',
+    text: "Chef d'expédition, bienvenue sous la croûte. Kerath est un monde creux : le cristal, le métal et l'air respirable se trouvent tous en profondeur. La Charte nous envoie en prendre le contrôle, avant que d'autres ne s'en emparent. Tout partira d'ici : ce campement doit devenir la capitale de Kerath, et il lui faudra un gouverneur.\n\nLes colons de CITY devaient nous accueillir, mais un éboulement a fermé la galerie à notre arrivée. Nous sommes isolés, et eux aussi.\n\nNotre priorité : les rejoindre. Ils sont signalés par l'anneau turquoise sur la mini-carte. Glissez sur la roche pour marquer le passage à forer. Nos pioches n'entament que la roche tendre : il faudra contourner la roche dure.\n\nD'ici là, nous n'avons que le nécessaire : le menu de construction se limite à ce qui sert à explorer.",
     when: { regions: ['ash'], minTime: 1 },
     choices: [{ label: 'En route, on creuse.', effects: [] }],
   },

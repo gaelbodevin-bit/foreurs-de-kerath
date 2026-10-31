@@ -88,6 +88,21 @@ const SOUNDS: Record<SoundKey, SoundDef> = {
 };
 
 const MUTE_KEY = 'foreurs-de-kerath/muted';
+const VOLUME_KEY = 'foreurs-de-kerath/volumes';
+
+export type VolumeId = 'master' | 'sfx' | 'voice' | 'ambience';
+
+/** 1 is the level the game was balanced at: the sliders go from silence to twice that. */
+export const MAX_VOLUME = 2;
+const DEFAULT_VOLUMES: Record<VolumeId, number> = { master: 1, sfx: 1, voice: 1, ambience: 1 };
+
+function readVolumes(): Record<VolumeId, number> {
+  try {
+    return { ...DEFAULT_VOLUMES, ...JSON.parse(localStorage.getItem(VOLUME_KEY) ?? '{}') };
+  } catch {
+    return { ...DEFAULT_VOLUMES };
+  }
+}
 const VOICE_LEVEL = 0.32;
 
 function readMuted(): boolean {
@@ -149,6 +164,7 @@ export class Audio {
   private readonly buffers = new Map<string, AudioBuffer>();
   private ambience: Ambience | null = null;
   private speaking: AudioBufferSourceNode | null = null;
+  private speakingGain: GainNode | null = null;
   private wantAmbience = false;
   private decoding: Promise<void> | null = null;
   private dripTimer = 3;
@@ -156,7 +172,39 @@ export class Audio {
   private rumbleTimer = 45;
   private chord = 0;
   private mutedValue = readMuted();
+  private readonly volumes = readVolumes();
+  private ambienceBus: GainNode | null = null;
   private listener = { x: 0, y: 0, heading: 0, reach: 20 };
+
+  volume(id: VolumeId): number {
+    return this.volumes[id];
+  }
+
+  setVolume(id: VolumeId, value: number): void {
+    this.volumes[id] = Math.max(0, Math.min(MAX_VOLUME, value));
+    try {
+      localStorage.setItem(VOLUME_KEY, JSON.stringify(this.volumes));
+    } catch {
+      // Private window: the choice simply won't outlive the page.
+    }
+    this.applyLevels();
+  }
+
+  /** Follows the sliders at once for what lasts. Short sounds pick up the new level when they start. */
+  private applyLevels(): void {
+    const { ctx, master, ambienceBus } = this;
+    if (!ctx || !master) return;
+    const level = this.mutedValue ? 0 : this.volumes.master;
+    master.gain.setTargetAtTime(level, ctx.currentTime, 0.03);
+    ambienceBus?.gain.setTargetAtTime(this.volumes.ambience, ctx.currentTime, 0.03);
+    if (this.speakingGain) {
+      this.speakingGain.gain.setTargetAtTime(
+        VOICE_LEVEL * this.volumes.voice,
+        ctx.currentTime,
+        0.03,
+      );
+    }
+  }
 
   get muted(): boolean {
     return this.mutedValue;
@@ -169,9 +217,7 @@ export class Audio {
     } catch {
       // Private window: the choice simply won't outlive the page.
     }
-    if (this.master && this.ctx) {
-      this.master.gain.setTargetAtTime(value ? 0 : 1, this.ctx.currentTime, 0.03);
-    }
+    this.applyLevels();
   }
 
   /** Fetches the recordings. They can only be decoded once the player has touched the page. */
@@ -210,8 +256,11 @@ export class Audio {
   private buildGraph(ctx: AudioContext): void {
     const compressor = ctx.createDynamicsCompressor();
     this.master = ctx.createGain();
-    this.master.gain.value = this.mutedValue ? 0 : 1;
+    this.master.gain.value = this.mutedValue ? 0 : this.volumes.master;
     this.master.connect(compressor).connect(ctx.destination);
+    this.ambienceBus = ctx.createGain();
+    this.ambienceBus.gain.value = this.volumes.ambience;
+    this.ambienceBus.connect(this.master);
     this.dry = ctx.createGain();
     this.dry.connect(this.master);
     const convolver = ctx.createConvolver();
@@ -276,7 +325,7 @@ export class Audio {
       // A slight change of pitch keeps repeated sounds from feeling mechanical.
       if (id !== 'win' && id !== 'lose') source.playbackRate.value = 0.93 + Math.random() * 0.14;
       const gain = ctx.createGain();
-      gain.gain.value = def.gain * distanceGain;
+      gain.gain.value = def.gain * distanceGain * this.volumes.sfx;
       source.connect(gain).connect(panner);
       source.start(now);
       return;
@@ -288,7 +337,7 @@ export class Audio {
     osc.type = synth.type;
     osc.frequency.setValueAtTime(synth.freq, now);
     osc.frequency.exponentialRampToValueAtTime(synth.to, now + synth.time);
-    gain.gain.setValueAtTime(synth.gain * distanceGain, now);
+    gain.gain.setValueAtTime(synth.gain * distanceGain * this.volumes.sfx, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + synth.time);
     osc.connect(gain).connect(panner);
     osc.start(now);
@@ -315,7 +364,8 @@ export class Audio {
     high.type = 'lowpass';
     high.frequency.value = 7000;
     const gain = ctx.createGain();
-    gain.gain.value = VOICE_LEVEL;
+    gain.gain.value = VOICE_LEVEL * this.volumes.voice;
+    this.speakingGain = gain;
     const send = ctx.createGain();
     send.gain.value = 0.08;
     source.connect(low).connect(high).connect(gain);
@@ -355,7 +405,7 @@ export class Audio {
     const out = ctx.createGain();
     out.gain.value = 0;
     out.gain.setTargetAtTime(1, ctx.currentTime, 1.5);
-    out.connect(master);
+    out.connect(this.ambienceBus ?? master);
     const nodes: AudioScheduledSourceNode[] = [];
 
     // Nothing drones: the only constant layer is a breath of air, barely above silence.
@@ -469,7 +519,7 @@ export class Audio {
     const start = 1000 + Math.random() * 900;
     osc.frequency.setValueAtTime(start, now);
     osc.frequency.exponentialRampToValueAtTime(start * 1.8, now + 0.05);
-    gain.gain.setValueAtTime(0.1, now);
+    gain.gain.setValueAtTime(0.1 * this.volumes.ambience, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
     osc.connect(gain).connect(this.echo);
     osc.start(now);

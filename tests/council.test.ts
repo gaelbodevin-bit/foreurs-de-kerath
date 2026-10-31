@@ -129,7 +129,7 @@ describe('salles de monstres', () => {
     expect(generateWorld(1).lairs.length).toBeGreaterThan(0);
   });
 
-  it('le premier secteur en a toujours une, loin de Port-Cendre', () => {
+  it('le premier secteur en a toujours une, loin de CITY', () => {
     for (let seed = 1; seed <= 20; seed++) {
       const map = generateWorld(seed);
       const here = map.lairs.filter((l) => sectorAt(l.x, l.y, map.w, map.h).index === 0);

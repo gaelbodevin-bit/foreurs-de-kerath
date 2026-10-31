@@ -56,7 +56,7 @@ function botTurn(state: GameState): void {
   const hq = state.buildings.find((b) => b.type === 'hq');
   if (!hq) return;
 
-  // First things first: the tunnel to Port-Cendre, one reachable stretch at a time.
+  // First things first: the tunnel to CITY, one reachable stretch at a time.
   const place = state.settlement;
   if (place && !place.reached) {
     const startX = hq.x + 1;

@@ -574,6 +574,30 @@ function hardHat(): THREE.Object3D {
   return hat;
 }
 
+/**
+ * Built along +Z, grip down. The character's arm runs along -X from the shoulder and its fist ends
+ * 0.28 out; the guard's pose then swings it 60° forward, which the turn cancels so the gun aims ahead.
+ */
+function pistol(): THREE.Object3D {
+  const tool = new THREE.Group();
+  tool.add(
+    makeDetail({ shape: 'box', color: 0x9aa3ad, y: 0.03, z: 0.15, w: 0.07, h: 0.08, d: 0.32 }),
+    makeDetail({ shape: 'box', color: 0x2c3036, y: -0.1, z: 0.03, w: 0.06, h: 0.16, d: 0.08 }),
+    makeDetail({
+      shape: 'box',
+      color: 0x7ffcff,
+      glow: true,
+      y: 0.03,
+      z: 0.315,
+      w: 0.05,
+      h: 0.05,
+      d: 0.02,
+    }),
+  );
+  tool.rotation.y = -Math.PI / 3;
+  return tool;
+}
+
 /** Large for the hand holding it, or it would be lost at game distance. */
 function pickaxe(): THREE.Object3D {
   const tool = new THREE.Group();
@@ -676,7 +700,7 @@ export function unitFromModels(type: UnitType, tool: DrillTool): THREE.Group | n
     case 'garde': {
       const made = characterGroup('garde', 1);
       if (!made) return null;
-      attach(made.body, 'arm-right', placeModel('rifle', 0.34), [0, -0.2, 0.12]);
+      attach(made.body, 'arm-right', pistol(), [-0.27, 0, 0]);
       return made.group;
     }
     case 'heavy': {

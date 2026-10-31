@@ -201,7 +201,11 @@ function updateCity(state: GameState, inputs: CityInputs): void {
   city.oxygen = Math.min(100, Math.max(0, city.oxygen + o2Flow * dt));
 
   // Food.
-  const appetite = (mouths / FOOD_PER_MOUTH_SECONDS) * (city.policies.rationing ? 0.65 : 1);
+  // The expedition lives on its rations: hunger only starts once there is a city to feed.
+  const fed = !(state.settlement?.reached ?? true);
+  const appetite = fed
+    ? 0
+    : (mouths / FOOD_PER_MOUTH_SECONDS) * (city.policies.rationing ? 0.65 : 1);
   const foodBefore = state.stock.food;
   state.stock.food = Math.max(0, foodBefore - appetite * dt);
   if (foodBefore >= LOW_FOOD && state.stock.food < LOW_FOOD) {
@@ -212,7 +216,7 @@ function updateCity(state: GameState, inputs: CityInputs): void {
     );
     state.fx.push({ kind: 'sound', id: 'alert' });
   }
-  const starving = state.stock.food <= 0;
+  const starving = !fed && state.stock.food <= 0;
 
   // Taxes and upkeep.
   const tax = TAX_LEVELS[city.taxLevel];

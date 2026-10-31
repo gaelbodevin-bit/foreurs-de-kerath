@@ -24,7 +24,7 @@ function play(state: GameState, ticks: number): void {
   }
 }
 
-describe('rejoindre Port-Cendre', () => {
+describe('rejoindre CITY', () => {
   it('la cité existe, cachée derrière la roche', () => {
     for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
       const state = newGame(seed);

@@ -38,7 +38,7 @@ export const REGIONS: RegionDef[] = [
     name: 'Val de Cendre',
     faction: 'Terres vierges',
     blurb:
-      'Un éboulement sépare l’expédition de Port-Cendre, la première cité de la Charte. Il faut la rejoindre.',
+      'Un éboulement sépare l’expédition de CITY, la première cité de la Charte. Il faut la rejoindre.',
     tier: 0,
     requires: [],
     control: 8,
@@ -56,14 +56,14 @@ export const REGIONS: RegionDef[] = [
     intrigue: 0.005,
     erosion: 0,
     objectives: [
-      { kind: 'reach', place: 'Port-Cendre' },
+      { kind: 'reach', place: 'CITY' },
       { kind: 'resource', res: 'crystal', amount: 20 },
       { kind: 'build', building: 'oxygen', amount: 1 },
       { kind: 'population', amount: 24 },
     ],
     perk: {
       name: 'Tête de pont',
-      desc: 'Les colons de Port-Cendre livrent 15 minerais et 10 roches.',
+      desc: 'Les colons de CITY livrent 15 minerais et 10 roches.',
       stock: { ore: 15, stone: 10 },
     },
   },

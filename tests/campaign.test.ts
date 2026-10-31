@@ -16,6 +16,7 @@ import {
   buyTech,
   planetControl,
   updateProgress,
+  visibleObjectives,
 } from '../src/sim/progress';
 import type { Contract } from '../src/sim/types';
 import { reveal } from '../src/sim/grid';
@@ -98,7 +99,7 @@ describe('progression', () => {
     expect(available).toContain('generator');
     expect(available).toContain('turret');
     expect(available.some((t) => CITY_BUILDINGS.has(t))).toBe(false);
-    expect(buildingLock(state, 'habitat')).toContain('Port-Cendre');
+    expect(buildingLock(state, 'habitat')).toContain('CITY');
     state.research = 100;
     expect(buyTech(state, 'drills1')).toBe(false);
     expect(state.research).toBe(100);
@@ -171,6 +172,16 @@ describe('progression', () => {
     const ids = TECHS.map((t) => t.id);
     for (const def of Object.values(BUILDINGS)) if (def.tech) expect(ids).toContain(def.tech);
     for (const tech of TECHS) if (tech.requires) expect(ids).toContain(tech.requires);
+  });
+});
+
+describe('objectifs affichés', () => {
+  it('un seul objectif tant que CITY n’est pas rejointe, puis les autres', () => {
+    const state = newGame(1);
+    const region = regionById('ash');
+    expect(visibleObjectives(state, region).map((o) => o.kind)).toEqual(['reach']);
+    state.settlement!.reached = true;
+    expect(visibleObjectives(state, region)).toEqual(region.objectives);
   });
 });
 

@@ -38,7 +38,7 @@ npm run dev
 | Cité, recherche, conseil, enquête | C, R, K et J                                            |
 | Carte de la planète               | M                                                       |
 
-**Pour bien commencer :** forez minerai et cristal, puis creusez jusqu'à Port-Cendre, l'anneau turquoise
+**Pour bien commencer :** forez minerai et cristal, puis creusez jusqu'à CITY, l'anneau turquoise
 de la mini-carte. Vous devenez gouverneur : l'onglet Cité, le conseil et la recherche s'ouvrent.
 Construisez de quoi loger, nourrir et faire respirer la colonie, puis un laboratoire.
 

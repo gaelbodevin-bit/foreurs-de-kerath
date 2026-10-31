@@ -124,10 +124,14 @@ export const hasReachedCity = (state: GameState): boolean => state.settlement?.r
 export function buildingLock(state: GameState, type: BuildingType): string | null {
   const def = BUILDINGS[type];
   if (type === 'hq') return 'Indisponible';
-  if (CITY_BUILDINGS.has(type) && !hasReachedCity(state)) return 'Rejoignez d’abord Port-Cendre';
+  if (CITY_BUILDINGS.has(type) && !hasReachedCity(state)) return 'Rejoignez d’abord CITY';
   if (def.tech && !state.techs.includes(def.tech)) return `Recherche : ${techById(def.tech).name}`;
   return null;
 }
+
+/** What the panel shows: the expedition has only one goal until it reaches the city. */
+export const visibleObjectives = (state: GameState, region: RegionDef): Objective[] =>
+  region.objectives.filter((o) => hasReachedCity(state) || o.kind === 'reach');
 
 export const availableBuildings = (state: GameState): BuildingType[] =>
   (Object.keys(BUILDINGS) as BuildingType[]).filter((t) => buildingLock(state, t) === null);
@@ -135,7 +139,7 @@ export const availableBuildings = (state: GameState): BuildingType[] =>
 export function techLock(state: GameState, id: string): string | null {
   const tech = techById(id);
   if (state.techs.includes(id)) return 'Acquis';
-  if (!hasReachedCity(state)) return 'Rejoignez d’abord Port-Cendre';
+  if (!hasReachedCity(state)) return 'Rejoignez d’abord CITY';
   if (tech.requires && !state.techs.includes(tech.requires)) {
     return `Après : ${techById(tech.requires).name}`;
   }

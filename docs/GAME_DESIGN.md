@@ -21,7 +21,7 @@ secteur conquis ajoute un pourcentage de contrôle et un bonus permanent, et ouv
 ## La progression
 
 Au départ, le menu de construction se limite à ce qui sert à explorer : voies, énergie, entrepôt,
-ventilateur, tourelle, caserne. Rejoindre Port-Cendre fait de vous le gouverneur et ouvre le reste :
+ventilateur, tourelle, caserne. Rejoindre CITY fait de vous le gouverneur et ouvre le reste :
 l'onglet Cité, le conseil et la recherche. Avant cela, ces éléments ne sont pas affichés.
 
 Le laboratoire produit la recherche, dépensée en jeu :
@@ -41,14 +41,14 @@ rien : il élargit la zone constructible et agrandit le Noyau.
 
 ## La zone de la cité et les avant-postes
 
-L'onglet Cité du menu de construction s'ouvre en rejoignant Port-Cendre. Ses bâtiments ne se posent
+L'onglet Cité du menu de construction s'ouvre en rejoignant CITY. Ses bâtiments ne se posent
 que dans un rayon autour du Noyau, qui grandit avec le rang.
 Ceux du menu Exploration se posent partout. L'avant-poste sert de dépôt et de source à un réseau
 électrique séparé, pour s'installer loin de la cité.
 
 ## Le gouverneur et son conseil
 
-Rejoindre Port-Cendre fait du chef d'expédition le gouverneur, qui choisit son style. Le conseil a
+Rejoindre CITY fait du chef d'expédition le gouverneur, qui choisit son style. Le conseil a
 quatre sièges : Ingénierie, Intendance, Science et Défense. Orsa Veld, Tomas Krell et Ilyane Soum
 occupent les trois premiers. De nouveaux candidats se présentent toutes les 3 minutes, chacun avec un
 trait dont l'effet grandit à chaque niveau. Renvoyer un conseiller ne règle pas le complot.
@@ -60,7 +60,7 @@ dès qu'une unité approche ou qu'on les blesse.
 
 ## Les missions
 
-Une fois Port-Cendre rejointe, une demande arrive toutes les 35 à 75 secondes, 4 au plus à la fois : livrer une commande, bâtir un
+Une fois CITY rejointe, une demande arrive toutes les 35 à 75 secondes, 4 au plus à la fois : livrer une commande, bâtir un
 chantier, forer jusqu'à un point marqué, sauver une équipe ensevelie, abattre une incursion ou
 accueillir des réfugiés. Réussir paie, et rater pèse sur le moral.
 

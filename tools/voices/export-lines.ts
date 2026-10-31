@@ -3,7 +3,7 @@ import { CREW, voiceFile, VOICE_LINES } from '../../src/data/voiceLines';
 import type { VoiceId } from '../../src/sim/types';
 
 /** What the screen shows and what the generator reads best are not quite the same text. */
-const forSpeech = (text: string): string => text.replace(/’/g, "'");
+const forSpeech = (text: string): string => text.replace(/’/g, "'").replace(/CITY/g, 'Citi');
 
 const lines = (Object.keys(VOICE_LINES) as VoiceId[]).flatMap((id) =>
   VOICE_LINES[id].lines.map((line, index) => ({

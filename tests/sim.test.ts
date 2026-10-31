@@ -217,8 +217,28 @@ describe('gravats et stock plein', () => {
 });
 
 describe('faim', () => {
-  it('sans rien faire, la colonie de départ tient plus de dix minutes avant le premier mort', () => {
+  it('personne ne meurt de faim avant d’avoir rejoint la cité', () => {
     const state = newGame();
+    state.stock.food = 0;
+    const start = state.city.population;
+    run(state, 400);
+    expect(state.city.population).toBeGreaterThanOrEqual(start);
+    expect(state.log.some((l) => l.text.includes('la faim'))).toBe(false);
+  });
+
+  it('la nourriture ne baisse qu’à partir de la cité', () => {
+    const state = newGame();
+    const food = state.stock.food;
+    run(state, 60);
+    expect(state.stock.food).toBe(food);
+    state.settlement!.reached = true;
+    run(state, 60);
+    expect(state.stock.food).toBeLessThan(food);
+  });
+
+  it('une fois la cité rejointe, la colonie tient plus de dix minutes avant le premier mort', () => {
+    const state = newGame();
+    state.settlement!.reached = true;
     const start = state.city.population;
     run(state, 660);
     expect(state.stock.food).toBeGreaterThan(0);
@@ -248,6 +268,7 @@ describe('cité', () => {
 
   it('la famine tue et le manque d’air aussi', () => {
     const state = newGame();
+    state.settlement!.reached = true;
     state.stock.food = 0;
     state.city.oxygen = 0;
     const population = state.city.population;

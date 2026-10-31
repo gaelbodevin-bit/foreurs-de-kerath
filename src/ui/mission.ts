@@ -18,7 +18,7 @@ import { TECHS } from '../data/techs';
 import { DRILL_TOOLS, drillToolFor, RESOURCES, TILE_NAMES, WALLS } from '../data/resources';
 import { ADVISORS } from '../data/story';
 import { ENEMIES, INVESTIGATION_COST, POLICIES, TAX_LEVELS, UNITS } from '../data/units';
-import { audio } from '../render/audio';
+import { audio, MAX_VOLUME, type VolumeId } from '../render/audio';
 import { MissionView } from '../render/view';
 import { voice } from '../render/voice';
 import { canAfford, storageCapacity } from '../sim/economy';
@@ -44,6 +44,7 @@ import {
   hasReachedCity,
   objectiveProgress,
   techLock,
+  visibleObjectives,
 } from '../sim/progress';
 import { answerEvent, eventById, eventText, investigate, visibleChoices } from '../sim/storyEngine';
 import type {
@@ -118,6 +119,18 @@ export class MissionScreen {
   private readonly toast = h('div', { class: 'toast' });
   private readonly bark = h('div', { class: 'bark' });
   private readonly hint = h('div', { class: 'hint' });
+  private readonly soundPanel = h('div', { class: 'panel sound-panel', hidden: true });
+  private readonly soundButton = h(
+    'button',
+    {
+      class: 'chip',
+      title: 'Volumes',
+      onclick: () => {
+        this.soundPanel.hidden = !this.soundPanel.hidden;
+      },
+    },
+    audio.muted ? '🔇' : '🔊',
+  );
   private readonly cancelTool = h(
     'button',
     { class: 'chip cancel-tool', onclick: () => this.setTool({ kind: 'select' }) },
@@ -151,6 +164,7 @@ export class MissionScreen {
       this.buildRightColumn(),
       this.logBox,
       this.hint,
+      this.buildSoundPanel(),
       this.cancelTool,
       this.toast,
       this.bark,
@@ -221,21 +235,58 @@ export class MissionScreen {
         ),
         pause,
         ...speeds,
-        h(
-          'button',
-          {
-            class: 'chip',
-            title: 'Son',
-            onclick: (e: MouseEvent) => {
-              this.audio.muted = !this.audio.muted;
-              (e.currentTarget as HTMLElement).textContent = this.audio.muted ? '🔇' : '🔊';
-            },
-          },
-          this.audio.muted ? '🔇' : '🔊',
-        ),
+        this.soundButton,
         h('button', { class: 'chip', onclick: () => this.callbacks.onQuit(this.state) }, 'Menu'),
       ),
     );
+  }
+
+  /** One slider per kind of sound, from silence to twice the usual level. */
+  private buildSoundPanel(): HTMLElement {
+    const sliders: [VolumeId, string, () => void][] = [
+      ['master', 'Général', () => this.audio.play('click')],
+      ['sfx', 'Effets', () => this.audio.play('click')],
+      ['voice', 'Voix', () => voice.say('ack')],
+      ['ambience', 'Ambiance', () => undefined],
+    ];
+    const mute = h(
+      'button',
+      {
+        class: 'chip',
+        onclick: () => {
+          this.audio.muted = !this.audio.muted;
+          mute.textContent = this.audio.muted ? 'Remettre le son' : 'Couper le son';
+          this.soundButton.textContent = this.audio.muted ? '🔇' : '🔊';
+        },
+      },
+      this.audio.muted ? 'Remettre le son' : 'Couper le son',
+    );
+    this.soundPanel.append(
+      h('h3', {}, 'Volumes'),
+      ...sliders.map(([id, name, preview]) => {
+        const value = h('em', {}, `${Math.round(this.audio.volume(id) * 100)} %`);
+        const input = h('input', {
+          type: 'range',
+          min: 0,
+          max: MAX_VOLUME * 100,
+          step: 5,
+          value: Math.round(this.audio.volume(id) * 100),
+          'aria-label': name,
+          oninput: () => {
+            this.audio.setVolume(id, Number(input.value) / 100);
+            value.textContent = `${input.value} %`;
+          },
+          onchange: () => {
+            preview();
+            // Otherwise the arrow keys would keep moving the slider instead of the camera.
+            input.blur();
+          },
+        });
+        return h('label', { class: 'volume' }, h('span', {}, name), value, input);
+      }),
+      mute,
+    );
+    return this.soundPanel;
   }
 
   private governorChip(modal: Modal, label: string): HTMLButtonElement {
@@ -819,7 +870,7 @@ export class MissionScreen {
     const { state } = this;
     const groups = activeRegions(state).map((region) => ({
       region,
-      rows: region.objectives.map((o) => objectiveProgress(state, o, region)),
+      rows: visibleObjectives(state, region).map((o) => objectiveProgress(state, o, region)),
     }));
     const sig = groups.map((g) => g.region.id + g.rows.map((r) => r.value).join()).join();
     this.patch(this.objectives, sig, () =>
