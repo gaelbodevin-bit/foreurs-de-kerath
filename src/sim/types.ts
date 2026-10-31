@@ -163,7 +163,7 @@ export interface LogEntry {
 export type Fx =
   | { kind: 'laser'; x1: number; y1: number; x2: number; y2: number; hostile: boolean }
   | { kind: 'burst'; x: number; y: number; color: number }
-  | { kind: 'sound'; id: SoundId };
+  | { kind: 'sound'; id: SoundId; x?: number; y?: number };
 
 export type SoundId = 'drill' | 'collect' | 'build' | 'alert' | 'laser' | 'collapse' | 'plot';
 

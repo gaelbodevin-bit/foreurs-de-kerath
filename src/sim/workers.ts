@@ -243,7 +243,7 @@ function runJob(state: GameState, unit: Unit, job: Job, speed: number): void {
       if (!approach(state, unit, job, 1.25, speed)) return;
       unit.working = true;
       tile.work += dt * UNITS[unit.type].drillSpeed * state.mods.drillSpeed;
-      if (state.tick % 12 === 0) state.fx.push({ kind: 'sound', id: 'drill' });
+      if (state.tick % 12 === 0) state.fx.push({ kind: 'sound', id: 'drill', x: job.x, y: job.y });
       if (tile.work >= wall.drillTime) breakWall(state, job.x, job.y);
       return;
     }
@@ -327,7 +327,7 @@ function runBuild(state: GameState, unit: Unit, job: Job, b: Building, speed: nu
       b.hp = def.hp;
       state.networkDirty = true;
       log(state, `${def.name} : construction terminée.`, 'good');
-      state.fx.push({ kind: 'sound', id: 'build' });
+      state.fx.push({ kind: 'sound', id: 'build', x: b.x, y: b.y });
       removeJob(state, job.id);
     }
   } else {
@@ -393,7 +393,7 @@ function runHaul(state: GameState, unit: Unit, job: Job, speed: number): void {
     addStock(state, res, unit.carryCount);
     unit.carry = null;
     unit.carryCount = 0;
-    state.fx.push({ kind: 'sound', id: 'collect' });
+    state.fx.push({ kind: 'sound', id: 'collect', x: unit.x, y: unit.y });
     removeJob(state, job.id);
     return;
   }
@@ -472,7 +472,7 @@ function collapse(state: GameState, x: number, y: number): void {
   breakWall(state, x, y, true);
   log(state, 'Éboulement !', 'warn');
   state.fx.push(
-    { kind: 'sound', id: 'collapse' },
+    { kind: 'sound', id: 'collapse', x, y },
     { kind: 'burst', x: x + 0.5, y: y + 0.5, color: 0xa08a6e },
   );
   for (const unit of state.units) {

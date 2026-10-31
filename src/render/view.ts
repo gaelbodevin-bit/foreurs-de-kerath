@@ -1,9 +1,15 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { BUILDINGS } from '../data/buildings';
 import { ENEMIES, UNITS } from '../data/units';
 import type { BuildingType, GameState } from '../sim/types';
 import type { CharacterRig } from './assets';
 import { DecorView } from './decor';
+import { Dust, Smoke } from './particles';
 import { makeBuilding, makeEnemy, makePickup, makeUnit } from './prefabs';
 import { TerrainView } from './terrain';
 
@@ -36,6 +42,10 @@ const BAR_GOOD = barMaterial(0x5be37d);
 const BAR_MID = barMaterial(0xf2c14b);
 const BAR_BAD = barMaterial(0xff5050);
 
+/** Below this frame rate, the view gives up its most expensive effects, one at a time. */
+const TARGET_FPS = 32;
+const SHADOW_MAP = 2048;
+
 /** Draws a mission. It only reads the game state and never changes the rules. */
 export class MissionView {
   readonly renderer: THREE.WebGLRenderer;
@@ -61,8 +71,22 @@ export class MissionView {
     }),
   );
   private readonly raycaster = new THREE.Raycaster();
-  private readonly lamp = new THREE.PointLight(0xfff0d0, 30, 16, 1.6);
+  private readonly lamp = new THREE.PointLight(0xfff0d0, 10, 18, 1.6);
+  private readonly key = new THREE.DirectionalLight(0xffe9d6, 2.6);
   private readonly decor: DecorView;
+  private readonly composer: EffectComposer;
+  private readonly bloom: UnrealBloomPass;
+  private readonly environment: THREE.WebGLRenderTarget;
+  private readonly smoke = new Smoke();
+  private readonly dust = new Dust();
+  private shake = 0;
+  private frameCount = 0;
+  private sampleTime = 0;
+  private sampleFrames = 0;
+  /** 0 is everything on. Each level up drops one effect, and it never comes back mid-mission. */
+  quality = 0;
+  /** The walking unit nearest the camera, for footsteps. */
+  nearestWalker: { x: number; y: number } | null = null;
   private lastTick = -1;
   /** Seconds since the simulation last advanced: nobody walks on the spot during a pause. */
   private stale = 0;
@@ -77,19 +101,52 @@ export class MissionView {
     private readonly canvas: HTMLCanvasElement,
     readonly state: GameState,
   ) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    this.renderer = new THREE.WebGLRenderer({ canvas, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.scene.background = new THREE.Color(0x07060a);
     this.scene.fog = new THREE.Fog(0x07060a, 26, 62);
 
-    this.scene.add(new THREE.HemisphereLight(0x9fb6cf, 0x2a2018, 1.25));
-    const key = new THREE.DirectionalLight(0xffe6c4, 1.5);
-    key.position.set(-6, 14, 5);
-    this.scene.add(key, this.lamp);
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.environment = pmrem.fromScene(new RoomEnvironment(), 0.04);
+    pmrem.dispose();
+    this.scene.environment = this.environment.texture;
+    this.scene.environmentIntensity = 0.15;
+
+    this.scene.add(new THREE.HemisphereLight(0x8fa8cf, 0x2a2018, 0.6));
+    this.key.castShadow = true;
+    this.key.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
+    this.key.shadow.bias = -0.0006;
+    this.key.shadow.normalBias = 0.04;
+    this.key.shadow.camera.near = 1;
+    this.key.shadow.camera.far = 80;
+    this.scene.add(this.key, this.key.target, this.lamp);
+
+    this.composer = new EffectComposer(
+      this.renderer,
+      // Antialiased, in a format that keeps values above 1.0 for the bloom to find.
+      new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }),
+    );
+    this.composer.setPixelRatio(this.renderer.getPixelRatio());
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.4, 0.5, 1.5);
+    this.composer.addPass(this.bloom);
+    this.composer.addPass(new OutputPass());
 
     this.terrain = new TerrainView(state);
     this.decor = new DecorView(state, (x, y) => this.terrain.heightAt(x, y));
-    this.scene.add(this.terrain.group, this.decor.group, this.marks, this.fxGroup, this.selection);
+    this.scene.add(
+      this.terrain.group,
+      this.decor.group,
+      this.marks,
+      this.fxGroup,
+      this.selection,
+      this.smoke.object,
+      this.dust.object,
+    );
 
     this.ghost.visible = false;
     this.scene.add(this.ghost);
@@ -100,11 +157,14 @@ export class MissionView {
     const hq = state.buildings.find((b) => b.type === 'hq');
     this.focus.set(hq ? hq.x + 1 : state.w / 2, 0, hq ? hq.y + 1 : state.h / 2);
     this.resize();
+    // Handy for checking rendering by hand: out of reach in production builds.
+    if (import.meta.env.DEV) Object.assign(window, { kerathView: this });
   }
 
   resize(): void {
     const { clientWidth: w, clientHeight: h } = this.canvas;
     this.renderer.setSize(w, h, false);
+    this.composer.setSize(w, h);
     this.camera.aspect = w / Math.max(1, h);
     this.camera.updateProjectionMatrix();
   }
@@ -118,7 +178,53 @@ export class MissionView {
       this.focus.z + Math.cos(this.heading) * horizontal,
     );
     this.camera.lookAt(this.focus);
+    if (this.shake > 0.001) {
+      this.camera.position.x += (Math.random() - 0.5) * this.shake;
+      this.camera.position.y += (Math.random() - 0.5) * this.shake;
+    }
     this.lamp.position.set(this.focus.x, 6, this.focus.z);
+    this.placeShadow();
+  }
+
+  /** The shadow map follows the camera, in small jumps: sliding smoothly would make it shimmer. */
+  private placeShadow(): void {
+    const reach = Math.max(14, Math.min(36, this.distance * 1.15));
+    const shadow = this.key.shadow.camera;
+    if (shadow.right !== reach) {
+      shadow.left = -reach;
+      shadow.right = reach;
+      shadow.top = reach;
+      shadow.bottom = -reach;
+      shadow.updateProjectionMatrix();
+    }
+    const x = Math.round(this.focus.x);
+    const z = Math.round(this.focus.z);
+    this.key.target.position.set(x, 0, z);
+    this.key.position.set(x - 14, 26, z + 11);
+  }
+
+  /** Watches the real frame rate and steps quality down on machines that can't keep up. */
+  private adaptQuality(dt: number): void {
+    // Anything this slow means a hidden tab, not a slow machine.
+    if (dt > 0.25) return;
+    this.sampleTime += dt;
+    this.sampleFrames++;
+    if (this.sampleTime < 3) return;
+    const fps = this.sampleFrames / this.sampleTime;
+    this.sampleTime = 0;
+    this.sampleFrames = 0;
+    if (fps >= TARGET_FPS || this.quality >= 3) return;
+    this.quality++;
+    if (this.quality === 1) {
+      this.renderer.setPixelRatio(1);
+      this.composer.setPixelRatio(1);
+      this.resize();
+    } else if (this.quality === 2) {
+      this.renderer.shadowMap.autoUpdate = false;
+      this.bloom.enabled = false;
+    } else {
+      this.key.castShadow = false;
+    }
   }
 
   /** Pans along the ground, relative to where the camera faces. */
@@ -226,6 +332,12 @@ export class MissionView {
     if (!entry) {
       const object = make();
       object.position.set(x, 0, y);
+      object.traverse((child) => {
+        if (child instanceof THREE.Mesh && !(child.material instanceof THREE.MeshBasicMaterial)) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
       this.scene.add(object);
       entry = { object, px: x, py: y, tx: x, ty: y };
       this.tracked.set(key, entry);
@@ -268,7 +380,23 @@ export class MissionView {
         }
       });
       if (entry.bar) entry.bar.position.x = def.size / 2;
+      if (b.built >= 1 && !off && this.stale < 0.3) {
+        const { spinning, smoke } = entry.object.userData as {
+          spinning?: THREE.Object3D[];
+          smoke?: THREE.Vector3[];
+        };
+        spinning?.forEach((part) => {
+          part.rotation.y += dt * 0.7;
+        });
+        for (const chimney of smoke ?? []) {
+          if (Math.random() < dt * 3.5) {
+            this.smoke.emit(b.x + chimney.x, chimney.y, b.y + chimney.z, 0.34, 3.2);
+          }
+        }
+      }
     }
+    this.nearestWalker = null;
+    let walkerDistance = Infinity;
 
     const alpha = this.tickAlpha;
     for (const u of state.units) {
@@ -283,7 +411,18 @@ export class MissionView {
       const y = entry.py + (entry.ty - entry.py) * alpha;
       const moving =
         this.stale < 0.3 && Math.hypot(entry.tx - entry.px, entry.ty - entry.py) > 0.001;
-      if (moving) entry.object.rotation.y = Math.atan2(entry.tx - entry.px, entry.ty - entry.py);
+      if (moving) {
+        entry.object.rotation.y = Math.atan2(entry.tx - entry.px, entry.ty - entry.py);
+        const walker = Math.hypot(x - this.focus.x, y - this.focus.z);
+        if (walker < walkerDistance && (u.type === 'foreur' || u.type === 'garde')) {
+          walkerDistance = walker;
+          this.nearestWalker = { x, y };
+        }
+      }
+      // Rock dust where someone is at work.
+      if (u.working && this.stale < 0.3 && Math.random() < dt * 5) {
+        this.smoke.emit(x, 0.3, y, 0.55, 1.1, 0.6);
+      }
       const rig = entry.object.userData.rig as CharacterRig | undefined;
       if (rig) {
         entry.object.position.set(x, 0, y);
@@ -388,7 +527,7 @@ export class MissionView {
         const line = new THREE.Line(
           geometry,
           new THREE.LineBasicMaterial({
-            color: fx.hostile ? 0xff4040 : 0x5bf0ff,
+            color: new THREE.Color(fx.hostile ? 0xff4040 : 0x5bf0ff).multiplyScalar(3),
             transparent: true,
           }),
         );
@@ -413,6 +552,9 @@ export class MissionView {
         }
         this.fxGroup.add(group);
         this.fx.push({ object: group, life: 0.7, max: 0.7, velocity });
+        for (let i = 0; i < 12; i++) this.smoke.emit(fx.x, 0.4, fx.y, 0.5, 1.8, 1.6);
+        const away = Math.hypot(fx.x - this.focus.x, fx.y - this.focus.z);
+        this.shake = Math.max(this.shake, 0.22 * Math.max(0, 1 - away / 18));
       }
     }
 
@@ -449,12 +591,26 @@ export class MissionView {
     this.syncMarks();
     this.syncFx(dt);
     this.state.fx = this.state.fx.filter((f) => f.kind === 'sound');
+    this.terrain.update(time);
+    this.smoke.update(dt);
+    this.dust.update(time, this.focus);
+    this.shake *= Math.exp(-dt * 7);
     this.placeCamera();
-    this.renderer.render(this.scene, this.camera);
+    this.adaptQuality(dt);
+    // Past the first step down, shadows are only redrawn on one frame out of three.
+    if (!this.renderer.shadowMap.autoUpdate && this.frameCount % 3 === 0) {
+      this.renderer.shadowMap.needsUpdate = true;
+    }
+    this.frameCount++;
+    this.composer.render(dt);
   }
 
   dispose(): void {
     this.terrain.dispose();
+    this.decor.dispose();
+    this.bloom.dispose();
+    this.composer.dispose();
+    this.environment.dispose();
     this.renderer.dispose();
   }
 }

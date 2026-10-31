@@ -7,6 +7,7 @@ import {
 } from './campaign/campaign';
 import { clearSave, readSave, writeSave, type SaveStorage } from './campaign/save';
 import { loadAssets } from './render/assets';
+import { audio } from './render/audio';
 import { createMission } from './sim/game';
 import type { GameState } from './sim/types';
 import { clear } from './ui/dom';
@@ -132,7 +133,26 @@ function showTitle(): void {
 }
 
 host.innerHTML = '<div class="title-screen"><p class="tagline">Chargement…</p></div>';
-void loadAssets((ratio) => {
+const progress = { assets: 0, sounds: 0 };
+const showProgress = () => {
   const label = host.querySelector('.tagline');
+  const ratio = (progress.assets + progress.sounds) / 2;
   if (label) label.textContent = `Chargement… ${Math.round(ratio * 100)} %`;
-}).then(showTitle);
+};
+void Promise.all([
+  loadAssets((ratio) => {
+    progress.assets = ratio;
+    showProgress();
+  }),
+  audio.preload((ratio) => {
+    progress.sounds = ratio;
+    showProgress();
+  }),
+]).then(showTitle);
+
+// Any first touch opens the sound, and every button in the game answers with a click.
+addEventListener('pointerdown', () => audio.unlock());
+addEventListener('keydown', () => audio.unlock());
+addEventListener('click', (e) => {
+  if ((e.target as Element).closest?.('button')) audio.play('click');
+});

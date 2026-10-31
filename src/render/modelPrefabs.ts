@@ -3,6 +3,7 @@ import { BUILDINGS } from '../data/buildings';
 import type { BuildingType, EnemyType, ResourceId, UnitType } from '../sim/types';
 import type { ModelId } from './assetManifest';
 import { hasModels, placeCharacter, placeModel } from './assets';
+import { groundGlow } from './particles';
 
 /**
  * Builds game objects out of the CC0 model packs. Each function returns null when a file it needs
@@ -12,6 +13,7 @@ import { hasModels, placeCharacter, placeModel } from './assets';
 const TEAL = 0x35e0c2;
 const AMBER = 0xffb347;
 const RED = 0xff5a5a;
+const GLOW_STRENGTH = 3.2;
 
 interface Part {
   model: ModelId;
@@ -22,6 +24,8 @@ interface Part {
   y?: number;
   /** Quarter turns. */
   turn?: number;
+  /** Keeps turning while the building has power. */
+  spin?: boolean;
 }
 
 /** Glowing details the packs lack. They also double as the building's power light. */
@@ -32,6 +36,8 @@ interface Accent {
   z?: number;
   size?: number;
   shape?: 'gem' | 'ball' | 'cross' | 'cap';
+  /** Sits on a chimney, which then smokes. */
+  smoke?: boolean;
 }
 
 interface BuildingModel {
@@ -43,7 +49,7 @@ const BUILDING_MODELS: Record<BuildingType, BuildingModel> = {
   hq: {
     parts: [
       { model: 'hangarRoundA', fit: 2 },
-      { model: 'dish', fit: 0.5, x: 0.7, z: -0.7 },
+      { model: 'dish', fit: 0.5, x: 0.7, z: -0.7, spin: true },
     ],
     accents: [{ color: TEAL, y: 1.2, size: 0.2, shape: 'gem' }],
   },
@@ -81,7 +87,7 @@ const BUILDING_MODELS: Record<BuildingType, BuildingModel> = {
       { model: 'hangarLargeA', fit: 1.9 },
       { model: 'chimney', fit: 0.28, x: 0.65, z: -0.65 },
     ],
-    accents: [{ color: 0xff8c3a, x: 0.65, z: -0.65, y: 1.5, size: 0.08 }],
+    accents: [{ color: 0xff8c3a, x: 0.65, z: -0.65, y: 1.5, size: 0.08, smoke: true }],
   },
   foundry: {
     parts: [
@@ -90,8 +96,8 @@ const BUILDING_MODELS: Record<BuildingType, BuildingModel> = {
       { model: 'chimney', fit: 0.3, x: -0.65, z: -0.65 },
     ],
     accents: [
-      { color: 0xff7d54, x: 0.65, z: -0.65, y: 1.6, size: 0.1 },
-      { color: 0xff7d54, x: -0.65, z: -0.65, y: 1.6, size: 0.1 },
+      { color: 0xff7d54, x: 0.65, z: -0.65, y: 1.6, size: 0.1, smoke: true },
+      { color: 0xff7d54, x: -0.65, z: -0.65, y: 1.6, size: 0.1, smoke: true },
     ],
   },
   market: {
@@ -113,7 +119,7 @@ const BUILDING_MODELS: Record<BuildingType, BuildingModel> = {
   lab: {
     parts: [
       { model: 'hangarGlass', fit: 1.95 },
-      { model: 'dish', fit: 0.6, x: 0.65, z: 0.65 },
+      { model: 'dish', fit: 0.6, x: 0.65, z: 0.65, spin: true },
     ],
     accents: [{ color: 0xb79cff, y: 1.05, size: 0.16 }],
   },
@@ -148,6 +154,8 @@ function glow(color: number): THREE.MeshBasicMaterial {
   let material = glowMaterials.get(color);
   if (!material) {
     material = new THREE.MeshBasicMaterial({ color });
+    // Brighter than white on purpose: only what passes 1.0 catches the bloom.
+    material.color.multiplyScalar(GLOW_STRENGTH);
     glowMaterials.set(color, material);
   }
   return material;
@@ -186,14 +194,29 @@ export function buildingFromModels(type: BuildingType): THREE.Group | null {
   const root = new THREE.Group();
   root.position.set(center, 0, center);
   g.add(root);
+  const spinning: THREE.Object3D[] = [];
+  const smoke: THREE.Vector3[] = [];
   for (const part of spec.parts) {
     const piece = placeModel(part.model, part.fit);
     if (!piece) return null;
     piece.position.set(part.x ?? 0, part.y ?? 0, part.z ?? 0);
     piece.rotation.y = ((part.turn ?? 0) * Math.PI) / 2;
+    if (part.spin) spinning.push(piece);
     root.add(piece);
   }
-  for (const accent of spec.accents) root.add(makeAccent(accent));
+  for (const accent of spec.accents) {
+    const made = makeAccent(accent);
+    if (accent.shape === 'gem') spinning.push(made);
+    if (accent.smoke) {
+      smoke.push(
+        new THREE.Vector3(center + (accent.x ?? 0), accent.y + 0.1, center + (accent.z ?? 0)),
+      );
+    }
+    root.add(made);
+  }
+  root.add(groundGlow(spec.accents[0].color, BUILDINGS[type].size * 2.6));
+  g.userData.spinning = spinning;
+  g.userData.smoke = smoke;
   return g;
 }
 
@@ -243,6 +266,8 @@ export function unitFromModels(type: UnitType): THREE.Group | null {
       if (!made) return null;
       attach(made.body, 'head', hardHat(), [0, 0.3, 0]);
       attach(made.body, 'arm-right', placeModel('pickaxe', 0.22), [0, -0.2, 0.08]);
+      // The headlamp's light on the floor: the cave feels darker around it.
+      made.group.add(groundGlow(AMBER, 2.4, 0.22));
       return made.group;
     }
     case 'garde': {

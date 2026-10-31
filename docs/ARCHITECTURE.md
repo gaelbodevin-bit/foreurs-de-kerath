@@ -73,6 +73,28 @@ Pour ajouter un modèle : copiez le `.glb` dans `public/assets/models` (avec sa 
 `Textures/colormap.png` s'il en a une), déclarez-le dans le manifeste et citez sa source dans
 `CREDITS.md`.
 
+## Rendu
+
+`render/view.ts` passe par un `EffectComposer` : la scène est dessinée en HDR, le bloom ne retient
+que ce qui dépasse 1,0, puis la sortie applique le tone mapping. Pour qu'un objet brille, il suffit
+donc de lui donner une couleur supérieure à 1, sans réglage par objet.
+
+Le reste de la lumière coûte peu : l'occlusion au pied des murs et les reflets colorés des filons
+sont calculés dans les couleurs de sommet de `render/terrain.ts`, et les halos au sol sont de
+simples plans additifs (`groundGlow`).
+
+La vue mesure les images par seconde. Sous 32, elle renonce à un effet toutes les 3 secondes, dans
+cet ordre : pleine résolution, bloom et ombres à chaque image, puis ombres.
+
+## Son
+
+`render/audio.ts` joue les bruitages listés dans le manifeste, en choisissant une prise au hasard.
+Les événements `sound` de la simulation peuvent porter une position : le volume et le panoramique
+suivent alors la caméra. Tout passe par un écho de grotte calculé à l'ouverture de l'audio.
+
+Le vent, les gouttes, la nappe musicale et la pulsation de danger sont synthétisés. Un navigateur
+qui ne lit pas l'Ogg retombe sur des sons synthétisés équivalents.
+
 ## Sauvegarde
 
 `campaign/save.ts` écrit la campagne et la mission en cours dans `localStorage`, toutes les 20 s et

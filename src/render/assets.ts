@@ -21,8 +21,10 @@ function matteMaterials(scene: THREE.Object3D): void {
     const list = Array.isArray(child.material) ? child.material : [child.material];
     for (const material of list) {
       if (material instanceof THREE.MeshStandardMaterial) {
-        material.metalness = 0;
-        material.roughness = Math.max(material.roughness, 0.75);
+        // The scene's soft reflections can only show on the parts named as metal.
+        const metal = /metal/i.test(material.name);
+        material.metalness = metal ? 0.45 : 0;
+        material.roughness = metal ? 0.5 : Math.max(material.roughness, 0.75);
       }
     }
   });

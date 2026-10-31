@@ -50,3 +50,49 @@ export const TEXTURE_FILES = {
 
 export type ModelId = keyof typeof MODEL_FILES;
 export type TextureId = keyof typeof TEXTURE_FILES;
+
+/** Each sound has several takes: one is picked at random whenever it plays. */
+export const SOUND_FILES = {
+  drill: [
+    'audio/impact/impactMining_000.ogg',
+    'audio/impact/impactMining_001.ogg',
+    'audio/impact/impactMining_002.ogg',
+    'audio/impact/impactMining_003.ogg',
+    'audio/impact/impactMining_004.ogg',
+  ],
+  collect: [
+    'audio/impact/impactGlass_light_000.ogg',
+    'audio/impact/impactGlass_light_001.ogg',
+    'audio/impact/impactGlass_light_002.ogg',
+  ],
+  build: [
+    'audio/impact/impactMetal_heavy_000.ogg',
+    'audio/impact/impactMetal_heavy_001.ogg',
+    'audio/impact/impactMetal_heavy_002.ogg',
+  ],
+  alert: ['audio/interface/error_006.ogg', 'audio/interface/error_007.ogg'],
+  laser: [
+    'audio/scifi/laserSmall_000.ogg',
+    'audio/scifi/laserSmall_001.ogg',
+    'audio/scifi/laserSmall_002.ogg',
+    'audio/scifi/laserSmall_003.ogg',
+  ],
+  collapse: [
+    'audio/scifi/explosionCrunch_000.ogg',
+    'audio/scifi/explosionCrunch_001.ogg',
+    'audio/scifi/explosionCrunch_002.ogg',
+  ],
+  plot: ['audio/jingles/jingles_PIZZI00.ogg'],
+  click: ['audio/interface/click_001.ogg'],
+  step: [
+    'audio/impact/footstep_concrete_000.ogg',
+    'audio/impact/footstep_concrete_001.ogg',
+    'audio/impact/footstep_concrete_002.ogg',
+    'audio/impact/footstep_concrete_003.ogg',
+  ],
+  win: ['audio/jingles/jingles_STEEL00.ogg'],
+  lose: ['audio/jingles/jingles_PIZZI07.ogg'],
+  hum: ['audio/scifi/spaceEngineLow_000.ogg'],
+} as const;
+
+export type SoundKey = keyof typeof SOUND_FILES;

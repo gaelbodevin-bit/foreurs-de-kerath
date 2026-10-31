@@ -3,7 +3,7 @@ import { regionById } from '../data/regions';
 import { RESOURCES, TILE_NAMES, WALLS } from '../data/resources';
 import { ADVISORS } from '../data/story';
 import { ENEMIES, INVESTIGATION_COST, POLICIES, TAX_LEVELS, UNITS } from '../data/units';
-import { Audio } from '../render/audio';
+import { audio } from '../render/audio';
 import { MissionView } from '../render/view';
 import { canAfford, storageCapacity } from '../sim/economy';
 import {
@@ -51,7 +51,8 @@ export interface MissionCallbacks {
 export class MissionScreen {
   private readonly root: HTMLElement;
   private readonly view: MissionView;
-  private readonly audio = new Audio();
+  private readonly audio = audio;
+  private stepTimer = 0;
   private tool: Tool = { kind: 'select' };
   private selectedUnits: number[] = [];
   private selectedBuilding: number | null = null;
@@ -107,6 +108,7 @@ export class MissionScreen {
     addEventListener('keydown', this.onKeyDown);
     addEventListener('keyup', this.onKeyUp);
     this.updateHud();
+    this.audio.startAmbience();
     requestAnimationFrame(this.frame);
   }
 
@@ -117,6 +119,7 @@ export class MissionScreen {
     removeEventListener('resize', this.onResize);
     removeEventListener('keydown', this.onKeyDown);
     removeEventListener('keyup', this.onKeyUp);
+    this.audio.stopAmbience();
     this.view.dispose();
     this.root.remove();
   }
@@ -166,7 +169,7 @@ export class MissionScreen {
               (e.currentTarget as HTMLElement).textContent = this.audio.muted ? '🔇' : '🔊';
             },
           },
-          '🔊',
+          this.audio.muted ? '🔇' : '🔊',
         ),
         h('button', { class: 'chip', onclick: () => this.callbacks.onQuit(this.state) }, 'Planète'),
       ),
@@ -234,9 +237,10 @@ export class MissionScreen {
     this.view.render(alpha, dt, now / 1000);
 
     for (const fx of this.state.fx) {
-      if (fx.kind === 'sound') this.audio.play(fx.id);
+      if (fx.kind === 'sound') this.audio.play(fx.id, fx.x, fx.y);
     }
     this.state.fx.length = 0;
+    this.updateSound(dt, halted);
 
     this.hudTimer -= dt;
     if (this.hudTimer <= 0) {
@@ -255,11 +259,32 @@ export class MissionScreen {
 
     if (this.state.outcome !== 'playing') {
       this.running = false;
+      this.audio.play(this.state.outcome === 'won' ? 'win' : 'lose');
       this.callbacks.onEnd(this.state);
       return;
     }
     requestAnimationFrame(this.frame);
   };
+
+  private updateSound(dt: number, halted: boolean): void {
+    const { focus, heading, distance } = this.view;
+    this.audio.listen(focus.x, focus.z, heading, distance);
+    const near = (x: number, y: number, range: number) =>
+      Math.hypot(x - focus.x, y - focus.z) < range;
+    const threats = this.state.enemies.filter(
+      (e) => !ENEMIES[e.type].structure && near(e.x, e.y, 16),
+    ).length;
+    const machines = this.state.buildings.filter(
+      (b) => b.built >= 1 && b.eff > 0 && near(b.x, b.y, 12),
+    ).length;
+    this.audio.updateAmbience(dt, Math.min(1, threats / 4), Math.min(1, machines / 5));
+    this.stepTimer -= dt;
+    const walker = this.view.nearestWalker;
+    if (!halted && walker && this.stepTimer <= 0) {
+      this.stepTimer = 0.3;
+      this.audio.play('step', walker.x, walker.y);
+    }
+  }
 
   private moveCamera(dt: number): void {
     const speed = this.view.distance * 0.9 * dt;

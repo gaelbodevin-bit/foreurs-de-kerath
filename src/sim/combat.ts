@@ -117,7 +117,7 @@ function destroyBuilding(state: GameState, b: Building): void {
   const center = buildingCenter(b);
   state.fx.push(
     { kind: 'burst', x: center.x, y: center.y, color: 0xff7d54 },
-    { kind: 'sound', id: 'collapse' },
+    { kind: 'sound', id: 'collapse', x: center.x, y: center.y },
   );
   state.city.moraleShock -= 3;
   log(state, `${BUILDINGS[b.type].name} détruit !`, 'bad');
@@ -252,7 +252,7 @@ function updateGuard(state: GameState, unit: Unit): void {
     hurtEnemy(state, target, attack.damage);
     state.fx.push(
       { kind: 'laser', x1: unit.x, y1: unit.y, x2: target.x, y2: target.y, hostile: false },
-      { kind: 'sound', id: 'laser' },
+      { kind: 'sound', id: 'laser', x: unit.x, y: unit.y },
     );
   }
   if (unit.order !== null) {
@@ -290,7 +290,7 @@ function updateTurrets(state: GameState): void {
     hurtEnemy(state, target, turret.damage * b.eff);
     state.fx.push(
       { kind: 'laser', x1: c.x, y1: c.y, x2: target.x, y2: target.y, hostile: false },
-      { kind: 'sound', id: 'laser' },
+      { kind: 'sound', id: 'laser', x: c.x, y: c.y },
     );
   }
 }
