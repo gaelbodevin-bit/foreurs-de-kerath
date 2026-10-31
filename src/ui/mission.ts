@@ -14,7 +14,7 @@ import {
   SEATS,
 } from '../data/council';
 import { CITY_LEVELS } from '../data/progression';
-import { TECHS, TIERS, type TechDef } from '../data/techs';
+import { TECHS } from '../data/techs';
 import { DRILL_TOOLS, drillToolFor, RESOURCES, TILE_NAMES, WALLS } from '../data/resources';
 import { ADVISORS } from '../data/story';
 import { ENEMIES, INVESTIGATION_COST, POLICIES, TAX_LEVELS, UNITS } from '../data/units';
@@ -41,9 +41,6 @@ import {
   activeRegions,
   buildingLock,
   buyTech,
-  canDeliver,
-  currentTier,
-  deliverParts,
   hasReachedCity,
   objectiveProgress,
   techLock,
@@ -65,6 +62,7 @@ import { resourceIcon } from './icons';
 import { renderPlanetMap, renderSectorList } from './planet';
 
 type Modal = 'city' | 'council' | 'dossier' | 'research' | 'planet';
+const GOVERNOR_MODALS: ReadonlySet<Modal> = new Set<Modal>(['city', 'research', 'council']);
 type Tool = { kind: 'select' } | { kind: 'path' } | { kind: 'build'; type: BuildingType };
 
 function costLabel(cost: Cost): DocumentFragment {
@@ -129,7 +127,9 @@ export class MissionScreen {
   private readonly minimap = h('canvas', { class: 'minimap', width: 180, height: 180 });
   private readonly buildButtons = new Map<BuildingType | 'path', HTMLButtonElement>();
   private readonly buildLocks = new Map<BuildingType, HTMLElement>();
-  private cityTab: HTMLButtonElement | null = null;
+  /** What only exists once the city is reached: the build menu's tabs, and these buttons. */
+  private readonly governorChips: HTMLButtonElement[] = [];
+  private readonly menuTabs = h('div', { class: 'menu-tabs' });
   private readonly speedButtons: HTMLButtonElement[] = [];
 
   constructor(
@@ -206,17 +206,9 @@ export class MissionScreen {
       h(
         'div',
         { class: 'top-actions' },
-        h('button', { class: 'chip accent', onclick: () => this.openModal('city') }, 'Cité (C)'),
-        h(
-          'button',
-          { class: 'chip accent', onclick: () => this.openModal('research') },
-          'Progression (R)',
-        ),
-        h(
-          'button',
-          { class: 'chip accent', onclick: () => this.openModal('council') },
-          'Conseil (K)',
-        ),
+        this.governorChip('city', 'Cité (C)'),
+        this.governorChip('research', 'Recherche (R)'),
+        this.governorChip('council', 'Conseil (K)'),
         h(
           'button',
           { class: 'chip accent', onclick: () => this.openModal('planet') },
@@ -244,6 +236,12 @@ export class MissionScreen {
         h('button', { class: 'chip', onclick: () => this.callbacks.onQuit(this.state) }, 'Menu'),
       ),
     );
+  }
+
+  private governorChip(modal: Modal, label: string): HTMLButtonElement {
+    const chip = h('button', { class: 'chip accent', onclick: () => this.openModal(modal) }, label);
+    this.governorChips.push(chip);
+    return chip;
   }
 
   private buildBuildMenu(): HTMLElement {
@@ -290,15 +288,15 @@ export class MissionScreen {
       }
       pages.set(menu.id, page);
       const tab = h('button', { class: 'menu-tab', onclick: () => show(menu.id) }, menu.name);
-      if (menu.id === 'city') this.cityTab = tab;
       tabs.set(menu.id, tab);
     }
+    this.menuTabs.append(...tabs.values());
     show('explore');
     return h(
       'nav',
       { class: 'panel build-menu' },
       h('h3', {}, 'Construire'),
-      h('div', { class: 'menu-tabs' }, ...tabs.values()),
+      this.menuTabs,
       ...pages.values(),
     );
   }
@@ -797,11 +795,9 @@ export class MissionScreen {
   }
 
   private updateBuildMenu(): void {
-    if (this.cityTab) {
-      const closed = !hasReachedCity(this.state);
-      this.cityTab.disabled = closed;
-      this.cityTab.title = closed ? 'S’ouvre en rejoignant Port-Cendre' : '';
-    }
+    const governed = hasReachedCity(this.state);
+    this.menuTabs.hidden = !governed;
+    for (const chip of this.governorChips) chip.hidden = !governed;
     for (const [key, button] of this.buildButtons) {
       const cost = key === 'path' ? PATH_COST : BUILDINGS[key].cost;
       button.classList.toggle('poor', !canAfford(this.state, cost));
@@ -1105,6 +1101,8 @@ export class MissionScreen {
   // --- Modals -------------------------------------------------------------------------------
 
   private openModal(modal: Modal | null): void {
+    // The keys too: these panels don't exist until the city is reached.
+    if (modal !== null && GOVERNOR_MODALS.has(modal) && !hasReachedCity(this.state)) return;
     this.modal = modal;
     this.overlay.dataset.sig = '';
     this.updateOverlay();
@@ -1259,9 +1257,8 @@ export class MissionScreen {
 
   private renderCouncil(): void {
     const { state } = this;
-    const reached = state.settlement?.reached ?? true;
     const wages = state.council.reduce((sum, c) => sum + c.level * COUNCIL_UPKEEP, 0);
-    const sig = `cou${reached}${state.council.map((c) => c.id + '.' + c.level).join()}|${state.candidates.map((c) => c.id).join()}|${Math.floor(state.stock.credits / 10)}`;
+    const sig = `cou${state.council.map((c) => c.id + '.' + c.level).join()}|${state.candidates.map((c) => c.id).join()}|${Math.floor(state.stock.credits / 10)}`;
     this.patch(this.overlay, sig, () => {
       const governor = state.governorTrait ? GOVERNOR_TRAITS[state.governorTrait] : null;
       return [
@@ -1270,42 +1267,38 @@ export class MissionScreen {
           { class: 'dialog wide' },
           this.closeButton(),
           h('h2', {}, 'Conseil du gouverneur'),
-          !reached
-            ? h('p', {}, 'Il n’y a pas encore de gouverneur : rejoignez d’abord Port-Cendre.')
-            : h(
-                'p',
-                { class: 'dim' },
-                governor ? `Gouverneur ${governor.name.toLowerCase()} : ${governor.desc}. ` : '',
-                `Salaires : ${wages} ¤/min. Chaque conseiller gagne un niveau toutes les 5 minutes.`,
-              ),
-          ...(reached
-            ? SEAT_IDS.map((seat) => {
-                const holder = state.council.find((c) => c.seat === seat);
-                return h(
-                  'div',
-                  { class: 'seat' },
-                  h('h3', {}, SEATS[seat].name),
-                  h('p', { class: 'dim' }, SEATS[seat].desc),
-                  holder
-                    ? this.councilCard(
-                        holder,
-                        h(
-                          'button',
-                          {
-                            class: 'chip',
-                            onclick: () => {
-                              dismissCouncillor(state, holder.id);
-                              this.updateOverlay();
-                            },
-                          },
-                          'Renvoyer',
-                        ),
-                      )
-                    : h('p', { class: 'bad-text' }, 'Siège vacant'),
-                );
-              })
-            : []),
-          reached && h('h3', {}, 'Candidats'),
+          h(
+            'p',
+            { class: 'dim' },
+            governor ? `Gouverneur ${governor.name.toLowerCase()} : ${governor.desc}. ` : '',
+            `Salaires : ${wages} ¤/min. Chaque conseiller gagne un niveau toutes les 5 minutes.`,
+          ),
+          ...SEAT_IDS.map((seat) => {
+            const holder = state.council.find((c) => c.seat === seat);
+            return h(
+              'div',
+              { class: 'seat' },
+              h('h3', {}, SEATS[seat].name),
+              h('p', { class: 'dim' }, SEATS[seat].desc),
+              holder
+                ? this.councilCard(
+                    holder,
+                    h(
+                      'button',
+                      {
+                        class: 'chip',
+                        onclick: () => {
+                          dismissCouncillor(state, holder.id);
+                          this.updateOverlay();
+                        },
+                      },
+                      'Renvoyer',
+                    ),
+                  )
+                : h('p', { class: 'bad-text' }, 'Siège vacant'),
+            );
+          }),
+          h('h3', {}, 'Candidats'),
           ...state.candidates.map((c) =>
             this.councilCard(
               c,
@@ -1329,93 +1322,16 @@ export class MissionScreen {
     });
   }
 
-  private techCard(tech: TechDef): HTMLElement {
-    const { state } = this;
-    const lock = techLock(state, tech.id);
-    const owned = state.techs.includes(tech.id);
-    if (tech.parts) {
-      const parts = RESOURCE_IDS.filter((r) => tech.parts?.[r]);
-      return h(
-        'div',
-        { class: owned ? 'milestone owned' : lock ? 'milestone locked' : 'milestone' },
-        h('b', {}, tech.name),
-        h('em', {}, lock ?? ''),
-        h('span', { class: 'dim' }, tech.desc),
-        !owned &&
-          h(
-            'div',
-            { class: 'parts' },
-            ...parts.map((r) =>
-              h(
-                'span',
-                { class: 'part' },
-                resourceIcon(r),
-                `${state.delivered[tech.id]?.[r] ?? 0} / ${tech.parts?.[r]}`,
-              ),
-            ),
-          ),
-        !owned &&
-          !lock &&
-          h(
-            'button',
-            {
-              class: 'chip accent',
-              disabled: !canDeliver(state, tech.id),
-              onclick: () => {
-                deliverParts(state, tech.id);
-                this.hudTimer = 0;
-                this.updateOverlay();
-              },
-            },
-            'Livrer',
-          ),
-      );
-    }
-    return h(
-      'button',
-      {
-        class: owned ? 'tech owned' : 'tech',
-        disabled: lock !== null || state.research < (tech.cost ?? 0),
-        onclick: () => {
-          buyTech(state, tech.id);
-          this.hudTimer = 0;
-          this.updateOverlay();
-        },
-      },
-      h('b', {}, tech.name),
-      h('span', {}, tech.desc),
-      h('em', {}, lock ?? `${tech.cost} 🔬`),
-    );
-  }
-
   private renderResearch(): void {
     const { state } = this;
-    // Only what changes a button: a stock ticking up must not rebuild the panel under the cursor.
-    const sig = `res${Math.floor(state.research)}${state.techs.length}${JSON.stringify(state.delivered)}${TECHS.map((t) => (canDeliver(state, t.id) ? 1 : 0)).join('')}`;
+    const sig = `res${Math.floor(state.research)}${state.techs.length}`;
     const labs = state.buildings.filter((b) => b.type === 'lab' && b.built >= 1).length;
-    const tier = currentTier(state);
     this.patch(this.overlay, sig, () => [
       h(
         'div',
         { class: 'dialog wide' },
         this.closeButton(),
-        h('h2', {}, 'Progression'),
-        h(
-          'p',
-          { class: 'dim' },
-          'Livrez des ressources au Noyau pour débloquer bâtiments et outils. Une livraison peut se faire en plusieurs fois.',
-        ),
-        ...TIERS.flatMap((def, i) => [
-          h('h3', { class: i > tier ? 'tier closed' : 'tier' }, `Palier ${i} : ${def.name}`),
-          i > tier
-            ? h('p', { class: 'dim' }, def.desc)
-            : h(
-                'div',
-                { class: 'milestones' },
-                ...TECHS.filter((t) => t.tier === i).map((t) => this.techCard(t)),
-              ),
-        ]),
-        h('h3', {}, `Laboratoire : ${Math.floor(state.research)} 🔬`),
+        h('h2', {}, `Recherche : ${Math.floor(state.research)} 🔬`),
         h(
           'p',
           { class: 'dim' },
@@ -1426,7 +1342,24 @@ export class MissionScreen {
         h(
           'div',
           { class: 'techs' },
-          ...TECHS.filter((t) => t.cost !== undefined).map((t) => this.techCard(t)),
+          ...TECHS.map((tech) => {
+            const lock = techLock(state, tech.id);
+            return h(
+              'button',
+              {
+                class: state.techs.includes(tech.id) ? 'tech owned' : 'tech',
+                disabled: lock !== null || state.research < tech.cost,
+                onclick: () => {
+                  buyTech(state, tech.id);
+                  this.hudTimer = 0;
+                  this.updateOverlay();
+                },
+              },
+              h('b', {}, tech.name),
+              h('span', {}, tech.desc),
+              h('em', {}, lock ?? `${tech.cost} 🔬`),
+            );
+          }),
         ),
       ),
     ]);

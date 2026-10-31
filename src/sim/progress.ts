@@ -125,25 +125,17 @@ export function buildingLock(state: GameState, type: BuildingType): string | nul
   const def = BUILDINGS[type];
   if (type === 'hq') return 'Indisponible';
   if (CITY_BUILDINGS.has(type) && !hasReachedCity(state)) return 'Rejoignez d’abord Port-Cendre';
-  if (def.tech && !state.techs.includes(def.tech))
-    return `À débloquer : ${techById(def.tech).name}`;
+  if (def.tech && !state.techs.includes(def.tech)) return `Recherche : ${techById(def.tech).name}`;
   return null;
 }
 
 export const availableBuildings = (state: GameState): BuildingType[] =>
   (Object.keys(BUILDINGS) as BuildingType[]).filter((t) => buildingLock(state, t) === null);
 
-/** The highest tier open: reaching the city opens the first, big deliveries open the others. */
-export function currentTier(state: GameState): number {
-  let tier = hasReachedCity(state) ? 1 : 0;
-  for (const id of state.techs) tier = Math.max(tier, techById(id).opensTier ?? 0);
-  return tier;
-}
-
 export function techLock(state: GameState, id: string): string | null {
   const tech = techById(id);
   if (state.techs.includes(id)) return 'Acquis';
-  if ((tech.tier ?? 0) > currentTier(state)) return `Palier ${tech.tier} fermé`;
+  if (!hasReachedCity(state)) return 'Rejoignez d’abord Port-Cendre';
   if (tech.requires && !state.techs.includes(tech.requires)) {
     return `Après : ${techById(tech.requires).name}`;
   }
@@ -159,48 +151,12 @@ function completeTech(state: GameState, id: string): void {
   state.fx.push({ kind: 'sound', id: 'build' });
 }
 
-/** Research branch: points from the laboratory, with immediate effect. */
+/** Spent from the laboratory's points, with immediate effect. */
 export function buyTech(state: GameState, id: string): boolean {
   const tech = techById(id);
-  if (tech.cost === undefined || techLock(state, id) !== null || state.research < tech.cost) {
-    return false;
-  }
+  if (techLock(state, id) !== null || state.research < tech.cost) return false;
   state.research -= tech.cost;
   completeTech(state, id);
-  return true;
-}
-
-/** How much of a milestone's parts are still to come. */
-export function partsLeft(state: GameState, id: string): Partial<Record<ResourceId, number>> {
-  const left: Partial<Record<ResourceId, number>> = {};
-  const { parts } = techById(id);
-  for (const r of RESOURCE_IDS) {
-    const missing = (parts?.[r] ?? 0) - (state.delivered[id]?.[r] ?? 0);
-    if (missing > 0) left[r] = missing;
-  }
-  return left;
-}
-
-export function canDeliver(state: GameState, id: string): boolean {
-  if (techLock(state, id) !== null) return false;
-  return Object.keys(partsLeft(state, id)).some((r) => state.stock[r as ResourceId] >= 1);
-}
-
-/** Hands over whatever the stock can spare: a milestone can be paid off a little at a time. */
-export function deliverParts(state: GameState, id: string): boolean {
-  if (!techById(id).parts || !canDeliver(state, id)) return false;
-  const delivered = (state.delivered[id] ??= {});
-  for (const [key, missing] of Object.entries(partsLeft(state, id))) {
-    const r = key as ResourceId;
-    const amount = Math.min(Math.floor(state.stock[r]), missing ?? 0);
-    state.stock[r] -= amount;
-    delivered[r] = (delivered[r] ?? 0) + amount;
-  }
-  if (Object.keys(partsLeft(state, id)).length === 0) {
-    delete state.delivered[id];
-    completeTech(state, id);
-    state.fx.push({ kind: 'voice', id: 'contractDone' });
-  }
   return true;
 }
 

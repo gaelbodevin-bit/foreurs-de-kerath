@@ -1,3 +1,4 @@
+import { TECHS } from '../data/techs';
 import { foundCouncil } from '../sim/council';
 import type { GameState } from '../sim/types';
 
@@ -26,12 +27,8 @@ export function readSave(storage: SaveStorage): GameState | null {
     if (!raw) return null;
     const data = JSON.parse(raw) as GameState;
     if (data.version !== 2) return null;
-    if (!data.delivered) {
-      data.delivered = {};
-      const owned = ['shelter', 'air', 'food', 'power', 'guard'];
-      if (data.cityLevel >= 1) owned.push('lab', 'barracks', 'commerce');
-      data.techs = [...new Set([...data.techs, ...owned])];
-    }
+    // Saves from when milestones existed: what was bought stays, what no longer exists goes.
+    data.techs = data.techs.filter((id) => TECHS.some((t) => t.id === id));
     data.council ??= [];
     data.candidates ??= [];
     data.nextCandidatesAt ??= 0;

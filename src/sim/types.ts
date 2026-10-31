@@ -329,8 +329,6 @@ export interface GameState {
   /** Points waiting to be spent. */
   research: number;
   techs: string[];
-  /** What has been handed over so far, for milestones still in progress. */
-  delivered: Record<string, Cost>;
   /** Index into CITY_LEVELS. It never goes back down, even if the population does. */
   cityLevel: number;
   conquered: string[];

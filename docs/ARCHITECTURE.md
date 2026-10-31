@@ -40,7 +40,7 @@ La partie est suspendue tant qu'une décision d'intrigue attend une réponse (`s
 | -------------------- | --------------------------------------------------------------- |
 | `sim/types.ts`       | Toutes les structures de l'état                                 |
 | `sim/mapgen.ts`      | Génération de la carte unique, secteur par secteur              |
-| `sim/progress.ts`    | Secteurs, rang de la cité, jalons et recherche                  |
+| `sim/progress.ts`    | Secteurs, rang de la cité, déblocages et recherche              |
 | `sim/contracts.ts`   | Missions qui arrivent en continu                                |
 | `sim/council.ts`     | Conseil du gouverneur : sièges, candidats, traits, niveaux      |
 | `sim/pathfinding.ts` | A\* pour les trajets, champ de distance pour choisir les tâches |

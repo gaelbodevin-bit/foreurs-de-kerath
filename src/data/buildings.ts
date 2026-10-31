@@ -15,7 +15,7 @@ export interface BuildingDef {
   cost: Cost;
   buildTime: number;
   hp: number;
-  /** What unlocks it. Only the headquarters has none. */
+  /** The research that unlocks it. Without one, it is there from the start. */
   tech?: string;
   power?: number;
   powerOutput?: number;
@@ -50,7 +50,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     turret: { range: 6, damage: 6, cooldown: 1 },
   },
   vent: {
-    tech: 'guard',
     name: 'Ventilateur',
     desc: 'Aspire le gaz toxique dans un rayon de 6 cases. Doit être relié au réseau.',
     size: 1,
@@ -72,7 +71,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     turret: { range: 5.5, damage: 6, cooldown: 1.2 },
   },
   depot: {
-    tech: 'power',
     name: 'Entrepôt',
     desc: 'Augmente le stockage de chaque ressource et raccourcit les trajets des foreurs.',
     size: 1,
@@ -82,7 +80,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     storage: 100,
   },
   generator: {
-    tech: 'power',
     name: 'Centrale à cristaux',
     desc: 'Brûle un cristal toutes les 45 s pour alimenter le réseau.',
     size: 2,
@@ -94,7 +91,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     jobs: 2,
   },
   oxygen: {
-    tech: 'air',
     name: "Extracteur d'oxygène",
     desc: 'Filtre la roche pour produire de quoi faire respirer 12 personnes.',
     size: 1,
@@ -106,7 +102,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     oxygen: 0.12,
   },
   habitat: {
-    tech: 'shelter',
     name: 'Habitat',
     desc: 'Loge 10 citoyens. Sans logement libre, la cité cesse de croître.',
     size: 1,
@@ -117,7 +112,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     housing: 10,
   },
   melter: {
-    tech: 'food',
     name: 'Fondoir à glace',
     desc: 'Transforme la glace en eau.',
     size: 1,
@@ -129,7 +123,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     recipe: { inputs: { ice: 1 }, outputs: { water: 2 }, cycle: 8 },
   },
   farm: {
-    tech: 'food',
     name: 'Serre fongique',
     desc: "Cultive de la nourriture à partir de l'eau.",
     size: 2,
@@ -165,7 +158,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     recipe: { inputs: { metal: 2, sulfur: 1 }, outputs: { alloy: 1 }, cycle: 14 },
   },
   market: {
-    tech: 'commerce',
     name: 'Marché',
     desc: "Vend l'or contre des crédits et augmente les recettes fiscales de 25 %.",
     size: 2,
@@ -178,7 +170,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     recipe: { inputs: { gold: 1 }, outputs: { credits: 30 }, cycle: 10 },
   },
   plaza: {
-    tech: 'commerce',
     name: 'Place publique',
     desc: 'Un lieu où respirer. Le moral monte, sans consommer d’énergie.',
     size: 1,
@@ -200,7 +191,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     morale: 9,
   },
   lab: {
-    tech: 'lab',
     name: 'Laboratoire',
     desc: 'Produit des points de recherche, à dépenser pour débloquer outils, véhicules et usines.',
     size: 2,
@@ -224,7 +214,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     conspiracy: 0.05,
   },
   barracks: {
-    tech: 'barracks',
     name: 'Caserne',
     desc: 'Forme des gardes armés de lasers.',
     size: 2,
@@ -248,7 +237,6 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     trains: ['heavy', 'hauler'],
   },
   turret: {
-    tech: 'guard',
     name: 'Tourelle laser',
     desc: 'Tire automatiquement sur les ennemis, tant qu’elle est sous tension.',
     size: 1,

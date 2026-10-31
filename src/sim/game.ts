@@ -89,7 +89,6 @@ export function createGame(seed: number): GameState {
     kills: {},
     research: 0,
     techs: [],
-    delivered: {},
     cityLevel: 0,
     conquered: [],
     sectorStart: { [REGIONS[0].id]: 0 },
@@ -176,7 +175,7 @@ function updateSettlement(state: GameState): void {
   addStock(state, 'food', 25);
   // The city's requests start now that there is a city to ask.
   state.nextContractAt = state.time + FIRST_CONTRACT_AT;
-  state.research += 3;
+  state.research += 5;
   state.story.flags.cityReached = true;
   foundCouncil(state);
   log(state, `La cité est rejointe : ${SETTLEMENT_SURVIVORS} habitants arrivent.`, 'good');

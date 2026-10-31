@@ -2,14 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BUILDINGS } from '../src/data/buildings';
 import { deliverContract, contractStatus } from '../src/sim/contracts';
 import { TECHS } from '../src/data/techs';
-import {
-  activeRegions,
-  availableBuildings,
-  buyTech,
-  deliverParts,
-  partsLeft,
-  planetControl,
-} from '../src/sim/progress';
+import { activeRegions, availableBuildings, buyTech, planetControl } from '../src/sim/progress';
 import {
   canPlaceBuilding,
   createGame,
@@ -139,10 +132,7 @@ function botTurn(state: GameState): void {
 
   // Build order: oxygen and housing track population; industry then defence.
   // Spend research as soon as it comes in, and hand in what can be handed in.
-  for (const tech of TECHS) {
-    if (tech.cost !== undefined) buyTech(state, tech.id);
-    else if (canAfford(state, partsLeft(state, tech.id))) deliverParts(state, tech.id);
-  }
+  for (const tech of TECHS) buyTech(state, tech.id);
   for (const c of [...state.contracts]) {
     if (contractStatus(state, c).ready && c.res && state.stock[c.res] > (c.amount ?? 0) + 15) {
       deliverContract(state, c.id);

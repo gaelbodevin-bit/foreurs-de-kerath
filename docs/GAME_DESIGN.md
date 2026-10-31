@@ -20,23 +20,24 @@ secteur conquis ajoute un pourcentage de contrôle et un bonus permanent, et ouv
 
 ## La progression
 
-On livre des ressources au Noyau pour franchir des jalons, qui débloquent bâtiments et outils. Une
-livraison peut se faire en plusieurs fois. Les jalons sont rangés par paliers, et chaque palier
-demande ce que le précédent a permis de produire :
+Au départ, le menu de construction se limite à ce qui sert à explorer : voies, énergie, entrepôt,
+ventilateur, tourelle, caserne. Rejoindre Port-Cendre fait de vous le gouverneur et ouvre le reste :
+l'onglet Cité, le conseil et la recherche. Avant cela, ces éléments ne sont pas affichés.
 
-| Palier | Nom          | Comment il s'ouvre      | Ce qu'il apporte                                                         |
-| ------ | ------------ | ----------------------- | ------------------------------------------------------------------------ |
-| 0      | Installation | Dès le départ           | Énergie, entrepôt, tourelle, ventilateur                                 |
-| 1      | Implantation | Rejoindre Port-Cendre   | Habitat, oxygène, cultures, laboratoire, caserne, marché, forets trempés |
-| 2      | Industrie    | Livraison de la phase 1 | Raffinerie, marteau-piqueur, dispensaire                                 |
-| 3      | Mécanisation | Livraison de la phase 2 | Atelier de véhicules, avant-postes, forge d'alliage                      |
-| 4      | Grand forage | Livraison de la phase 3 | Foreuse laser                                                            |
+Le laboratoire produit la recherche, dépensée en jeu :
 
-Aucun jalon ne demande de soufre : il se trouve derrière le basalte, que seul le laser perce.
+```text
+Forets trempés ─► Marteau-piqueur ─► Foreuse laser
+Raffinage ─┬─► Atelier de véhicules
+           ├─► Avant-postes
+           └─► Métallurgie
+```
 
-Le laboratoire produit des points pour une branche à part, faite d'améliorations de la colonie. La
-population donne le rang de la cité (Campement, Bourg, Ville, Cité, Capitale), qui ne débloque rien :
-il élargit la zone constructible et agrandit le Noyau.
+La roche entre les secteurs impose cet ordre : du dur autour du premier, qu'il faut percer au
+marteau-piqueur ou à la foreuse lourde, puis du basalte, réservé au laser.
+
+La population donne le rang de la cité (Campement, Bourg, Ville, Cité, Capitale), qui ne débloque
+rien : il élargit la zone constructible et agrandit le Noyau.
 
 ## La zone de la cité et les avant-postes
 

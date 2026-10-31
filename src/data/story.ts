@@ -55,7 +55,7 @@ export const STORY_EVENTS: StoryEvent[] = [
     id: 'lab_ready',
     speaker: 'Dr Ilyane Soum',
     title: 'Le laboratoire tourne',
-    text: "Mes équipes sont au travail, Gouverneur. Chaque laboratoire alimenté produit des points de recherche, à dépenser dans le panneau Progression (touche R) pour améliorer la colonie.\n\nPour les outils et les usines, ce sont les livraisons au Noyau qui comptent. La roche qui sépare ce secteur des suivants ne cédera qu'au marteau-piqueur, ou à une foreuse lourde.",
+    text: "Mes équipes sont au travail, Gouverneur. Chaque laboratoire alimenté produit des points de recherche, à dépenser dans le panneau Recherche (touche R).\n\nCommencez par ce qui vous bloque. La roche qui sépare ce secteur des suivants ne cédera qu'au marteau-piqueur, ou à une foreuse lourde.",
     when: { built: 'lab' },
     choices: [{ label: 'Compris.', effects: [] }],
   },
@@ -63,7 +63,7 @@ export const STORY_EVENTS: StoryEvent[] = [
     id: 'landing',
     speaker: 'Orsa Veld',
     title: 'Coupés de Port-Cendre',
-    text: "Chef d'expédition, bienvenue sous la croûte. Kerath est un monde creux : le cristal, le métal et l'air respirable se trouvent tous en profondeur. La Charte nous envoie en prendre le contrôle, avant que d'autres ne s'en emparent. Tout partira d'ici : ce campement doit devenir la capitale de Kerath, et il lui faudra un gouverneur.\n\nLes colons de Port-Cendre devaient nous accueillir, mais un éboulement a fermé la galerie à notre arrivée. Nous sommes isolés, et eux aussi.\n\nNotre priorité : les rejoindre. Ils sont signalés par l'anneau turquoise sur la mini-carte. Glissez sur la roche pour marquer le passage à forer. Nos pioches n'entament que la roche tendre : il faudra contourner la roche dure.\n\nD'ici là, nous n'avons que le nécessaire. Ouvrez Progression (touche R) et livrez des ressources au Noyau pour débloquer l'énergie et la défense du site. Le reste attendra la cité.",
+    text: "Chef d'expédition, bienvenue sous la croûte. Kerath est un monde creux : le cristal, le métal et l'air respirable se trouvent tous en profondeur. La Charte nous envoie en prendre le contrôle, avant que d'autres ne s'en emparent. Tout partira d'ici : ce campement doit devenir la capitale de Kerath, et il lui faudra un gouverneur.\n\nLes colons de Port-Cendre devaient nous accueillir, mais un éboulement a fermé la galerie à notre arrivée. Nous sommes isolés, et eux aussi.\n\nNotre priorité : les rejoindre. Ils sont signalés par l'anneau turquoise sur la mini-carte. Glissez sur la roche pour marquer le passage à forer. Nos pioches n'entament que la roche tendre : il faudra contourner la roche dure.\n\nD'ici là, nous n'avons que le nécessaire : le menu de construction se limite à ce qui sert à explorer.",
     when: { regions: ['ash'], minTime: 1 },
     choices: [{ label: 'En route, on creuse.', effects: [] }],
   },
@@ -71,7 +71,7 @@ export const STORY_EVENTS: StoryEvent[] = [
     id: 'city_reached',
     speaker: 'Orsa Veld',
     title: 'Gouverneur de Kerath',
-    text: "La galerie est ouverte ! Huit colons rejoignent notre campement, avec ce qu'ils ont pu sauver.\n\nIls vous reconnaissent comme gouverneur : la colonie est à vous, et le conseil aussi (touche K). Krell, Soum et moi y siégeons, le siège de la Défense est libre, et vous pourrez recruter qui vous voudrez.\n\nL'onglet Cité du menu de construction est maintenant ouvert : faites respirer, nourrissez et logez ces gens. Un nouveau palier de jalons s'ouvre dans Progression : abris, air, cultures, laboratoire, puis la grande livraison qui lancera l'industrie. Le marteau-piqueur, les véhicules et le laser sont au bout de cette chaîne.\n\nQuel gouverneur serez-vous ?",
+    text: "La galerie est ouverte ! Huit colons rejoignent notre campement, avec ce qu'ils ont pu sauver.\n\nIls vous reconnaissent comme gouverneur : la colonie est à vous, et le conseil aussi (touche K). Krell, Soum et moi y siégeons, le siège de la Défense est libre, et vous pourrez recruter qui vous voudrez.\n\nLe menu de construction s'ouvre sur la cité : faites respirer, nourrissez et logez ces gens. Bâtissez vite un laboratoire : sa recherche (touche R) mène au marteau-piqueur, au laser et aux véhicules.\n\nQuel gouverneur serez-vous ?",
     when: { regions: ['ash'], flags: ['cityReached'] },
     choices: [
       {
