@@ -1,4 +1,5 @@
 import { SOUND_FILES, type SoundKey } from './assetManifest';
+import { playBabble, type VoiceProfile } from './babble';
 
 interface SoundDef {
   /** Loudness once the recording plays. */
@@ -12,9 +13,15 @@ interface SoundDef {
 }
 
 const SOUNDS: Record<SoundKey, SoundDef> = {
+  rattle: {
+    gain: 0,
+    gap: 0.5,
+    wet: 0.3,
+    synth: { freq: 38, to: 33, time: 0.7, type: 'sawtooth', gain: 0.05 },
+  },
   drill: {
-    gain: 0.3,
-    gap: 0.22,
+    gain: 0.2,
+    gap: 0.45,
     wet: 0.3,
     synth: { freq: 90, to: 70, time: 0.09, type: 'sawtooth', gain: 0.018 },
   },
@@ -61,7 +68,7 @@ const SOUNDS: Record<SoundKey, SoundDef> = {
     synth: { freq: 800, to: 600, time: 0.03, type: 'square', gain: 0.02 },
   },
   step: {
-    gain: 0.1,
+    gain: 0.05,
     gap: 0.26,
     wet: 0.2,
     synth: { freq: 120, to: 80, time: 0.03, type: 'sine', gain: 0.012 },
@@ -77,12 +84,6 @@ const SOUNDS: Record<SoundKey, SoundDef> = {
     gap: 1,
     wet: 0.5,
     synth: { freq: 294, to: 110, time: 0.9, type: 'triangle', gain: 0.08 },
-  },
-  hum: {
-    gain: 0,
-    gap: 0,
-    wet: 0,
-    synth: { freq: 60, to: 60, time: 0.01, type: 'sine', gain: 0 },
   },
 };
 
@@ -122,37 +123,19 @@ function caveEcho(ctx: AudioContext): AudioBuffer {
   return buffer;
 }
 
-/** Blends a recording's end into its start, so that looping it makes no click. */
-function seamlessLoop(ctx: AudioContext, source: AudioBuffer, overlap: number): AudioBuffer {
-  const fade = Math.floor(source.sampleRate * overlap);
-  const length = source.length - fade;
-  const loop = ctx.createBuffer(source.numberOfChannels, length, source.sampleRate);
-  for (let channel = 0; channel < source.numberOfChannels; channel++) {
-    const input = source.getChannelData(channel);
-    const output = loop.getChannelData(channel);
-    output.set(input.subarray(0, length));
-    for (let i = 0; i < fade; i++) {
-      const t = i / fade;
-      output[i] = input[i] * Math.sqrt(t) + input[length + i] * Math.sqrt(1 - t);
-    }
-  }
-  return loop;
-}
-
 /** Everything the ambience holds on to while it plays. */
 interface Ambience {
   stop: () => void;
-  hum: GainNode | null;
+  out: GainNode;
   tension: GainNode;
-  pad: OscillatorNode[];
 }
 
-/** Dark chords for the slow pad, as frequencies. */
+/** Dark chords for the rare musical swells, as frequencies. */
 const CHORDS = [
-  [55, 82.4, 130.8],
-  [49, 73.4, 116.5],
-  [43.7, 87.3, 130.8],
-  [55, 77.8, 123.5],
+  [110, 164.8, 261.6],
+  [98, 146.8, 233.1],
+  [87.3, 174.6, 261.6],
+  [110, 155.6, 246.9],
 ];
 
 export class Audio {
@@ -167,7 +150,8 @@ export class Audio {
   private wantAmbience = false;
   private decoding: Promise<void> | null = null;
   private dripTimer = 3;
-  private chordTimer = 0;
+  private swellTimer = 25;
+  private rumbleTimer = 45;
   private chord = 0;
   private mutedValue = readMuted();
   private listener = { x: 0, y: 0, heading: 0, reach: 20 };
@@ -309,6 +293,19 @@ export class Audio {
     osc.stop(now + synth.time);
   }
 
+  /** A line of crew chatter over the radio. Returns its length, or 0 before sound is unlocked. */
+  speak(text: string, voice: VoiceProfile): number {
+    const { ctx, dry, echo } = this;
+    if (!ctx || !dry || !echo || ctx.state !== 'running') return 0;
+    // A little of it in the cave's echo, so that the radio still seems to be down here.
+    const send = ctx.createGain();
+    send.gain.value = 0.12;
+    const bus = ctx.createGain();
+    bus.connect(dry);
+    bus.connect(send).connect(echo);
+    return playBabble(ctx, bus, text, voice);
+  }
+
   /** Cave background for missions. It waits for the first gesture if there hasn't been one. */
   startAmbience(): void {
     this.wantAmbience = true;
@@ -338,39 +335,17 @@ export class Audio {
     out.connect(master);
     const nodes: AudioScheduledSourceNode[] = [];
 
-    // Wind: noise behind a filter that opens and closes very slowly.
+    // Nothing drones: the only constant layer is a breath of air, barely above silence.
     const wind = ctx.createBufferSource();
     wind.buffer = brownNoise(ctx, 6);
     wind.loop = true;
     const windFilter = ctx.createBiquadFilter();
     windFilter.type = 'lowpass';
-    windFilter.frequency.value = 340;
+    windFilter.frequency.value = 240;
     const windGain = ctx.createGain();
-    windGain.gain.value = 0.09;
-    const lfo = ctx.createOscillator();
-    lfo.frequency.value = 0.07;
-    const lfoDepth = ctx.createGain();
-    lfoDepth.gain.value = 170;
-    lfo.connect(lfoDepth).connect(windFilter.frequency);
+    windGain.gain.value = 0.018;
     wind.connect(windFilter).connect(windGain).connect(out);
-    nodes.push(wind, lfo);
-
-    // Pad: three quiet voices through a dark filter.
-    const padFilter = ctx.createBiquadFilter();
-    padFilter.type = 'lowpass';
-    padFilter.frequency.value = 420;
-    const padGain = ctx.createGain();
-    padGain.gain.value = 0.018;
-    padFilter.connect(padGain).connect(out);
-    const pad = CHORDS[0].map((frequency, i) => {
-      const osc = ctx.createOscillator();
-      osc.type = 'sawtooth';
-      osc.frequency.value = frequency;
-      osc.detune.value = (i - 1) * 7;
-      osc.connect(padFilter);
-      nodes.push(osc);
-      return osc;
-    });
+    nodes.push(wind);
 
     // Tension: a low pulse that only rises when enemies are close.
     const pulse = ctx.createOscillator();
@@ -387,24 +362,10 @@ export class Audio {
     pulse.connect(pulseGain).connect(tension).connect(out);
     nodes.push(pulse, beat);
 
-    // The base's machines, recorded, rise as the camera gets close to them.
-    let hum: GainNode | null = null;
-    const humBuffer = this.buffers.get(SOUND_FILES.hum[0]);
-    if (humBuffer) {
-      const source = ctx.createBufferSource();
-      source.buffer = seamlessLoop(ctx, humBuffer, 0.6);
-      source.loop = true;
-      hum = ctx.createGain();
-      hum.gain.value = 0;
-      source.connect(hum).connect(out);
-      nodes.push(source);
-    }
-
     for (const node of nodes) node.start();
     return {
-      hum,
+      out,
       tension,
-      pad,
       stop: () => {
         const now = ctx.currentTime;
         out.gain.cancelScheduledValues(now);
@@ -414,28 +375,66 @@ export class Audio {
     };
   }
 
-  /** `tension` and `machines` go from 0 to 1. */
-  updateAmbience(dt: number, tension: number, machines: number): void {
+  /** `tension` goes from 0 to 1. Between events, the cave stays nearly silent. */
+  updateAmbience(dt: number, tension: number): void {
     const { ctx, ambience } = this;
     if (!ctx || !ambience || ctx.state !== 'running') return;
-    const now = ctx.currentTime;
-    ambience.tension.gain.setTargetAtTime(tension * 0.16, now, 1);
-    ambience.hum?.gain.setTargetAtTime(machines * 0.05, now, 0.6);
+    ambience.tension.gain.setTargetAtTime(tension * 0.05, ctx.currentTime, 1);
 
-    this.chordTimer -= dt;
-    if (this.chordTimer <= 0) {
-      this.chordTimer = 22;
-      this.chord = (this.chord + 1) % CHORDS.length;
-      ambience.pad.forEach((osc, i) => {
-        osc.frequency.setTargetAtTime(CHORDS[this.chord][i], now, 4);
-      });
+    this.swellTimer -= dt;
+    if (this.swellTimer <= 0) {
+      this.swellTimer = 60 + Math.random() * 60;
+      this.swell(ctx, ambience.out);
+    }
+
+    this.rumbleTimer -= dt;
+    if (this.rumbleTimer <= 0) {
+      this.rumbleTimer = 50 + Math.random() * 70;
+      this.rumble(ctx, ambience.out);
     }
 
     this.dripTimer -= dt;
     if (this.dripTimer <= 0) {
-      this.dripTimer = 3 + Math.random() * 9;
+      this.dripTimer = 6 + Math.random() * 14;
       this.drip(ctx);
     }
+  }
+
+  /** A soft chord that rises and dies away, then leaves the silence alone for a minute or more. */
+  private swell(ctx: AudioContext, out: GainNode): void {
+    const now = ctx.currentTime;
+    const seconds = 9;
+    this.chord = (this.chord + 1) % CHORDS.length;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.022, now + seconds * 0.4);
+    gain.gain.linearRampToValueAtTime(0, now + seconds);
+    gain.connect(out);
+    for (const frequency of CHORDS[this.chord]) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = frequency;
+      osc.connect(gain);
+      osc.start(now);
+      osc.stop(now + seconds);
+    }
+  }
+
+  /** Rock settling far away: a muffled roll of noise. */
+  private rumble(ctx: AudioContext, out: GainNode): void {
+    const now = ctx.currentTime;
+    const seconds = 3.5;
+    const source = ctx.createBufferSource();
+    source.buffer = brownNoise(ctx, seconds);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 130;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.14, now + 0.8);
+    gain.gain.linearRampToValueAtTime(0, now + seconds);
+    source.connect(filter).connect(gain).connect(out);
+    source.start(now);
   }
 
   /** Water falling somewhere in the dark: a short blip, heard mostly through the echo. */

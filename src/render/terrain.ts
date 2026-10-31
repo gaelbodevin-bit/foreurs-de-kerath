@@ -16,13 +16,15 @@ const hex = (c: number) => new THREE.Color(c);
 const BASE: Record<TileKind, THREE.Color> = {
   floor: hex(0x5a4a3e),
   rubble: hex(0x6e5f50),
-  path: hex(0x3c5a63),
+  // The plating's colours are in its texture.
+  path: hex(0xffffff),
   fungus: hex(0x4e6b3a),
   lava: hex(0xff5a1f),
   water: hex(0x1f5f8f),
   dirt: hex(0x6e5b4c),
   loose: hex(0x665e5a),
   hard: hex(0x4a4650),
+  basalt: hex(0x24252e),
   solid: hex(0x24222a),
   oreSeam: hex(RESOURCES.ore.color),
   crystalSeam: hex(RESOURCES.crystal.color),
@@ -79,8 +81,8 @@ interface Layer {
 
 const newLayer = (): Layer => ({ positions: [], colors: [], uvs: [] });
 
-type LayerName = 'floor' | 'wall' | 'glow' | 'lava' | 'water';
-const LAYERS: LayerName[] = ['floor', 'wall', 'glow', 'lava', 'water'];
+type LayerName = 'floor' | 'wall' | 'glow' | 'lava' | 'water' | 'path';
+const LAYERS: LayerName[] = ['floor', 'wall', 'glow', 'lava', 'water', 'path'];
 
 function rockMaterial(kind: 'ground' | 'wall'): THREE.Material {
   return new THREE.MeshStandardMaterial({
@@ -133,6 +135,67 @@ function lavaTexture(): THREE.Texture {
   return texture;
 }
 
+/**
+ * One tile of technical floor: a riveted steel plate crossed by a power conduit. The conduit runs
+ * to all four edges, so that adjacent tiles join up into a network. `glow` draws only the light.
+ */
+function pathTexture(glow: boolean): THREE.Texture {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const mid = size / 2;
+  if (glow) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, size, size);
+  } else {
+    const plate = ctx.createLinearGradient(0, 0, size, size);
+    plate.addColorStop(0, '#7d8791');
+    plate.addColorStop(1, '#59626c');
+    ctx.fillStyle = plate;
+    ctx.fillRect(0, 0, size, size);
+    // A dark seam and a lit bevel, so that each plate reads as a separate piece of metal.
+    ctx.strokeStyle = '#23272d';
+    ctx.lineWidth = 5;
+    ctx.strokeRect(0, 0, size, size);
+    ctx.strokeStyle = 'rgba(255,255,255,.22)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(5, 5, size - 10, size - 10);
+    for (const [x, y] of [
+      [15, 15],
+      [size - 15, 15],
+      [15, size - 15],
+      [size - 15, size - 15],
+    ]) {
+      ctx.fillStyle = '#2e333a';
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#a7b0ba';
+      ctx.beginPath();
+      ctx.arc(x - 1, y - 1, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // The channel the conduit sits in.
+    ctx.fillStyle = '#1d2126';
+    ctx.fillRect(mid - 11, 0, 22, size);
+    ctx.fillRect(0, mid - 11, size, 22);
+  }
+  ctx.fillStyle = glow ? '#ffffff' : '#7fe9d8';
+  ctx.fillRect(mid - 4, 0, 8, size);
+  ctx.fillRect(0, mid - 4, size, 8);
+  ctx.beginPath();
+  ctx.arc(mid, mid, 11, 0, Math.PI * 2);
+  ctx.fill();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.anisotropy = 8;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 /** A separate copy of a texture, whose offset can scroll on its own. */
 function scrolling(texture: THREE.Texture | null): THREE.Texture | null {
   if (!texture) return null;
@@ -165,6 +228,17 @@ export class TerrainView {
     normalScale: new THREE.Vector2(0.22, 0.22),
     roughness: 0.38,
     metalness: 0,
+  });
+  private readonly pathMap = pathTexture(false);
+  private readonly pathGlow = pathTexture(true);
+  private readonly pathMaterial = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    map: this.pathMap,
+    emissive: 0x35e0c2,
+    emissiveMap: this.pathGlow,
+    emissiveIntensity: 1.6,
+    roughness: 0.5,
+    metalness: 0.35,
   });
   private readonly boost = getTexture('wallColor') ? TEXTURED_BOOST : 1;
   private readonly chunks = new Map<number, Record<LayerName, THREE.Mesh>>();
@@ -281,6 +355,7 @@ export class TerrainView {
       glow: newLayer(),
       lava: newLayer(),
       water: newLayer(),
+      path: newLayer(),
     };
     const lights = new Map<number, CornerLight>();
     const lightAt = (x: number, y: number) => {
@@ -311,14 +386,17 @@ export class TerrainView {
             ? 'lava'
             : tile.k === 'water'
               ? 'water'
-              : glowing
-                ? 'glow'
-                : isWallKind(tile.k)
-                  ? 'wall'
-                  : 'floor';
+              : tile.k === 'path'
+                ? 'path'
+                : glowing
+                  ? 'glow'
+                  : isWallKind(tile.k)
+                    ? 'wall'
+                    : 'floor';
         const layer = layers[name];
         // Water has no texture to dim it, so it does without the boost made up for that.
-        const scale = name === 'water' ? 0.45 / this.boost : 1;
+        // Plating brings its own colours, and needs that boost even less.
+        const scale = name === 'water' ? 0.45 / this.boost : name === 'path' ? 1 / this.boost : 1;
         // Fold each quad along the diagonal that keeps slopes smooth.
         const flip = Math.abs(a - d) > Math.abs(b - c);
         const tris = flip
@@ -342,7 +420,8 @@ export class TerrainView {
           const [vx, vy, vz] = tris[t];
           layer.positions.push(vx, vy, vz);
           // Sliding with height keeps the texture from stretching down the slopes.
-          layer.uvs.push((vx + vy * 0.6) / TEXTURE_TILES, (vz + vy * 0.6) / TEXTURE_TILES);
+          if (name === 'path') layer.uvs.push(vx, vz);
+          else layer.uvs.push((vx + vy * 0.6) / TEXTURE_TILES, (vz + vy * 0.6) / TEXTURE_TILES);
           // Baked shading on glowing tiles, which get no scene light to show their shape.
           if (glowing || !tile.seen) {
             const shade = glowing ? 0.65 + (vy / WALL_HEIGHT) * 0.45 : 1;
@@ -367,11 +446,13 @@ export class TerrainView {
         glow: new THREE.Mesh(new THREE.BufferGeometry(), this.glowMaterial),
         lava: new THREE.Mesh(new THREE.BufferGeometry(), this.lavaMaterial),
         water: new THREE.Mesh(new THREE.BufferGeometry(), this.waterMaterial),
+        path: new THREE.Mesh(new THREE.BufferGeometry(), this.pathMaterial),
       };
       chunk.wall.castShadow = true;
       chunk.floor.receiveShadow = true;
       chunk.wall.receiveShadow = true;
       chunk.water.receiveShadow = true;
+      chunk.path.receiveShadow = true;
       this.chunks.set(key, chunk);
       for (const name of LAYERS) {
         this.group.add(chunk[name]);
@@ -433,6 +514,9 @@ export class TerrainView {
     this.glowMaterial.dispose();
     this.lavaMaterial.dispose();
     this.waterMaterial.dispose();
+    this.pathMaterial.dispose();
+    this.pathMap.dispose();
+    this.pathGlow.dispose();
     this.lavaMap.dispose();
     this.waterNormal?.dispose();
   }

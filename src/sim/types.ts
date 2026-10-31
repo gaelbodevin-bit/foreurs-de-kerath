@@ -31,6 +31,7 @@ export type TileKind =
   | 'dirt'
   | 'loose'
   | 'hard'
+  | 'basalt'
   | 'solid'
   | 'oreSeam'
   | 'crystalSeam'
@@ -49,6 +50,8 @@ export interface Tile {
   rubble: number;
   /** Seconds before a harvested fungus patch can be harvested again. */
   regrow: number;
+  /** Toxic gas in the air here, from 0 to about 1. Missing means none. */
+  gas?: number;
 }
 
 export type UnitType = 'foreur' | 'garde' | 'heavy' | 'hauler';
@@ -71,7 +74,8 @@ export type BuildingType =
   | 'security'
   | 'barracks'
   | 'workshop'
-  | 'turret';
+  | 'turret'
+  | 'vent';
 
 export type AdvisorId = 'orsa' | 'krell' | 'soum';
 export type PolicyId = 'rationing' | 'curfew' | 'propaganda' | 'overtime';
@@ -163,9 +167,25 @@ export interface LogEntry {
 export type Fx =
   | { kind: 'laser'; x1: number; y1: number; x2: number; y2: number; hostile: boolean }
   | { kind: 'burst'; x: number; y: number; color: number }
-  | { kind: 'sound'; id: SoundId; x?: number; y?: number };
+  | { kind: 'sound'; id: SoundId; x?: number; y?: number }
+  | { kind: 'voice'; id: VoiceId };
 
 export type SoundId = 'drill' | 'collect' | 'build' | 'alert' | 'laser' | 'collapse' | 'plot';
+
+export type VoiceId =
+  | 'ack'
+  | 'drill'
+  | 'find'
+  | 'built'
+  | 'raid'
+  | 'collapse'
+  | 'destroyed'
+  | 'citizenLost'
+  | 'sabotage'
+  | 'gas'
+  | 'reunited'
+  | 'win'
+  | 'lose';
 
 export interface Modifiers {
   drillSpeed: number;
@@ -223,11 +243,20 @@ export interface StoryState {
   accused: AdvisorId[];
 }
 
+/** A place the crew has to dig its way to. */
+export interface Settlement {
+  x: number;
+  y: number;
+  reached: boolean;
+}
+
 export interface GameState {
   regionId: string;
   w: number;
   h: number;
   tiles: Tile[];
+  /** Missing from older saves, and from missions with nowhere to reach. */
+  settlement?: Settlement | null;
   tick: number;
   time: number;
   rng: number;

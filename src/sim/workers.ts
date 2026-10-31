@@ -1,4 +1,4 @@
-import { BUILDINGS } from '../data/buildings';
+import { BUILDINGS, PATH_COST } from '../data/buildings';
 import { WALLS } from '../data/resources';
 import { UNITS } from '../data/units';
 import { canAfford, hasRoomFor, addStock, pay } from './economy';
@@ -19,9 +19,9 @@ const JOB_PRIORITY: Record<JobKind, number> = {
   build: 0,
   haul: 2,
   path: 3,
+  clear: 3,
   drill: 4,
   harvest: 6,
-  clear: 9,
 };
 
 export function addJob(
@@ -109,7 +109,7 @@ function jobIsOpen(state: GameState, unit: Unit, job: Job): boolean {
       return wall !== undefined && drillPowerOf(state, unit) >= wall.power;
     }
     case 'path':
-      return canAfford(state, { stone: 1 });
+      return canAfford(state, PATH_COST);
     case 'haul': {
       const pickup = state.pickups.find((p) => p.id === job.refId);
       return pickup !== undefined && hasRoomFor(state, pickup.res);
@@ -272,11 +272,11 @@ function runJob(state: GameState, unit: Unit, job: Job, speed: number): void {
       tile.work += dt;
       if (tile.work >= PATH_TIME) {
         tile.work = 0;
-        if (!canAfford(state, { stone: 1 })) {
+        if (!canAfford(state, PATH_COST)) {
           releaseJob(state, unit);
           return;
         }
-        pay(state, { stone: 1 });
+        pay(state, PATH_COST);
         setTile(state, job.x, job.y, 'path');
         state.networkDirty = true;
         removeJob(state, job.id);
@@ -327,7 +327,7 @@ function runBuild(state: GameState, unit: Unit, job: Job, b: Building, speed: nu
       b.hp = def.hp;
       state.networkDirty = true;
       log(state, `${def.name} : construction terminée.`, 'good');
-      state.fx.push({ kind: 'sound', id: 'build', x: b.x, y: b.y });
+      state.fx.push({ kind: 'sound', id: 'build', x: b.x, y: b.y }, { kind: 'voice', id: 'built' });
       removeJob(state, job.id);
     }
   } else {
@@ -443,6 +443,7 @@ export function breakWall(state: GameState, x: number, y: number, silent = false
     const { res, min, max } = wall.yield;
     const count = min + Math.floor(rand(state) * (max - min + 1));
     for (let n = 0; n < count; n++) dropAround(state, res, x, y);
+    if (!silent) state.fx.push({ kind: 'voice', id: 'find' });
     if (res === 'relic') log(state, 'Un caveau scellé cède : une relique apparaît !', 'good');
   }
   const wasLoose = tile.k === 'loose';
@@ -473,6 +474,7 @@ function collapse(state: GameState, x: number, y: number): void {
   log(state, 'Éboulement !', 'warn');
   state.fx.push(
     { kind: 'sound', id: 'collapse', x, y },
+    { kind: 'voice', id: 'collapse' },
     { kind: 'burst', x: x + 0.5, y: y + 0.5, color: 0xa08a6e },
   );
   for (const unit of state.units) {

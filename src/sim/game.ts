@@ -4,6 +4,7 @@ import { RESOURCES, TILE_NAMES, WALLS } from '../data/resources';
 import { ENEMIES, UNITS } from '../data/units';
 import { updateCombat } from './combat';
 import {
+  addStock,
   canAfford,
   pay,
   registerRegionIntrigue,
@@ -12,6 +13,7 @@ import {
   updateNetwork,
 } from './economy';
 import { createBuilding, log, spawnEnemy, spawnUnit } from './entities';
+import { updateGas } from './gas';
 import { idx, inBounds, isWalkableKind, NEIGHBORS4, reveal, setTile, tileAt } from './grid';
 import { generateMap } from './mapgen';
 import { findPath } from './pathfinding';
@@ -42,6 +44,10 @@ export interface MissionContext {
   firedEvents: string[];
 }
 
+const SETTLEMENT_SURVIVORS = 8;
+/** Keeps the crew from building over the settlement's own structures. */
+const SETTLEMENT_CLEARANCE = 3.5;
+
 export function createMission(regionId: string, ctx: MissionContext): GameState {
   const region = regionById(regionId);
   const map = generateMap({ ...region.map, seed: region.map.seed ^ ctx.seed });
@@ -64,6 +70,7 @@ export function createMission(regionId: string, ctx: MissionContext): GameState 
     w: map.w,
     h: map.h,
     tiles: map.tiles,
+    settlement: map.settlement ? { ...map.settlement, reached: false } : null,
     tick: 0,
     time: 0,
     rng: (region.map.seed * 31 + ctx.seed) | 0,
@@ -132,9 +139,29 @@ export function stepGame(state: GameState): void {
   if (state.tick % 10 === 0) {
     updateRepairs(state);
     updateHazards(state);
+    updateSettlement(state);
+    updateGas(state);
     updateStory(state);
     updateOutcome(state);
   }
+}
+
+/** The flood fill of `reveal` only gets to the settlement once a tunnel actually connects it. */
+function updateSettlement(state: GameState): void {
+  const place = state.settlement;
+  if (!place || place.reached || !tileAt(state, place.x, place.y)?.seen) return;
+  place.reached = true;
+  state.city.population += SETTLEMENT_SURVIVORS;
+  addStock(state, 'ore', 20);
+  addStock(state, 'stone', 15);
+  state.research += 3;
+  state.story.flags.cityReached = true;
+  log(state, `La cité est rejointe : ${SETTLEMENT_SURVIVORS} habitants arrivent.`, 'good');
+  state.fx.push(
+    { kind: 'sound', id: 'plot' },
+    { kind: 'voice', id: 'reunited' },
+    { kind: 'burst', x: place.x + 0.5, y: place.y + 0.5, color: 0x35e0c2 },
+  );
 }
 
 function updateHazards(state: GameState): void {
@@ -198,6 +225,12 @@ export function objectiveProgress(
         value: Math.floor(state.time),
         goal: o.seconds,
         label: 'Tenir la position (secondes)',
+      };
+    case 'reach':
+      return {
+        value: (state.settlement?.reached ?? true) ? 1 : 0,
+        goal: 1,
+        label: `Rejoindre ${o.place}`,
       };
   }
 }
@@ -287,6 +320,10 @@ export function canPlaceBuilding(
       }
       if (state.buildings.some((b) => tileIsUnder(b.type, b.x, b.y, x + dx, y + dy))) {
         return { ok: false, reason: 'Un bâtiment occupe déjà cet espace.' };
+      }
+      const place = state.settlement;
+      if (place && Math.hypot(x + dx - place.x, y + dy - place.y) < SETTLEMENT_CLEARANCE) {
+        return { ok: false, reason: 'Cet espace appartient à la cité.' };
       }
     }
   }

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { DrillTool } from '../data/resources';
 import { BUILDINGS } from '../data/buildings';
 import { RESOURCES } from '../data/resources';
 import type { BuildingType, EnemyType, ResourceId, UnitType } from '../sim/types';
@@ -84,8 +85,8 @@ function makeWorker(suit: number, helmet: number, weapon: boolean): THREE.Group 
   return g;
 }
 
-export function makeUnit(type: UnitType): THREE.Group {
-  const modelled = unitFromModels(type);
+export function makeUnit(type: UnitType, tool: DrillTool = 'pick'): THREE.Group {
+  const modelled = unitFromModels(type, tool);
   if (modelled) return modelled;
   switch (type) {
     case 'foreur':

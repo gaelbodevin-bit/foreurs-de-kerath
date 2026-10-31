@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { MODEL_FILES, TEXTURE_FILES, type ModelId, type TextureId } from './assetManifest';
+import { roundGeometry } from './roundMesh';
 
 interface LoadedModel {
   scene: THREE.Group;
@@ -30,6 +31,13 @@ function matteMaterials(scene: THREE.Object3D): void {
   });
 }
 
+/** The character pack is made of boxes: softening them gives the crew a friendlier look. */
+function roundCharacter(scene: THREE.Object3D): void {
+  scene.traverse((child) => {
+    if (child instanceof THREE.SkinnedMesh) child.geometry = roundGeometry(child.geometry);
+  });
+}
+
 /**
  * Loads everything once at startup. A file that fails to load is only reported: the renderer
  * falls back to its procedural shapes, so a missing asset can never block the game.
@@ -45,6 +53,7 @@ export async function loadAssets(onProgress: (ratio: number) => void): Promise<v
     try {
       const loaded = await gltf.loadAsync(url(path));
       matteMaterials(loaded.scene);
+      if (path.startsWith('models/characters/')) roundCharacter(loaded.scene);
       models.set(id, {
         scene: loaded.scene,
         clips: loaded.animations,

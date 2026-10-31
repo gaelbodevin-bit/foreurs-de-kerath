@@ -92,8 +92,29 @@ cet ordre : pleine résolution, bloom et ombres à chaque image, puis ombres.
 Les événements `sound` de la simulation peuvent porter une position : le volume et le panoramique
 suivent alors la caméra. Tout passe par un écho de grotte calculé à l'ouverture de l'audio.
 
-Le vent, les gouttes, la nappe musicale et la pulsation de danger sont synthétisés. Un navigateur
-qui ne lit pas l'Ogg retombe sur des sons synthétisés équivalents.
+L'ambiance est volontairement presque silencieuse : aucun bourdon continu, seulement un souffle à
+peine audible, et de loin en loin des gouttes, un grondement ou un accord qui monte et s'éteint. La
+pulsation de danger n'apparaît que près des ennemis. Tout est synthétisé. Un navigateur qui ne lit
+pas l'Ogg retombe sur des sons synthétisés équivalents.
+
+## Outils de forage
+
+Le pouvoir de forage (`mods.drillPower`) désigne l'outil des foreurs : pioche, marteau-piqueur, puis
+foreuse laser (`DRILL_TOOLS`). La simulation ne connaît que ce chiffre. Le modèle tenu en main,
+l'animation, le rayon et le son s'en déduisent à l'affichage.
+
+## Voix
+
+L'équipage parle une langue inventée, sous-titrée en français. `render/babble.ts` synthétise une
+voix à partir des voyelles et de la ponctuation de la réplique, puis la fait passer par le filtre
+d'une radio de chantier. `render/voice.ts` choisit qui parle et quand, et `data/voiceLines.ts` tient
+les répliques. La simulation signale seulement l'événement, par un effet `voice`.
+
+## Gaz
+
+Certaines cavernes sont remplies de gaz (`Tile.gas`). Il y reste enfermé tant qu'aucun tunnel ne les
+ouvre, puis se répand et s'éclaircit (`sim/gas.ts`). Il blesse les personnes, pas les machines. Un
+ventilateur alimenté l'aspire autour de lui.
 
 ## Sauvegarde
 

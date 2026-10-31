@@ -20,11 +20,19 @@ export const TECHS: TechDef[] = [
   },
   {
     id: 'drills2',
-    name: 'Forets au diamant',
-    desc: 'Les foreurs percent la roche dure et l’or sans machine.',
+    name: 'Marteau-piqueur',
+    desc: 'Les foreurs percent la roche dure et l’or. Forage 25 % plus rapide.',
     cost: 14,
     requires: 'drills1',
-    mods: { drillPower: 1 },
+    mods: { drillPower: 1, drillSpeed: 0.25 },
+  },
+  {
+    id: 'drills3',
+    name: 'Foreuse laser',
+    desc: 'Les foreurs percent le basalte. Forage 50 % plus rapide.',
+    cost: 22,
+    requires: 'drills2',
+    mods: { drillPower: 1, drillSpeed: 0.5 },
   },
   {
     id: 'logistics',

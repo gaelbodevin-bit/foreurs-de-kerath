@@ -1,11 +1,13 @@
-import { BUILDINGS, PATH_COST, type BuildingCategory } from '../data/buildings';
+import { BUILD_MENUS, BUILDINGS, PATH_COST, type BuildMenuId } from '../data/buildings';
 import { regionById } from '../data/regions';
-import { RESOURCES, TILE_NAMES, WALLS } from '../data/resources';
+import { DRILL_TOOLS, drillToolFor, RESOURCES, TILE_NAMES, WALLS } from '../data/resources';
 import { ADVISORS } from '../data/story';
 import { ENEMIES, INVESTIGATION_COST, POLICIES, TAX_LEVELS, UNITS } from '../data/units';
 import { audio } from '../render/audio';
 import { MissionView } from '../render/view';
+import { voice } from '../render/voice';
 import { canAfford, storageCapacity } from '../sim/economy';
+import { GAS_HARMFUL } from '../sim/gas';
 import {
   availableBuildings,
   canPlaceBuilding,
@@ -21,23 +23,28 @@ import {
   trainUnit,
 } from '../sim/game';
 import { answerEvent, eventById, eventText, investigate, visibleChoices } from '../sim/storyEngine';
-import type { BuildingType, Cost, GameState, PolicyId, ResourceId } from '../sim/types';
+import type {
+  BuildingType,
+  Cost,
+  GameState,
+  PolicyId,
+  ResourceId,
+  SoundId,
+  VoiceId,
+} from '../sim/types';
 import { RESOURCE_IDS, TICK_SECONDS } from '../sim/types';
 import { clear, h } from './dom';
+import { resourceIcon } from './icons';
 
 type Tool = { kind: 'select' } | { kind: 'path' } | { kind: 'build'; type: BuildingType };
 
-const CATEGORY_NAMES: Record<BuildingCategory, string> = {
-  infrastructure: 'Infrastructure',
-  industry: 'Industrie',
-  city: 'Cité',
-  defense: 'Défense',
-};
-
-const costLabel = (cost: Cost): string =>
-  RESOURCE_IDS.filter((r) => cost[r])
-    .map((r) => `${cost[r]} ${RESOURCES[r].icon}`)
-    .join('  ');
+function costLabel(cost: Cost): DocumentFragment {
+  const label = document.createDocumentFragment();
+  for (const r of RESOURCE_IDS) {
+    if (cost[r]) label.append(String(cost[r]), resourceIcon(r));
+  }
+  return label;
+}
 
 const shadeHex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
@@ -70,6 +77,7 @@ export class MissionScreen {
   private modal: 'city' | 'dossier' | null = null;
   private shownEvent: string | null = null;
   private toastTimer = 0;
+  private barkTimer = 0;
   private hover: { x: number; y: number } | null = null;
 
   private readonly resBar = h('div', { class: 'res-bar' });
@@ -78,6 +86,7 @@ export class MissionScreen {
   private readonly selection = h('div', { class: 'panel selection' });
   private readonly logBox = h('div', { class: 'log' });
   private readonly toast = h('div', { class: 'toast' });
+  private readonly bark = h('div', { class: 'bark' });
   private readonly hint = h('div', { class: 'hint' });
   private readonly overlay = h('div', { class: 'overlay' });
   private readonly minimap = h('canvas', { class: 'minimap', width: 180, height: 180 });
@@ -99,6 +108,7 @@ export class MissionScreen {
       this.logBox,
       this.hint,
       this.toast,
+      this.bark,
       this.minimap,
       this.overlay,
     );
@@ -177,37 +187,57 @@ export class MissionScreen {
   }
 
   private buildBuildMenu(): HTMLElement {
-    const menu = h('nav', { class: 'panel build-menu' });
     const available = availableBuildings(this.state.regionId);
     const pathButton = h(
       'button',
       { class: 'build-btn', onclick: () => this.setTool({ kind: 'path' }) },
-      h('span', { class: 'b-name' }, 'Voie énergétique'),
+      h('span', { class: 'b-name' }, 'Sol technique'),
       h('span', { class: 'b-cost' }, costLabel(PATH_COST)),
     );
     pathButton.title =
-      'Relie les bâtiments au réseau. Glissez pour tracer. Les foreurs y marchent plus vite et la lave ne les ronge pas.';
+      'Sol technique : relie les bâtiments au réseau. Glissez pour tracer. Les foreurs y marchent plus vite et la lave ne le ronge pas.';
     this.buildButtons.set('path', pathButton);
-    menu.append(h('h3', {}, 'Construire'), pathButton);
 
-    for (const category of Object.keys(CATEGORY_NAMES) as BuildingCategory[]) {
-      const types = available.filter((t) => BUILDINGS[t].category === category);
-      if (types.length === 0) continue;
-      menu.append(h('h4', {}, CATEGORY_NAMES[category]));
-      for (const type of types) {
-        const def = BUILDINGS[type];
-        const button = h(
-          'button',
-          { class: 'build-btn', onclick: () => this.setTool({ kind: 'build', type }) },
-          h('span', { class: 'b-name' }, def.name),
-          h('span', { class: 'b-cost' }, costLabel(def.cost)),
-        );
-        button.title = def.desc;
-        this.buildButtons.set(type, button);
-        menu.append(button);
+    const pages = new Map<BuildMenuId, HTMLElement>();
+    const tabs = new Map<BuildMenuId, HTMLElement>();
+    const show = (id: BuildMenuId) => {
+      for (const [key, page] of pages) page.hidden = key !== id;
+      for (const [key, tab] of tabs) tab.classList.toggle('on', key === id);
+    };
+    for (const menu of BUILD_MENUS) {
+      const page = h('div', { class: 'build-page' });
+      if (menu.id === 'explore') page.append(pathButton);
+      for (const group of menu.groups) {
+        const types = group.buildings.filter((type) => available.includes(type));
+        if (types.length === 0) continue;
+        page.append(h('h4', {}, group.name));
+        for (const type of types) {
+          const def = BUILDINGS[type];
+          const button = h(
+            'button',
+            { class: 'build-btn', onclick: () => this.setTool({ kind: 'build', type }) },
+            h('span', { class: 'b-name' }, def.name),
+            h('span', { class: 'b-cost' }, costLabel(def.cost)),
+          );
+          button.title = def.desc;
+          this.buildButtons.set(type, button);
+          page.append(button);
+        }
       }
+      pages.set(menu.id, page);
+      tabs.set(
+        menu.id,
+        h('button', { class: 'menu-tab', onclick: () => show(menu.id) }, menu.name),
+      );
     }
-    return menu;
+    show('explore');
+    return h(
+      'nav',
+      { class: 'panel build-menu' },
+      h('h3', {}, 'Construire'),
+      h('div', { class: 'menu-tabs' }, ...tabs.values()),
+      ...pages.values(),
+    );
   }
 
   private buildRightColumn(): HTMLElement {
@@ -237,7 +267,8 @@ export class MissionScreen {
     this.view.render(alpha, dt, now / 1000);
 
     for (const fx of this.state.fx) {
-      if (fx.kind === 'sound') this.audio.play(fx.id, fx.x, fx.y);
+      if (fx.kind === 'sound') this.playSound(fx.id, fx.x, fx.y);
+      else if (fx.kind === 'voice') this.speak(fx.id);
     }
     this.state.fx.length = 0;
     this.updateSound(dt, halted);
@@ -252,6 +283,10 @@ export class MissionScreen {
       this.saveTimer = 0;
       this.callbacks.onSave(this.state);
     }
+    if (this.barkTimer > 0) {
+      this.barkTimer -= dt;
+      if (this.barkTimer <= 0) this.bark.classList.remove('show');
+    }
     if (this.toastTimer > 0) {
       this.toastTimer -= dt;
       if (this.toastTimer <= 0) this.toast.classList.remove('show');
@@ -260,11 +295,29 @@ export class MissionScreen {
     if (this.state.outcome !== 'playing') {
       this.running = false;
       this.audio.play(this.state.outcome === 'won' ? 'win' : 'lose');
+      this.speak(this.state.outcome === 'won' ? 'win' : 'lose');
       this.callbacks.onEnd(this.state);
       return;
     }
     requestAnimationFrame(this.frame);
   };
+
+  /** Drilling sounds like the tool in the crew's hands. */
+  private playSound(id: SoundId, x?: number, y?: number): void {
+    const tool = drillToolFor(this.state.mods.drillPower);
+    if (id === 'drill' && tool === 'hammer') this.audio.play('rattle', x, y);
+    else if (id === 'drill' && tool === 'laser') this.audio.play('laser', x, y);
+    else this.audio.play(id, x, y);
+  }
+
+  private speak(id: VoiceId): void {
+    const line = voice.say(id);
+    if (!line) return;
+    clear(this.bark);
+    this.bark.append(h('b', {}, line.name), line.text);
+    this.bark.classList.add('show');
+    this.barkTimer = Math.max(2.4, line.seconds + 0.8);
+  }
 
   private updateSound(dt: number, halted: boolean): void {
     const { focus, heading, distance } = this.view;
@@ -274,10 +327,7 @@ export class MissionScreen {
     const threats = this.state.enemies.filter(
       (e) => !ENEMIES[e.type].structure && near(e.x, e.y, 16),
     ).length;
-    const machines = this.state.buildings.filter(
-      (b) => b.built >= 1 && b.eff > 0 && near(b.x, b.y, 12),
-    ).length;
-    this.audio.updateAmbience(dt, Math.min(1, threats / 4), Math.min(1, machines / 5));
+    this.audio.updateAmbience(dt, Math.min(1, threats / 4));
     this.stepTimer -= dt;
     const walker = this.view.nearestWalker;
     if (!halted && walker && this.stepTimer <= 0) {
@@ -411,9 +461,13 @@ export class MissionScreen {
 
     if (tool.kind === 'build') {
       const result = placeBuilding(state, tool.type, drag.x1, drag.y1);
-      if (!result.ok) this.say(result.reason ?? 'Construction impossible.');
+      if (!result.ok) {
+        this.say(result.reason ?? 'Construction impossible.');
+        return;
+      }
+      this.speak('ack');
       // Shift keeps the tool in hand to place a series.
-      else if (!e.shiftKey) this.setTool({ kind: 'select' });
+      if (!e.shiftKey) this.setTool({ kind: 'select' });
       return;
     }
     if (tool.kind === 'path') {
@@ -464,6 +518,7 @@ export class MissionScreen {
     this.selectedBuilding = null;
     this.selectedUnits = [];
     const count = designateArea(state, drag.x0, drag.y0, drag.x1, drag.y1);
+    if (count > 0) this.speak('drill');
     this.explainUndrillable(drag, count);
   }
 
@@ -473,13 +528,18 @@ export class MissionScreen {
     const { state } = this;
     const tile = state.tiles[drag.y1 * state.w + drag.x1];
     const wall = WALLS[tile.k];
-    const canDrill =
-      state.mods.drillPower >= (wall?.power ?? 0) || state.units.some((u) => u.type === 'heavy');
-    if (wall && !canDrill) {
-      this.say(
-        `${TILE_NAMES[tile.k]} : il faut une foreuse lourde (Atelier) ou la technologie Forets au diamant.`,
-      );
-    }
+    if (!wall) return;
+    const best = Math.max(
+      state.mods.drillPower,
+      ...state.units.filter((u) => u.type === 'heavy').map((u) => UNITS[u.type].drillPower),
+    );
+    if (best >= wall.power) return;
+    const needed = DRILL_TOOLS[drillToolFor(wall.power)].name;
+    this.say(
+      wall.power === DRILL_TOOLS.hammer.power
+        ? `${TILE_NAMES[tile.k]} : la pioche n’y suffit pas. Il faut le ${needed.toLowerCase()} (recherche) ou une foreuse lourde (Atelier).`
+        : `${TILE_NAMES[tile.k]} : seule la ${needed.toLowerCase()} en vient à bout (recherche).`,
+    );
   }
 
   private onRightClick(e: PointerEvent): void {
@@ -490,8 +550,8 @@ export class MissionScreen {
     if (this.selectedUnits.length === 0) return;
     const tile = this.view.pickTile(e.clientX, e.clientY);
     if (!tile) return;
-    if (!orderMove(this.state, this.selectedUnits, tile.x, tile.y))
-      this.say('Destination inaccessible.');
+    if (orderMove(this.state, this.selectedUnits, tile.x, tile.y)) this.speak('ack');
+    else this.say('Destination inaccessible.');
   }
 
   private setTool(tool: Tool): void {
@@ -582,7 +642,7 @@ export class MissionScreen {
             class: full ? 'res full' : 'res',
             title: def.uncapped ? def.name : `${def.name} (max ${cap})`,
           },
-          h('i', { style: `color:${shadeHex(def.color)}` }, def.icon),
+          resourceIcon(r),
           Math.floor(stock[r]),
         );
       }),
@@ -708,7 +768,10 @@ export class MissionScreen {
               h(
                 'p',
                 { class: 'dim' },
-                `${costLabel(def.recipe.inputs)} → ${costLabel(def.recipe.outputs)} (${def.recipe.cycle} s)`,
+                costLabel(def.recipe.inputs),
+                ' → ',
+                costLabel(def.recipe.outputs),
+                ` (${def.recipe.cycle} s)`,
               ),
             ...(def.trains ?? []).map((type) => {
               const unit = UNITS[type];
@@ -727,7 +790,8 @@ export class MissionScreen {
                 h(
                   'span',
                   { class: 'b-cost' },
-                  `${costLabel(unit.cost)}${unit.citizens ? ` 1 👥` : ''}`,
+                  costLabel(unit.cost),
+                  unit.citizens ? ' 1 👥' : null,
                 ),
               );
             }),
@@ -766,7 +830,13 @@ export class MissionScreen {
     }
     const hover = this.hover;
     const tile = hover ? state.tiles[hover.y * state.w + hover.x] : null;
-    const label = tile?.seen ? TILE_NAMES[tile.k] : '';
+    const hardness = tile?.seen ? (WALLS[tile.k]?.power ?? 0) : 0;
+    const label =
+      tile?.seen && (tile.gas ?? 0) >= GAS_HARMFUL
+        ? `${TILE_NAMES[tile.k]} · gaz toxique`
+        : tile?.seen
+          ? `${TILE_NAMES[tile.k]}${hardness > 1 ? ` · ${DRILL_TOOLS[drillToolFor(hardness)].name.toLowerCase()}` : ''}`
+          : '';
     const enemy = hover
       ? state.enemies.find(
           (e) =>
@@ -823,10 +893,11 @@ export class MissionScreen {
           : t.k === 'water'
             ? '#1f5f8f'
             : t.k === 'path'
-              ? '#4ee0ff'
+              ? '#35e0c2'
               : wall || t.k === 'solid'
                 ? '#3a3640'
                 : '#6e6054';
+      if ((t.gas ?? 0) >= GAS_HARMFUL) ctx.fillStyle = '#a5b83a';
       ctx.fillRect((i % state.w) * sx, Math.floor(i / state.w) * sy, Math.ceil(sx), Math.ceil(sy));
     });
     ctx.fillStyle = '#ffffff';
@@ -838,6 +909,16 @@ export class MissionScreen {
     for (const e of state.enemies) {
       if (state.tiles[Math.floor(e.y) * state.w + Math.floor(e.x)].seen)
         ctx.fillRect(e.x * sx - 1, e.y * sy - 1, 3, 3);
+    }
+    // Where to dig: shown from the start, or the player would have no idea which way to go.
+    const place = state.settlement;
+    if (place && !place.reached) {
+      ctx.strokeStyle = '#35e0c2';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc((place.x + 0.5) * sx, (place.y + 0.5) * sy, 3 * sx, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
     }
     ctx.strokeStyle = 'rgba(255,255,255,.6)';
     ctx.strokeRect((this.view.focus.x - 8) * sx, (this.view.focus.z - 6) * sy, 16 * sx, 12 * sy);

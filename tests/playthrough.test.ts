@@ -79,8 +79,11 @@ function botTurn(state: GameState): void {
       const x = i % state.w;
       const y = Math.floor(i / state.w);
       if (state.jobs.some((j) => j.kind === 'drill' && j.x === x && j.y === y)) return;
-      const powerful = state.units.some((u) => u.type === 'heavy') || state.mods.drillPower >= 2;
-      if (wall.power > 1 && !powerful) return;
+      const reach = Math.max(
+        state.mods.drillPower,
+        state.units.some((u) => u.type === 'heavy') ? 2 : 1,
+      );
+      if (wall.power > reach) return;
       (wall.yield ? seams : rock).push(i);
     });
     // Go for whatever the colony is shortest of; open new rock when none of it is in sight.

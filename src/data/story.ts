@@ -53,9 +53,17 @@ export const STORY_EVENTS: StoryEvent[] = [
   {
     id: 'landing',
     speaker: 'Orsa Veld',
-    title: 'Atterrissage sur Kerath',
-    text: "Gouverneur, bienvenue sous la croûte. La Charte nous a donné un mandat simple : prendre pied, région après région, jusqu'à contrôler toute la planète.\n\nGlissez sur la roche pour marquer les filons à forer. Les foreurs rapporteront tout au Noyau de commande. Reliez ensuite chaque bâtiment au réseau avec des voies énergétiques, puis construisez de quoi faire respirer et loger nos gens.",
+    title: 'Coupés de Port-Cendre',
+    text: "Gouverneur, bienvenue sous la croûte. Kerath est un monde creux : le cristal, le métal et l'air respirable se trouvent tous en profondeur. La Charte nous envoie prendre le contrôle de la planète, région après région, avant que d'autres ne s'en emparent.\n\nNotre première cité, Port-Cendre, devait nous accueillir ici. Mais un éboulement a fermé la galerie à notre arrivée : nous sommes isolés, et ses habitants aussi.\n\nNotre priorité : rejoindre la cité, signalée par l'anneau turquoise sur la mini-carte. Glissez sur la roche pour marquer le passage à forer. Nos pioches n'entament que la roche tendre : il faudra contourner la roche dure.",
     when: { regions: ['ash'], minTime: 1 },
+    choices: [{ label: 'En route, on creuse.', effects: [] }],
+  },
+  {
+    id: 'city_reached',
+    speaker: 'Orsa Veld',
+    title: 'Port-Cendre est rejointe',
+    text: "La galerie est ouverte ! Huit habitants de Port-Cendre rejoignent notre base, avec ce qu'ils ont pu sauver.\n\nÀ présent, il faut les faire respirer et les loger. Reliez chaque bâtiment au réseau avec le sol technique : il coûte cher, alors tracez court.\n\nChaque victoire rapportera de la recherche. Les forets trempés accélèrent le forage, le marteau-piqueur perce la roche dure, et la foreuse laser vient à bout du basalte.",
+    when: { regions: ['ash'], flags: ['cityReached'] },
     choices: [{ label: 'Au travail.', effects: [] }],
   },
   {

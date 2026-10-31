@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { GameState } from '../sim/types';
 
 let softDot: THREE.Texture | null = null;
 
@@ -98,6 +99,67 @@ export class Smoke {
     }
     this.object.geometry.attributes.position.needsUpdate = true;
     this.object.geometry.attributes.color.needsUpdate = true;
+  }
+}
+
+const GAS_COUNT = 700;
+const GAS_REFRESH = 0.5;
+
+/** A sickly glow drifting over the tiles the player knows to be full of gas. */
+export class GasClouds {
+  readonly object: THREE.Points;
+  private readonly positions = new Float32Array(GAS_COUNT * 3);
+  private readonly colors = new Float32Array(GAS_COUNT * 3);
+  private readonly anchors = new Float32Array(GAS_COUNT * 2);
+  private count = 0;
+  private refreshIn = 0;
+
+  constructor() {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
+    this.object = new THREE.Points(
+      geometry,
+      new THREE.PointsMaterial({
+        size: 3.6,
+        map: softDotTexture(),
+        vertexColors: true,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    this.object.frustumCulled = false;
+  }
+
+  private refresh(state: GameState): void {
+    this.count = 0;
+    for (let i = 0; i < state.tiles.length && this.count < GAS_COUNT; i++) {
+      const tile = state.tiles[i];
+      if (!tile.seen || !tile.gas) continue;
+      const strength = Math.min(1, tile.gas) * 0.08;
+      this.anchors[this.count * 2] = (i % state.w) + 0.5;
+      this.anchors[this.count * 2 + 1] = Math.floor(i / state.w) + 0.5;
+      this.colors.set([strength * 0.7, strength, strength * 0.12], this.count * 3);
+      this.count++;
+    }
+    this.object.geometry.setDrawRange(0, this.count);
+    this.object.geometry.attributes.color.needsUpdate = true;
+  }
+
+  update(state: GameState, time: number, dt: number): void {
+    this.refreshIn -= dt;
+    if (this.refreshIn <= 0) {
+      this.refreshIn = GAS_REFRESH;
+      this.refresh(state);
+    }
+    for (let i = 0; i < this.count; i++) {
+      const seed = i * 1.7;
+      this.positions[i * 3] = this.anchors[i * 2] + Math.sin(time * 0.4 + seed) * 0.35;
+      this.positions[i * 3 + 1] = 0.55 + Math.sin(time * 0.6 + seed * 2.3) * 0.25;
+      this.positions[i * 3 + 2] = this.anchors[i * 2 + 1] + Math.cos(time * 0.33 + seed) * 0.35;
+    }
+    this.object.geometry.attributes.position.needsUpdate = true;
   }
 }
 

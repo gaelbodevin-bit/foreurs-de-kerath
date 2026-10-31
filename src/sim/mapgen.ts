@@ -1,3 +1,4 @@
+import { WALLS } from '../data/resources';
 import { isWallKind, NEIGHBORS4 } from './grid';
 import { makeValueNoise, Rng } from './rng';
 import type { EnemyType, Tile, TileKind } from './types';
@@ -13,7 +14,11 @@ export interface MapParams {
   lavaPools?: number;
   waterPools?: number;
   fungusPatches?: number;
+  /** Caverns filled with toxic gas, harmless until the player digs into them. */
+  gasZones?: number;
   structures?: Partial<Record<EnemyType, number>>;
+  /** Places a sealed settlement across the map, behind a band of fallen rock. */
+  settlement?: boolean;
 }
 
 export interface GeneratedMap {
@@ -22,6 +27,7 @@ export interface GeneratedMap {
   tiles: Tile[];
   start: { x: number; y: number };
   structures: { type: EnemyType; x: number; y: number }[];
+  settlement: { x: number; y: number } | null;
 }
 
 interface Cavern {
@@ -31,6 +37,8 @@ interface Cavern {
 }
 
 const START_RADIUS = 4;
+const SETTLEMENT_RADIUS = 3;
+const SETTLEMENT_OFFSET = 10;
 
 export function generateMap(params: MapParams): GeneratedMap {
   const rng = new Rng(params.seed);
@@ -41,6 +49,7 @@ export function generateMap(params: MapParams): GeneratedMap {
 
   const softLimit = 0.46 - params.hardness * 0.28;
   const looseLimit = 0.66 - params.hardness * 0.2;
+  const hardLimit = 0.9 - params.hardness * 0.2;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const edge = x < 1 || y < 1 || x >= w - 1 || y >= h - 1;
@@ -51,7 +60,9 @@ export function generateMap(params: MapParams): GeneratedMap {
           ? 'dirt'
           : v < looseLimit
             ? 'loose'
-            : 'hard';
+            : v < hardLimit
+              ? 'hard'
+              : 'basalt';
       tiles.push({ k, seen: false, work: 0, rubble: 0, regrow: 0 });
     }
   }
@@ -124,6 +135,17 @@ export function generateMap(params: MapParams): GeneratedMap {
   decorate(params.lavaPools, 'lava', 2);
   decorate(params.waterPools, 'water', 2);
   decorate(params.fungusPatches, 'fungus', 1);
+  for (let i = 0; i < (params.gasZones ?? 0); i++) {
+    const options = free();
+    if (options.length === 0) break;
+    const c = rng.pick(options);
+    used.add(c);
+    for (let y = c.y - c.r - 1; y <= c.y + c.r + 1; y++) {
+      for (let x = c.x - c.r - 1; x <= c.x + c.r + 1; x++) {
+        if (inner(x, y) && at(x, y).k === 'floor') at(x, y).gas = 1;
+      }
+    }
+  }
 
   // Veins: short random walks through rock.
   const paintVein = (kind: TileKind, cx: number, cy: number, length: number) => {
@@ -158,7 +180,7 @@ export function generateMap(params: MapParams): GeneratedMap {
   for (const [dx, dy] of NEIGHBORS4) {
     for (let d = START_RADIUS + 1; d <= START_RADIUS + 3; d++) {
       const t = at(start.x + dx * d, start.y + dy * d);
-      if (t.k === 'hard') t.k = 'loose';
+      if (t.k === 'hard' || t.k === 'basalt') t.k = 'loose';
     }
   }
 
@@ -173,5 +195,38 @@ export function generateMap(params: MapParams): GeneratedMap {
     }
   }
 
-  return { w, h, tiles, start, structures };
+  // Last, so that the other maps keep their layout. The rockfall seals the settlement all round,
+  // and the straight line to it is always within reach of a pickaxe.
+  let settlement: GeneratedMap['settlement'] = null;
+  if (params.settlement) {
+    const [signX, signY] = rng.pick([
+      [1, 1],
+      [1, -1],
+      [-1, 1],
+      [-1, -1],
+    ]);
+    settlement = {
+      x: start.x + signX * SETTLEMENT_OFFSET,
+      y: start.y + signY * SETTLEMENT_OFFSET,
+    };
+    const { x: sx, y: sy } = settlement;
+    for (let y = sy - SETTLEMENT_RADIUS - 2; y <= sy + SETTLEMENT_RADIUS + 2; y++) {
+      for (let x = sx - SETTLEMENT_RADIUS - 2; x <= sx + SETTLEMENT_RADIUS + 2; x++) {
+        if (!inner(x, y)) continue;
+        at(x, y).k = Math.hypot(x - sx, y - sy) <= SETTLEMENT_RADIUS ? 'floor' : 'loose';
+        at(x, y).gas = 0;
+      }
+    }
+    for (let d = 1; d < SETTLEMENT_OFFSET; d++) {
+      for (const [ox, oy] of [
+        [0, 0],
+        [signX, 0],
+      ]) {
+        const t = at(start.x + signX * d + ox, start.y + signY * d + oy);
+        if ((WALLS[t.k]?.power ?? 0) > 1) t.k = 'loose';
+      }
+    }
+  }
+
+  return { w, h, tiles, start, structures, settlement };
 }

@@ -69,7 +69,7 @@ function updateWaves(state: GameState): void {
   state.waves.nextAt = state.time + def.every;
   if (total > 0) {
     log(state, `Alerte : ${total} ennemis percent les galeries !`, 'bad');
-    state.fx.push({ kind: 'sound', id: 'alert' });
+    state.fx.push({ kind: 'sound', id: 'alert' }, { kind: 'voice', id: 'raid' });
   }
 }
 
@@ -118,6 +118,7 @@ function destroyBuilding(state: GameState, b: Building): void {
   state.fx.push(
     { kind: 'burst', x: center.x, y: center.y, color: 0xff7d54 },
     { kind: 'sound', id: 'collapse', x: center.x, y: center.y },
+    { kind: 'voice', id: 'destroyed' },
   );
   state.city.moraleShock -= 3;
   log(state, `${BUILDINGS[b.type].name} détruit !`, 'bad');

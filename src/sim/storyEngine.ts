@@ -82,7 +82,7 @@ export function sabotage(state: GameState, count: number): void {
     state.fx.push({ kind: 'burst', x: b.x + 0.5, y: b.y + 0.5, color: 0xffa040 });
     log(state, `Sabotage : ${BUILDINGS[b.type].name} hors service pour 40 s.`, 'bad');
   }
-  state.fx.push({ kind: 'sound', id: 'alert' });
+  state.fx.push({ kind: 'sound', id: 'alert' }, { kind: 'voice', id: 'sabotage' });
 }
 
 function accuse(state: GameState, advisor: AdvisorId): void {

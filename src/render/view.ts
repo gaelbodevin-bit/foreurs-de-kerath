@@ -5,11 +5,13 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { BUILDINGS } from '../data/buildings';
+import { drillToolFor, type DrillTool } from '../data/resources';
 import { ENEMIES, UNITS } from '../data/units';
 import type { BuildingType, GameState } from '../sim/types';
 import type { CharacterRig } from './assets';
 import { DecorView } from './decor';
-import { Dust, Smoke } from './particles';
+import { Dust, GasClouds, Smoke } from './particles';
+import { settlementFromModels } from './modelPrefabs';
 import { makeBuilding, makeEnemy, makePickup, makeUnit } from './prefabs';
 import { TerrainView } from './terrain';
 
@@ -73,12 +75,15 @@ export class MissionView {
   private readonly raycaster = new THREE.Raycaster();
   private readonly lamp = new THREE.PointLight(0xfff0d0, 10, 18, 1.6);
   private readonly key = new THREE.DirectionalLight(0xffe9d6, 2.6);
+  private readonly tool: DrillTool;
+  private readonly settlement: THREE.Group | null;
   private readonly decor: DecorView;
   private readonly composer: EffectComposer;
   private readonly bloom: UnrealBloomPass;
   private readonly environment: THREE.WebGLRenderTarget;
   private readonly smoke = new Smoke();
   private readonly dust = new Dust();
+  private readonly gas = new GasClouds();
   private shake = 0;
   private frameCount = 0;
   private sampleTime = 0;
@@ -101,6 +106,13 @@ export class MissionView {
     private readonly canvas: HTMLCanvasElement,
     readonly state: GameState,
   ) {
+    this.tool = drillToolFor(state.mods.drillPower);
+    this.scene.add(this.gas.object);
+    this.settlement = state.settlement ? settlementFromModels() : null;
+    if (this.settlement && state.settlement) {
+      this.settlement.position.set(state.settlement.x + 0.5, 0, state.settlement.y + 0.5);
+      this.scene.add(this.settlement);
+    }
     this.renderer = new THREE.WebGLRenderer({ canvas, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -361,6 +373,29 @@ export class MissionView {
     entry.bar.position.set(0, height, 0);
   }
 
+  /** Stretches a laser unit's ray to the rock it is cutting, flickering, with sparks at the end. */
+  private aimBeam(
+    unit: THREE.Object3D,
+    target: { x: number; y: number } | null,
+    x: number,
+    y: number,
+    time: number,
+  ): void {
+    const beam = unit.userData.beam as THREE.Group | undefined;
+    if (!beam) return;
+    beam.visible = target !== null;
+    if (!target) return;
+    const length = Math.max(0.2, Math.hypot(target.x - x, target.y - y) - 0.55);
+    const ray = beam.getObjectByName('ray') as THREE.Object3D;
+    const impact = beam.getObjectByName('impact') as THREE.Object3D;
+    const width = 0.018 + Math.sin(time * 47) * 0.006;
+    ray.scale.set(width, length, width);
+    ray.position.z = length / 2;
+    impact.position.z = length;
+    impact.scale.setScalar(0.07 + Math.sin(time * 61) * 0.025);
+    if (Math.random() < 0.25) this.smoke.emit(target.x, 0.35, target.y, 0.9, 0.5, 0.5);
+  }
+
   private syncEntities(tickChanged: boolean, time: number, dt: number): void {
     const { state } = this;
     const seen = new Set<string>();
@@ -395,12 +430,19 @@ export class MissionView {
         }
       }
     }
+    this.gas.update(state, time, dt);
     this.nearestWalker = null;
     let walkerDistance = Infinity;
 
+    if (this.settlement && state.settlement) {
+      const { x, y } = state.settlement;
+      this.settlement.visible = state.tiles[y * state.w + x].seen;
+      (this.settlement.userData.beacon as THREE.Object3D).rotation.y = time * 0.9;
+    }
+
     const alpha = this.tickAlpha;
     for (const u of state.units) {
-      const entry = this.track(`u${u.id}`, () => makeUnit(u.type), u.x, u.y, seen);
+      const entry = this.track(`u${u.id}`, () => makeUnit(u.type, this.tool), u.x, u.y, seen);
       if (tickChanged) {
         entry.px = entry.tx;
         entry.py = entry.ty;
@@ -419,17 +461,46 @@ export class MissionView {
           this.nearestWalker = { x, y };
         }
       }
-      // Rock dust where someone is at work.
-      if (u.working && this.stale < 0.3 && Math.random() < dt * 5) {
+      const active = u.working && this.stale < 0.3;
+      const job = u.jobId === null ? undefined : state.jobs.find((j) => j.id === u.jobId);
+      const target = active && job?.kind === 'drill' ? job : undefined;
+      const tool = entry.object.userData.tool as DrillTool | undefined;
+      if (target) {
+        entry.object.rotation.y = Math.atan2(target.x + 0.5 - x, target.y + 0.5 - y);
+      }
+      // Rock dust where someone is at work: a jackhammer raises far more than a pickaxe.
+      if (
+        active &&
+        tool !== 'laser' &&
+        Math.random() < dt * (target && tool === 'hammer' ? 16 : 5)
+      ) {
         this.smoke.emit(x, 0.3, y, 0.55, 1.1, 0.6);
       }
+      this.aimBeam(
+        entry.object,
+        target ? { x: target.x + 0.5, y: target.y + 0.5 } : null,
+        x,
+        y,
+        time,
+      );
       const rig = entry.object.userData.rig as CharacterRig | undefined;
       if (rig) {
         entry.object.position.set(x, 0, y);
         const idle =
           u.type !== 'garde' ? 'idle' : u.cooldown > 0 ? 'holding-right-shoot' : 'holding-right';
-        rig.play(moving ? 'walk' : u.working ? 'interact-right' : idle);
+        const working =
+          target && tool
+            ? { pick: 'attack-melee-right', hammer: 'holding-both', laser: 'holding-right-shoot' }[
+                tool
+              ]
+            : 'interact-right';
+        rig.play(moving ? 'walk' : u.working ? working : idle);
         rig.update(dt);
+        // The hammer shakes whoever holds it.
+        if (target && tool === 'hammer') {
+          entry.object.position.x += Math.sin(time * 71 + u.id) * 0.012;
+          entry.object.position.z += Math.cos(time * 83 + u.id) * 0.012;
+        }
       } else {
         // Machines have no skeleton: they just rattle along.
         entry.object.position.set(x, moving ? Math.abs(Math.sin(time * 11 + u.id)) * 0.03 : 0, y);
@@ -590,7 +661,7 @@ export class MissionView {
     this.syncEntities(changed, time, dt);
     this.syncMarks();
     this.syncFx(dt);
-    this.state.fx = this.state.fx.filter((f) => f.kind === 'sound');
+    this.state.fx = this.state.fx.filter((f) => f.kind === 'sound' || f.kind === 'voice');
     this.terrain.update(time);
     this.smoke.update(dt);
     this.dust.update(time, this.focus);

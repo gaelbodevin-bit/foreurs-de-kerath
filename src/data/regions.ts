@@ -6,7 +6,8 @@ export type Objective =
   | { kind: 'population'; amount: number }
   | { kind: 'build'; building: BuildingType; amount: number }
   | { kind: 'destroy'; enemy: EnemyType; amount: number }
-  | { kind: 'survive'; seconds: number };
+  | { kind: 'survive'; seconds: number }
+  | { kind: 'reach'; place: string };
 
 export interface RegionDef {
   id: string;
@@ -37,7 +38,7 @@ export const REGIONS: RegionDef[] = [
     name: 'Val de Cendre',
     faction: 'Terres vierges',
     blurb:
-      "Le site d'atterrissage de la Charte. Une roche tendre, peu de danger : tout reste à bâtir.",
+      'Un éboulement sépare l’expédition de Port-Cendre, la première cité de la Charte. Il faut la rejoindre.',
     tier: 0,
     requires: [],
     control: 8,
@@ -48,10 +49,12 @@ export const REGIONS: RegionDef[] = [
       caverns: 5,
       hardness: 0.05,
       seams: { oreSeam: 8, crystalSeam: 6, iceSeam: 3, goldSeam: 1 },
+      gasZones: 1,
       fungusPatches: 2,
+      settlement: true,
     },
     start: {
-      stock: { ore: 32, crystal: 6, stone: 15, food: 30, water: 8, credits: 80 },
+      stock: { ore: 32, crystal: 6, stone: 20, food: 30, water: 8, credits: 80 },
       population: 6,
       foreurs: 4,
       guards: 1,
@@ -60,10 +63,10 @@ export const REGIONS: RegionDef[] = [
     intrigue: 0.005,
     erosion: 0,
     objectives: [
-      { kind: 'resource', res: 'crystal', amount: 15 },
-      { kind: 'resource', res: 'ore', amount: 40 },
+      { kind: 'reach', place: 'Port-Cendre' },
+      { kind: 'resource', res: 'crystal', amount: 20 },
       { kind: 'build', building: 'oxygen', amount: 1 },
-      { kind: 'population', amount: 14 },
+      { kind: 'population', amount: 24 },
     ],
     perk: {
       name: 'Tête de pont',
@@ -86,6 +89,7 @@ export const REGIONS: RegionDef[] = [
       caverns: 7,
       hardness: 0.25,
       seams: { oreSeam: 8, crystalSeam: 14, iceSeam: 4, goldSeam: 2 },
+      gasZones: 1,
       fungusPatches: 2,
       structures: { nest: 1 },
     },
@@ -124,6 +128,7 @@ export const REGIONS: RegionDef[] = [
       caverns: 7,
       hardness: 0.3,
       seams: { oreSeam: 8, crystalSeam: 7, iceSeam: 14, goldSeam: 2 },
+      gasZones: 1,
       waterPools: 2,
       fungusPatches: 1,
       structures: { nest: 1 },
@@ -164,6 +169,7 @@ export const REGIONS: RegionDef[] = [
       caverns: 8,
       hardness: 0.4,
       seams: { oreSeam: 11, crystalSeam: 8, iceSeam: 6, sulfurSeam: 10, goldSeam: 3 },
+      gasZones: 3,
       lavaPools: 2,
       fungusPatches: 1,
     },
@@ -202,6 +208,7 @@ export const REGIONS: RegionDef[] = [
       caverns: 9,
       hardness: 0.5,
       seams: { oreSeam: 13, crystalSeam: 9, iceSeam: 6, sulfurSeam: 6, goldSeam: 5 },
+      gasZones: 1,
       fungusPatches: 1,
       relics: 1,
       structures: { outpost: 2 },
@@ -250,6 +257,7 @@ export const REGIONS: RegionDef[] = [
       caverns: 9,
       hardness: 0.5,
       seams: { oreSeam: 12, crystalSeam: 9, iceSeam: 7, sulfurSeam: 8, goldSeam: 3 },
+      gasZones: 2,
       lavaPools: 4,
       fungusPatches: 1,
       relics: 4,
@@ -297,6 +305,7 @@ export const REGIONS: RegionDef[] = [
       caverns: 10,
       hardness: 0.6,
       seams: { oreSeam: 14, crystalSeam: 12, iceSeam: 8, sulfurSeam: 8, goldSeam: 4 },
+      gasZones: 2,
       lavaPools: 4,
       fungusPatches: 1,
       relics: 2,

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BUILDINGS } from '../data/buildings';
+import type { DrillTool } from '../data/resources';
 import type { BuildingType, EnemyType, ResourceId, UnitType } from '../sim/types';
 import type { ModelId } from './assetManifest';
 import { hasModels, placeCharacter, placeModel } from './assets';
@@ -138,6 +139,13 @@ const BUILDING_MODELS: Record<BuildingType, BuildingModel> = {
     ],
     accents: [{ color: AMBER, y: 0.8, size: 0.08 }],
   },
+  vent: {
+    parts: [
+      { model: 'barrelMachine', fit: 0.7 },
+      { model: 'dish', fit: 0.45, y: 0.55, spin: true },
+    ],
+    accents: [{ color: 0xc4e04a, y: 0.42, size: 0.08 }],
+  },
   turret: {
     parts: [{ model: 'turret', fit: 0.85 }],
     accents: [{ color: RED, y: 0.5, size: 0.05 }],
@@ -243,6 +251,54 @@ function hardHat(): THREE.Object3D {
   return hat;
 }
 
+/** Held in one hand, working end down. */
+function jackhammer(): THREE.Object3D {
+  const tool = new THREE.Group();
+  const steel = new THREE.MeshStandardMaterial({
+    color: 0x8f98a3,
+    metalness: 0.5,
+    roughness: 0.45,
+  });
+  const paint = new THREE.MeshLambertMaterial({ color: 0xd8562a });
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.3, 10), paint);
+  const handle = new THREE.Mesh(new THREE.CapsuleGeometry(0.025, 0.2, 3, 8), steel);
+  handle.rotation.z = Math.PI / 2;
+  handle.position.y = 0.17;
+  const bit = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.26, 8), steel);
+  bit.rotation.x = Math.PI;
+  bit.position.y = -0.27;
+  tool.add(body, handle, bit);
+  // Scaled to the crew's small hands, and tilted towards the rock in front.
+  tool.scale.setScalar(0.55);
+  tool.rotation.x = 0.6;
+  return tool;
+}
+
+function laserDrill(): THREE.Object3D {
+  const tool = new THREE.Group();
+  const rifle = placeModel('rifle', 0.34);
+  if (rifle) tool.add(rifle);
+  const lens = new THREE.Mesh(ballGeometry, glow(0x7ffcff));
+  lens.scale.setScalar(0.05);
+  lens.position.set(0, 0.05, 0.2);
+  tool.add(lens);
+  return tool;
+}
+
+/** The ray and its point of impact, hidden until the unit is cutting rock. Faces along +Z. */
+function laserBeam(): THREE.Group {
+  const beam = new THREE.Group();
+  beam.position.set(0, 0.3, 0.2);
+  const ray = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 6), glow(0x7ffcff));
+  ray.rotation.x = Math.PI / 2;
+  ray.name = 'ray';
+  const impact = new THREE.Mesh(ballGeometry, glow(0xffe9a8));
+  impact.name = 'impact';
+  beam.add(ray, impact);
+  beam.visible = false;
+  return beam;
+}
+
 /** Rigged characters expose their animations on `userData.rig`. */
 function characterGroup(
   id: ModelId,
@@ -259,13 +315,23 @@ function characterGroup(
 
 let foreurCount = 0;
 
-export function unitFromModels(type: UnitType): THREE.Group | null {
+export function unitFromModels(type: UnitType, tool: DrillTool): THREE.Group | null {
   switch (type) {
     case 'foreur': {
       const made = characterGroup(foreurCount++ % 2 === 0 ? 'foreurA' : 'foreurB', 1);
       if (!made) return null;
       attach(made.body, 'head', hardHat(), [0, 0.3, 0]);
-      attach(made.body, 'arm-right', placeModel('pickaxe', 0.22), [0, -0.2, 0.08]);
+      if (tool === 'pick') {
+        attach(made.body, 'arm-right', placeModel('pickaxe', 0.22), [0, -0.2, 0.08]);
+      } else if (tool === 'hammer') {
+        attach(made.body, 'arm-right', jackhammer(), [0, -0.12, 0.14]);
+      } else {
+        attach(made.body, 'arm-right', laserDrill(), [0, -0.2, 0.12]);
+        const beam = laserBeam();
+        made.group.add(beam);
+        made.group.userData.beam = beam;
+      }
+      made.group.userData.tool = tool;
       // The headlamp's light on the floor: the cave feels darker around it.
       made.group.add(groundGlow(AMBER, 2.4, 0.22));
       return made.group;
@@ -291,6 +357,28 @@ export function unitFromModels(type: UnitType): THREE.Group | null {
       return g;
     }
   }
+}
+
+/** The city the first mission digs towards: a few hangars around a beacon. */
+export function settlementFromModels(): THREE.Group {
+  const g = new THREE.Group();
+  const parts: [ModelId, number, number, number][] = [
+    ['hangarRoundA', 1.9, 0, -0.3],
+    ['hangarGlass', 1.2, -1.9, 0.5],
+    ['hangarSmallB', 1, 1.9, 0.6],
+    ['barrels', 0.7, -1, 1.9],
+    ['structure', 0.8, 1, -2.1],
+  ];
+  for (const [model, fit, x, z] of parts) {
+    const piece = placeModel(model, fit);
+    if (!piece) continue;
+    piece.position.set(x, 0, z);
+    g.add(piece);
+  }
+  const beacon = makeAccent({ color: TEAL, y: 1.7, size: 0.2, shape: 'gem' });
+  g.add(beacon, groundGlow(TEAL, 8, 0.14));
+  g.userData.beacon = beacon;
+  return g;
 }
 
 /** Cloned once: darkens the sect's robes without touching the shared worker colours. */

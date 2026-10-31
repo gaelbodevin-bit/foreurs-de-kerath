@@ -53,6 +53,8 @@ export type TextureId = keyof typeof TEXTURE_FILES;
 
 /** Each sound has several takes: one is picked at random whenever it plays. */
 export const SOUND_FILES = {
+  /** Synthesised: a sawtooth this low is heard as a rattle, not as a note. */
+  rattle: [],
   drill: [
     'audio/impact/impactMining_000.ogg',
     'audio/impact/impactMining_001.ogg',
@@ -92,7 +94,6 @@ export const SOUND_FILES = {
   ],
   win: ['audio/jingles/jingles_STEEL00.ogg'],
   lose: ['audio/jingles/jingles_PIZZI07.ogg'],
-  hum: ['audio/scifi/spaceEngineLow_000.ogg'],
 } as const;
 
 export type SoundKey = keyof typeof SOUND_FILES;

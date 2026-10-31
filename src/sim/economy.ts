@@ -248,7 +248,7 @@ function updateCity(state: GameState, inputs: CityInputs): void {
     city.population -= 1;
     const why = city.oxygen <= 0 ? 'asphyxie' : starving ? 'la faim' : 'le désespoir';
     log(state, `Un citoyen perdu : ${why}.`, 'bad');
-    state.fx.push({ kind: 'sound', id: 'alert' });
+    state.fx.push({ kind: 'sound', id: 'alert' }, { kind: 'voice', id: 'citizenLost' });
   }
   if (city.oxygen <= 0 && state.tick % 10 === 0) {
     for (const u of state.units) {
