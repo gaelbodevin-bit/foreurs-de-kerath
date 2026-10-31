@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { BUILDINGS } from '../data/buildings';
 import { ENEMIES, UNITS } from '../data/units';
 import type { BuildingType, GameState } from '../sim/types';
+import type { CharacterRig } from './assets';
+import { DecorView } from './decor';
 import { makeBuilding, makeEnemy, makePickup, makeUnit } from './prefabs';
 import { TerrainView } from './terrain';
 
@@ -60,7 +62,10 @@ export class MissionView {
   );
   private readonly raycaster = new THREE.Raycaster();
   private readonly lamp = new THREE.PointLight(0xfff0d0, 30, 16, 1.6);
+  private readonly decor: DecorView;
   private lastTick = -1;
+  /** Seconds since the simulation last advanced: nobody walks on the spot during a pause. */
+  private stale = 0;
   private tickAlpha = 0;
 
   /** Camera rig: the point looked at, plus distance and heading. */
@@ -83,7 +88,8 @@ export class MissionView {
     this.scene.add(key, this.lamp);
 
     this.terrain = new TerrainView(state);
-    this.scene.add(this.terrain.group, this.marks, this.fxGroup, this.selection);
+    this.decor = new DecorView(state, (x, y) => this.terrain.heightAt(x, y));
+    this.scene.add(this.terrain.group, this.decor.group, this.marks, this.fxGroup, this.selection);
 
     this.ghost.visible = false;
     this.scene.add(this.ghost);
@@ -243,7 +249,7 @@ export class MissionView {
     entry.bar.position.set(0, height, 0);
   }
 
-  private syncEntities(tickChanged: boolean, time: number): void {
+  private syncEntities(tickChanged: boolean, time: number, dt: number): void {
     const { state } = this;
     const seen = new Set<string>();
 
@@ -275,11 +281,21 @@ export class MissionView {
       }
       const x = entry.px + (entry.tx - entry.px) * alpha;
       const y = entry.py + (entry.ty - entry.py) * alpha;
-      const moving = Math.hypot(entry.tx - entry.px, entry.ty - entry.py) > 0.001;
-      entry.object.position.set(x, moving ? Math.abs(Math.sin(time * 11 + u.id)) * 0.04 : 0, y);
+      const moving =
+        this.stale < 0.3 && Math.hypot(entry.tx - entry.px, entry.ty - entry.py) > 0.001;
       if (moving) entry.object.rotation.y = Math.atan2(entry.tx - entry.px, entry.ty - entry.py);
-      if (u.working) entry.object.rotation.z = Math.sin(time * 30) * 0.05;
-      else entry.object.rotation.z = 0;
+      const rig = entry.object.userData.rig as CharacterRig | undefined;
+      if (rig) {
+        entry.object.position.set(x, 0, y);
+        const idle =
+          u.type !== 'garde' ? 'idle' : u.cooldown > 0 ? 'holding-right-shoot' : 'holding-right';
+        rig.play(moving ? 'walk' : u.working ? 'interact-right' : idle);
+        rig.update(dt);
+      } else {
+        // Machines have no skeleton: they just rattle along.
+        entry.object.position.set(x, moving ? Math.abs(Math.sin(time * 11 + u.id)) * 0.03 : 0, y);
+        entry.object.rotation.z = u.working ? Math.sin(time * 30) * 0.03 : 0;
+      }
       this.healthBar(entry, u.hp / UNITS[u.type].hp, 0.82, 0.5);
       if (u.carry) {
         const carriedKey = `c${u.id}${u.carry}`;
@@ -304,6 +320,13 @@ export class MissionView {
       entry.object.position.set(x, 0, y);
       if (Math.hypot(entry.tx - entry.px, entry.ty - entry.py) > 0.001) {
         entry.object.rotation.y = Math.atan2(entry.tx - entry.px, entry.ty - entry.py);
+      }
+      const enemyRig = entry.object.userData.rig as CharacterRig | undefined;
+      if (enemyRig) {
+        const walking =
+          this.stale < 0.3 && Math.hypot(entry.tx - entry.px, entry.ty - entry.py) > 0.001;
+        enemyRig.play(walking ? 'walk' : e.cooldown > 0 ? 'attack-melee-right' : 'idle');
+        enemyRig.update(dt);
       }
       if (e.type === 'heart') {
         const beat = 1 + Math.pow(Math.max(0, Math.sin(time * 2.4)), 6) * 0.1;
@@ -420,8 +443,9 @@ export class MissionView {
     const changed = this.state.tick !== this.lastTick;
     this.lastTick = this.state.tick;
     this.tickAlpha = Math.min(1, alpha);
-    this.terrain.sync();
-    this.syncEntities(changed, time);
+    this.stale = changed ? 0 : this.stale + dt;
+    this.decor.sync(this.terrain.sync());
+    this.syncEntities(changed, time, dt);
     this.syncMarks();
     this.syncFx(dt);
     this.state.fx = this.state.fx.filter((f) => f.kind === 'sound');

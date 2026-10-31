@@ -83,4 +83,5 @@ décider quand le combat commence.
 - Faire répondre le Cœur au serment : pour l'instant, tenir parole n'évite pas de le détruire
 - Priorités de tâches réglables par le joueur
 - Citoyens visibles dans les galeries
+- Modèles pour la Faune et le Cœur du Dormeur, qui restent en formes simples
 - Musique d'ambiance

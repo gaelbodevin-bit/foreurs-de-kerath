@@ -6,6 +6,7 @@ import {
   type Campaign,
 } from './campaign/campaign';
 import { clearSave, readSave, writeSave, type SaveStorage } from './campaign/save';
+import { loadAssets } from './render/assets';
 import { createMission } from './sim/game';
 import type { GameState } from './sim/types';
 import { clear } from './ui/dom';
@@ -73,6 +74,8 @@ function startMission(state: GameState): void {
   teardown();
   suspended = state;
   save();
+  // Handy for checking rendering by hand: the state is out of reach in production builds.
+  if (import.meta.env.DEV) Object.assign(window, { kerath: state });
   const screen = new MissionScreen(host, state, {
     onSave: (current) => {
       suspended = current;
@@ -128,4 +131,8 @@ function showTitle(): void {
   teardown = () => root.remove();
 }
 
-showTitle();
+host.innerHTML = '<div class="title-screen"><p class="tagline">Chargement…</p></div>';
+void loadAssets((ratio) => {
+  const label = host.querySelector('.tagline');
+  if (label) label.textContent = `Chargement… ${Math.round(ratio * 100)} %`;
+}).then(showTitle);

@@ -13,4 +13,5 @@
 - `GameState` ne contient que des données JSON : ni classe, ni `Map`, ni fonction.
 - L'interface agit sur le jeu par les commandes de `sim/game.ts`.
 - Le texte du jeu est en français, le code et ses commentaires en anglais.
-- Pas de contenu sous licence : ni nom, ni image, ni son repris d'un autre jeu.
+- Pas de contenu repris d'un autre jeu. Les assets ajoutés sont sous CC0 et cités dans
+  `public/assets/CREDITS.md`.

@@ -2,8 +2,17 @@ import * as THREE from 'three';
 import { BUILDINGS } from '../data/buildings';
 import { RESOURCES } from '../data/resources';
 import type { BuildingType, EnemyType, ResourceId, UnitType } from '../sim/types';
+import {
+  buildingFromModels,
+  enemyFromModels,
+  pickupFromModels,
+  unitFromModels,
+} from './modelPrefabs';
 
-/** All models are assembled from primitives: the game ships without a single asset file. */
+/**
+ * Shapes assembled from primitives. They draw what the model packs have no equivalent for (the
+ * Fauna, the Heart, gems) and stand in for any model file that failed to load.
+ */
 
 const materials = new Map<string, THREE.Material>();
 function lambert(color: number): THREE.Material {
@@ -76,6 +85,8 @@ function makeWorker(suit: number, helmet: number, weapon: boolean): THREE.Group 
 }
 
 export function makeUnit(type: UnitType): THREE.Group {
+  const modelled = unitFromModels(type);
+  if (modelled) return modelled;
   switch (type) {
     case 'foreur':
       return makeWorker(0xd9762b, 0xf0c24b, false);
@@ -115,6 +126,8 @@ export function makeUnit(type: UnitType): THREE.Group {
 }
 
 export function makeEnemy(type: EnemyType): THREE.Group {
+  const modelled = enemyFromModels(type);
+  if (modelled) return modelled;
   const g = new THREE.Group();
   switch (type) {
     case 'rongeur':
@@ -197,6 +210,8 @@ export function makeEnemy(type: EnemyType): THREE.Group {
 
 /** Each building gets a distinct silhouette, recognisable from the default camera. */
 export function makeBuilding(type: BuildingType): THREE.Group {
+  const modelled = buildingFromModels(type);
+  if (modelled) return modelled;
   const size = BUILDINGS[type].size;
   const g = new THREE.Group();
   const center = size / 2;
@@ -340,6 +355,8 @@ export function makeBuilding(type: BuildingType): THREE.Group {
 }
 
 export function makePickup(res: ResourceId): THREE.Object3D {
+  const modelled = pickupFromModels(res);
+  if (modelled) return modelled;
   const color = RESOURCES[res].color;
   const shiny =
     res === 'crystal' || res === 'relic' || res === 'gold' || res === 'sulfur' || res === 'ice';

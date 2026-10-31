@@ -6,8 +6,10 @@ une région après l'autre.
 
 Le jeu s'inspire de la boucle de minage de _LEGO Rock Raiders_ (1999), à laquelle il ajoute une
 vraie couche de gestion de cité et une campagne planétaire. C'est une création originale, sans
-aucun lien avec LEGO : ni personnage, ni nom, ni élément graphique ou sonore n'en provient. Tous
-les modèles sont construits à partir de formes simples et tous les sons sont synthétisés.
+aucun lien avec LEGO : ni personnage, ni nom, ni élément graphique ou sonore n'en provient. Les
+modèles et les textures viennent de packs CC0 de Kenney et de Poly Haven
+([crédits](public/assets/CREDITS.md)). La Faune et le Cœur du Dormeur sont construits à partir de
+formes simples, et tous les sons sont synthétisés.
 
 ## Démarrer
 
@@ -66,8 +68,9 @@ src/
 ├── data/       Contenu du jeu : régions, bâtiments, unités, intrigues, technologies
 ├── sim/        Règles du jeu, sans aucun rendu, déterministes et sérialisables
 ├── campaign/   Progression entre les missions et sauvegarde
-├── render/     Scène Three.js : terrain, modèles, effets, sons
+├── render/     Scène Three.js : terrain, modèles, décor, effets, sons
 └── ui/         Interface HTML : mission, carte de la planète
+public/assets/  Modèles, textures et licences (CC0)
 tests/          Tests de la simulation et parties automatiques
 docs/           Architecture et conception du jeu
 ```

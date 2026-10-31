@@ -60,6 +60,19 @@ Le contenu se déclare dans `src/data`, sans toucher aux règles :
 - **Un bâtiment de production** : une entrée dans `buildings.ts` avec sa `recipe`, plus sa
   silhouette dans `render/prefabs.ts` (le compilateur signale le cas manquant).
 
+## Assets
+
+Les fichiers de `public/assets` sont listés dans `render/assetManifest.ts` et un test vérifie
+qu'ils existent tous. `render/assets.ts` les charge une seule fois au démarrage, puis
+`render/modelPrefabs.ts` les assemble en bâtiments, unités et ennemis.
+
+Si un fichier ne se charge pas, l'erreur est seulement signalée dans la console : le rendu retombe
+sur les formes de `render/prefabs.ts`, et le jeu reste jouable.
+
+Pour ajouter un modèle : copiez le `.glb` dans `public/assets/models` (avec sa palette
+`Textures/colormap.png` s'il en a une), déclarez-le dans le manifeste et citez sa source dans
+`CREDITS.md`.
+
 ## Sauvegarde
 
 `campaign/save.ts` écrit la campagne et la mission en cours dans `localStorage`, toutes les 20 s et
