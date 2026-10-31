@@ -20,30 +20,45 @@ secteur conquis ajoute un pourcentage de contrôle et un bonus permanent, et ouv
 
 ## La progression
 
-La cité change de rang avec sa population, et ne redescend jamais :
+On livre des ressources au Noyau pour franchir des jalons, qui débloquent bâtiments et outils. Une
+livraison peut se faire en plusieurs fois. Les jalons sont rangés par paliers, et chaque palier
+demande ce que le précédent a permis de produire :
 
-| Rang      | Habitants | Ce qu'il ouvre                                    |
-| --------- | --------- | ------------------------------------------------- |
-| Campement | 0         | Habitat, oxygène, énergie, eau, serre, tourelle   |
-| Bourg     | 14        | Laboratoire, caserne, marché, place publique      |
-| Ville     | 30        | Rien de plus pour l'instant : le Noyau s'agrandit |
-| Cité      | 55        | Idem                                              |
-| Capitale  | 90        | Idem                                              |
+| Palier | Nom          | Comment il s'ouvre      | Ce qu'il apporte                                    |
+| ------ | ------------ | ----------------------- | --------------------------------------------------- |
+| 0      | Installation | Dès le départ           | Habitat, oxygène, eau, serre, énergie, tourelle     |
+| 1      | Implantation | Rejoindre Port-Cendre   | Laboratoire, caserne, marché, forets trempés        |
+| 2      | Industrie    | Livraison de la phase 1 | Raffinerie, marteau-piqueur, dispensaire            |
+| 3      | Mécanisation | Livraison de la phase 2 | Atelier de véhicules, avant-postes, forge d'alliage |
+| 4      | Grand forage | Livraison de la phase 3 | Foreuse laser                                       |
 
-Le laboratoire produit la recherche, dépensée en jeu. Elle ouvre le reste :
+Aucun jalon ne demande de soufre : il se trouve derrière le basalte, que seul le laser perce.
 
-```text
-Forets trempés ─► Marteau-piqueur ─► Foreuse laser
-Raffinage ─┬─► Atelier de véhicules
-           └─► Métallurgie
-```
+Le laboratoire produit des points pour une branche à part, faite d'améliorations de la colonie. La
+population donne le rang de la cité (Campement, Bourg, Ville, Cité, Capitale), qui ne débloque rien :
+il élargit la zone constructible et agrandit le Noyau.
 
-La roche entre les secteurs impose cet ordre : du dur autour du premier, qu'il faut percer au
-marteau-piqueur ou à la foreuse lourde, puis du basalte, réservé au laser.
+## La zone de la cité et les avant-postes
+
+Les bâtiments du menu Cité ne se posent que dans un rayon autour du Noyau, qui grandit avec le rang.
+Ceux du menu Exploration se posent partout. L'avant-poste sert de dépôt et de source à un réseau
+électrique séparé, pour s'installer loin de la cité.
+
+## Le gouverneur et son conseil
+
+Rejoindre Port-Cendre fait du chef d'expédition le gouverneur, qui choisit son style. Le conseil a
+quatre sièges : Ingénierie, Intendance, Science et Défense. Orsa Veld, Tomas Krell et Ilyane Soum
+occupent les trois premiers. De nouveaux candidats se présentent toutes les 3 minutes, chacun avec un
+trait dont l'effet grandit à chaque niveau. Renvoyer un conseiller ne règle pas le complot.
+
+## Les salles de monstres
+
+Certaines cavernes scellées abritent des monstres endormis et un butin. Ils se réveillent ensemble
+dès qu'une unité approche ou qu'on les blesse.
 
 ## Les missions
 
-Toutes les 35 à 75 secondes, une demande arrive, 4 au plus à la fois : livrer une commande, bâtir un
+Une fois Port-Cendre rejointe, une demande arrive toutes les 35 à 75 secondes, 4 au plus à la fois : livrer une commande, bâtir un
 chantier, forer jusqu'à un point marqué, sauver une équipe ensevelie, abattre une incursion ou
 accueillir des réfugiés. Réussir paie, et rater pèse sur le moral.
 
@@ -110,7 +125,6 @@ décider quand le combat commence.
 ## Pistes pour la suite
 
 - Valider l'équilibrage de la campagne par de vraies parties, puis améliorer le bot en conséquence
-- Donner quelque chose à débloquer aux rangs Ville, Cité et Capitale
 - Faire répondre le Cœur au serment : pour l'instant, tenir parole n'évite pas de le détruire
 - Priorités de tâches réglables par le joueur
 - Citoyens visibles dans les galeries

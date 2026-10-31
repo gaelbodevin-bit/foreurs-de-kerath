@@ -1,5 +1,20 @@
-import { BUILD_MENUS, BUILDINGS, PATH_COST, type BuildMenuId } from '../data/buildings';
+import {
+  BUILD_MENUS,
+  BUILDINGS,
+  CITY_BUILDINGS,
+  PATH_COST,
+  type BuildMenuId,
+} from '../data/buildings';
+import {
+  COUNCIL_TRAITS,
+  COUNCIL_UPKEEP,
+  GOVERNOR_TRAITS,
+  hireCost,
+  SEAT_IDS,
+  SEATS,
+} from '../data/council';
 import { CITY_LEVELS } from '../data/progression';
+import { TECHS, TIERS, type TechDef } from '../data/techs';
 import { DRILL_TOOLS, drillToolFor, RESOURCES, TILE_NAMES, WALLS } from '../data/resources';
 import { ADVISORS } from '../data/story';
 import { ENEMIES, INVESTIGATION_COST, POLICIES, TAX_LEVELS, UNITS } from '../data/units';
@@ -21,18 +36,22 @@ import {
   trainUnit,
 } from '../sim/game';
 import { contractStatus, deliverContract } from '../sim/contracts';
+import { dismissCouncillor, recruitCandidate } from '../sim/council';
 import {
   activeRegions,
   buildingLock,
   buyTech,
+  canDeliver,
+  currentTier,
+  deliverParts,
   objectiveProgress,
   techLock,
-  TECHS,
 } from '../sim/progress';
 import { answerEvent, eventById, eventText, investigate, visibleChoices } from '../sim/storyEngine';
 import type {
   BuildingType,
   Cost,
+  Councillor,
   GameState,
   PolicyId,
   ResourceId,
@@ -44,7 +63,7 @@ import { clear, h } from './dom';
 import { resourceIcon } from './icons';
 import { renderPlanetMap, renderSectorList } from './planet';
 
-type Modal = 'city' | 'dossier' | 'research' | 'planet';
+type Modal = 'city' | 'council' | 'dossier' | 'research' | 'planet';
 type Tool = { kind: 'select' } | { kind: 'path' } | { kind: 'build'; type: BuildingType };
 
 function costLabel(cost: Cost): DocumentFragment {
@@ -68,6 +87,7 @@ export class MissionScreen {
   private readonly root: HTMLElement;
   private readonly view: MissionView;
   private readonly audio = audio;
+  private readonly topBarWatch: ResizeObserver;
   private stepTimer = 0;
   private tool: Tool = { kind: 'select' };
   private selectedUnits: number[] = [];
@@ -99,6 +119,11 @@ export class MissionScreen {
   private readonly toast = h('div', { class: 'toast' });
   private readonly bark = h('div', { class: 'bark' });
   private readonly hint = h('div', { class: 'hint' });
+  private readonly cancelTool = h(
+    'button',
+    { class: 'chip cancel-tool', onclick: () => this.setTool({ kind: 'select' }) },
+    '✕ Annuler (Échap)',
+  );
   private readonly overlay = h('div', { class: 'overlay' });
   private readonly minimap = h('canvas', { class: 'minimap', width: 180, height: 180 });
   private readonly buildButtons = new Map<BuildingType | 'path', HTMLButtonElement>();
@@ -113,12 +138,18 @@ export class MissionScreen {
     const canvas = h('canvas', { class: 'game-canvas' });
     this.root = h('div', { class: 'mission' }, canvas);
     host.append(this.root);
+    const topBar = this.buildTopBar();
+    this.topBarWatch = new ResizeObserver(() => {
+      this.root.style.setProperty('--top-bar', `${topBar.offsetHeight}px`);
+    });
+    this.topBarWatch.observe(topBar);
     this.root.append(
-      this.buildTopBar(),
+      topBar,
       this.buildBuildMenu(),
       this.buildRightColumn(),
       this.logBox,
       this.hint,
+      this.cancelTool,
       this.toast,
       this.bark,
       this.minimap,
@@ -138,6 +169,7 @@ export class MissionScreen {
 
   destroy(): void {
     this.running = false;
+    this.topBarWatch.disconnect();
     removeEventListener('resize', this.onResize);
     removeEventListener('keydown', this.onKeyDown);
     removeEventListener('keyup', this.onKeyUp);
@@ -176,7 +208,12 @@ export class MissionScreen {
         h(
           'button',
           { class: 'chip accent', onclick: () => this.openModal('research') },
-          'Recherche (R)',
+          'Progression (R)',
+        ),
+        h(
+          'button',
+          { class: 'chip accent', onclick: () => this.openModal('council') },
+          'Conseil (K)',
         ),
         h(
           'button',
@@ -210,7 +247,11 @@ export class MissionScreen {
   private buildBuildMenu(): HTMLElement {
     const pathButton = h(
       'button',
-      { class: 'build-btn', onclick: () => this.setTool({ kind: 'path' }) },
+      {
+        class: 'build-btn',
+        onclick: () =>
+          this.setTool(this.tool.kind === 'path' ? { kind: 'select' } : { kind: 'path' }),
+      },
       h('span', { class: 'b-name' }, 'Sol technique'),
       h('span', { class: 'b-cost' }, costLabel(PATH_COST)),
     );
@@ -233,7 +274,7 @@ export class MissionScreen {
           const def = BUILDINGS[type];
           const button = h(
             'button',
-            { class: 'build-btn', onclick: () => this.setTool({ kind: 'build', type }) },
+            { class: 'build-btn', onclick: () => this.pickBuilding(type) },
             h('span', { class: 'b-name' }, def.name),
             h('span', { class: 'b-cost' }, costLabel(def.cost)),
           );
@@ -346,7 +387,7 @@ export class MissionScreen {
     const near = (x: number, y: number, range: number) =>
       Math.hypot(x - focus.x, y - focus.z) < range;
     const threats = this.state.enemies.filter(
-      (e) => !ENEMIES[e.type].structure && near(e.x, e.y, 16),
+      (e) => !ENEMIES[e.type].structure && !e.dormant && near(e.x, e.y, 16),
     ).length;
     this.audio.updateAmbience(dt, Math.min(1, threats / 4));
     this.stepTimer -= dt;
@@ -455,6 +496,9 @@ export class MissionScreen {
       case 'KeyC':
         this.openModal(this.modal === 'city' ? null : 'city');
         break;
+      case 'KeyK':
+        this.openModal(this.modal === 'council' ? null : 'council');
+        break;
       case 'KeyR':
         this.openModal(this.modal === 'research' ? null : 'research');
         break;
@@ -490,11 +534,15 @@ export class MissionScreen {
       const result = placeBuilding(state, tool.type, drag.x1, drag.y1);
       if (!result.ok) {
         this.say(result.reason ?? 'Construction impossible.');
+        // Clicking again wouldn't help: the left button goes back to its usual job.
+        if (!canAfford(state, BUILDINGS[tool.type].cost)) this.setTool({ kind: 'select' });
         return;
       }
       this.speak('ack');
       // Shift keeps the tool in hand to place a series.
-      if (!e.shiftKey) this.setTool({ kind: 'select' });
+      if (!e.shiftKey || !canAfford(state, BUILDINGS[tool.type].cost)) {
+        this.setTool({ kind: 'select' });
+      }
       return;
     }
     if (tool.kind === 'path') {
@@ -581,6 +629,18 @@ export class MissionScreen {
     else this.say('Destination inaccessible.');
   }
 
+  /** The same button puts the tool away, and nobody picks up what they can't pay for. */
+  private pickBuilding(type: BuildingType): void {
+    if (this.tool.kind === 'build' && this.tool.type === type) {
+      this.setTool({ kind: 'select' });
+    } else if (canAfford(this.state, BUILDINGS[type].cost)) {
+      this.setTool({ kind: 'build', type });
+    } else {
+      this.setTool({ kind: 'select' });
+      this.say(`${BUILDINGS[type].name} : ressources insuffisantes.`);
+    }
+  }
+
   private setTool(tool: Tool): void {
     this.tool = tool;
     this.updateGhost();
@@ -600,6 +660,7 @@ export class MissionScreen {
 
   private updateGhost(): void {
     const { tool, hover } = this;
+    this.view.setCityZone(tool.kind === 'build' && CITY_BUILDINGS.has(tool.type));
     if (tool.kind === 'select' || !hover) {
       this.view.setGhost(null, 0, 0, false);
       return;
@@ -966,6 +1027,7 @@ export class MissionScreen {
 
   private updateHint(): void {
     const { tool } = this;
+    this.cancelTool.hidden = tool.kind === 'select';
     const text =
       tool.kind === 'path'
         ? 'Glissez pour tracer la voie. Clic droit pour finir.'
@@ -1060,6 +1122,7 @@ export class MissionScreen {
     this.overlay.classList.add('show');
     if (this.modal === 'city') this.renderCity();
     else if (this.modal === 'research') this.renderResearch();
+    else if (this.modal === 'council') this.renderCouncil();
     else if (this.modal === 'planet') this.renderPlanet();
     else this.renderDossier();
   }
@@ -1175,44 +1238,188 @@ export class MissionScreen {
     ]);
   }
 
+  private councilCard(c: Councillor, action: HTMLElement): HTMLElement {
+    const trait = COUNCIL_TRAITS[c.trait];
+    return h(
+      'div',
+      { class: 'councillor' },
+      h('b', {}, c.name),
+      h('em', {}, `Niveau ${c.level}`),
+      h('span', {}, `${trait.name} : ${trait.desc}`),
+      action,
+    );
+  }
+
+  private renderCouncil(): void {
+    const { state } = this;
+    const reached = state.settlement?.reached ?? true;
+    const wages = state.council.reduce((sum, c) => sum + c.level * COUNCIL_UPKEEP, 0);
+    const sig = `cou${reached}${state.council.map((c) => c.id + '.' + c.level).join()}|${state.candidates.map((c) => c.id).join()}|${Math.floor(state.stock.credits / 10)}`;
+    this.patch(this.overlay, sig, () => {
+      const governor = state.governorTrait ? GOVERNOR_TRAITS[state.governorTrait] : null;
+      return [
+        h(
+          'div',
+          { class: 'dialog wide' },
+          this.closeButton(),
+          h('h2', {}, 'Conseil du gouverneur'),
+          !reached
+            ? h('p', {}, 'Il n’y a pas encore de gouverneur : rejoignez d’abord Port-Cendre.')
+            : h(
+                'p',
+                { class: 'dim' },
+                governor ? `Gouverneur ${governor.name.toLowerCase()} : ${governor.desc}. ` : '',
+                `Salaires : ${wages} ¤/min. Chaque conseiller gagne un niveau toutes les 5 minutes.`,
+              ),
+          ...(reached
+            ? SEAT_IDS.map((seat) => {
+                const holder = state.council.find((c) => c.seat === seat);
+                return h(
+                  'div',
+                  { class: 'seat' },
+                  h('h3', {}, SEATS[seat].name),
+                  h('p', { class: 'dim' }, SEATS[seat].desc),
+                  holder
+                    ? this.councilCard(
+                        holder,
+                        h(
+                          'button',
+                          {
+                            class: 'chip',
+                            onclick: () => {
+                              dismissCouncillor(state, holder.id);
+                              this.updateOverlay();
+                            },
+                          },
+                          'Renvoyer',
+                        ),
+                      )
+                    : h('p', { class: 'bad-text' }, 'Siège vacant'),
+                );
+              })
+            : []),
+          reached && h('h3', {}, 'Candidats'),
+          ...state.candidates.map((c) =>
+            this.councilCard(
+              c,
+              h(
+                'button',
+                {
+                  class: 'chip accent',
+                  disabled: state.stock.credits < hireCost(c.level),
+                  onclick: () => {
+                    const result = recruitCandidate(state, c.id);
+                    if (!result.ok) this.say(result.reason ?? 'Impossible.');
+                    this.updateOverlay();
+                  },
+                },
+                `${SEATS[c.seat].name} · ${hireCost(c.level)} ¤`,
+              ),
+            ),
+          ),
+        ),
+      ];
+    });
+  }
+
+  private techCard(tech: TechDef): HTMLElement {
+    const { state } = this;
+    const lock = techLock(state, tech.id);
+    const owned = state.techs.includes(tech.id);
+    if (tech.parts) {
+      const parts = RESOURCE_IDS.filter((r) => tech.parts?.[r]);
+      return h(
+        'div',
+        { class: owned ? 'milestone owned' : lock ? 'milestone locked' : 'milestone' },
+        h('b', {}, tech.name),
+        h('em', {}, lock ?? ''),
+        h('span', { class: 'dim' }, tech.desc),
+        !owned &&
+          h(
+            'div',
+            { class: 'parts' },
+            ...parts.map((r) =>
+              h(
+                'span',
+                { class: 'part' },
+                resourceIcon(r),
+                `${state.delivered[tech.id]?.[r] ?? 0} / ${tech.parts?.[r]}`,
+              ),
+            ),
+          ),
+        !owned &&
+          !lock &&
+          h(
+            'button',
+            {
+              class: 'chip accent',
+              disabled: !canDeliver(state, tech.id),
+              onclick: () => {
+                deliverParts(state, tech.id);
+                this.hudTimer = 0;
+                this.updateOverlay();
+              },
+            },
+            'Livrer',
+          ),
+      );
+    }
+    return h(
+      'button',
+      {
+        class: owned ? 'tech owned' : 'tech',
+        disabled: lock !== null || state.research < (tech.cost ?? 0),
+        onclick: () => {
+          buyTech(state, tech.id);
+          this.hudTimer = 0;
+          this.updateOverlay();
+        },
+      },
+      h('b', {}, tech.name),
+      h('span', {}, tech.desc),
+      h('em', {}, lock ?? `${tech.cost} 🔬`),
+    );
+  }
+
   private renderResearch(): void {
     const { state } = this;
-    const sig = `res${Math.floor(state.research)}${state.techs.length}`;
+    // Only what changes a button: a stock ticking up must not rebuild the panel under the cursor.
+    const sig = `res${Math.floor(state.research)}${state.techs.length}${JSON.stringify(state.delivered)}${TECHS.map((t) => (canDeliver(state, t.id) ? 1 : 0)).join('')}`;
     const labs = state.buildings.filter((b) => b.type === 'lab' && b.built >= 1).length;
+    const tier = currentTier(state);
     this.patch(this.overlay, sig, () => [
       h(
         'div',
         { class: 'dialog wide' },
         this.closeButton(),
-        h('h2', {}, `Recherche : ${Math.floor(state.research)} 🔬`),
+        h('h2', {}, 'Progression'),
+        h(
+          'p',
+          { class: 'dim' },
+          'Livrez des ressources au Noyau pour débloquer bâtiments et outils. Une livraison peut se faire en plusieurs fois.',
+        ),
+        ...TIERS.flatMap((def, i) => [
+          h('h3', { class: i > tier ? 'tier closed' : 'tier' }, `Palier ${i} : ${def.name}`),
+          i > tier
+            ? h('p', { class: 'dim' }, def.desc)
+            : h(
+                'div',
+                { class: 'milestones' },
+                ...TECHS.filter((t) => t.tier === i).map((t) => this.techCard(t)),
+              ),
+        ]),
+        h('h3', {}, `Laboratoire : ${Math.floor(state.research)} 🔬`),
         h(
           'p',
           { class: 'dim' },
           labs > 0
             ? `${labs} laboratoire${labs > 1 ? 's' : ''} en service. Les missions et les secteurs conquis rapportent aussi des points.`
-            : 'Aucun laboratoire : la recherche n’avance que par les missions et les secteurs conquis.',
+            : 'Aucun laboratoire : les points ne viennent que des missions et des secteurs conquis.',
         ),
         h(
           'div',
           { class: 'techs' },
-          ...TECHS.map((tech) => {
-            const lock = techLock(state, tech.id);
-            return h(
-              'button',
-              {
-                class: state.techs.includes(tech.id) ? 'tech owned' : 'tech',
-                disabled: lock !== null || state.research < tech.cost,
-                onclick: () => {
-                  buyTech(state, tech.id);
-                  this.hudTimer = 0;
-                  this.updateOverlay();
-                },
-              },
-              h('b', {}, tech.name),
-              h('span', {}, tech.desc),
-              h('em', {}, lock ?? `${tech.cost} 🔬`),
-            );
-          }),
+          ...TECHS.filter((t) => t.cost !== undefined).map((t) => this.techCard(t)),
         ),
       ),
     ]);

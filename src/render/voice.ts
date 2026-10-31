@@ -1,15 +1,6 @@
-import { CREW, VOICE_LINES, type CrewMember } from '../data/voiceLines';
+import { CREW, voiceFile, VOICE_LINES } from '../data/voiceLines';
 import type { VoiceId } from '../sim/types';
 import { audio } from './audio';
-import type { VoiceProfile } from './babble';
-
-const VOICES: Record<CrewMember, VoiceProfile> = {
-  bako: { pitch: 118, rate: 7.4, throat: 0.92, rough: 0.9 },
-  nina: { pitch: 205, rate: 8.6, throat: 1.14, rough: 0.5 },
-  harl: { pitch: 92, rate: 8.2, throat: 0.84, rough: 0.7 },
-  orsa: { pitch: 178, rate: 6.8, throat: 1.08, rough: 0.25 },
-  krell: { pitch: 132, rate: 6.1, throat: 0.97, rough: 0.35 },
-};
 
 /** Seconds of quiet kept between two ordinary lines, so that the crew doesn't chatter. */
 const BREATHER = 5;
@@ -20,10 +11,10 @@ export interface SpokenLine {
   seconds: number;
 }
 
-/** Decides who says what and when. The sound itself is in `babble.ts`. */
+/** Decides who says what and when. The recordings are made by `tools/voices`. */
 class Voice {
   private readonly last = new Map<VoiceId, number>();
-  private readonly lastLine = new Map<VoiceId, string>();
+  private readonly lastLine = new Map<VoiceId, number>();
   private busyUntil = -Infinity;
   private lastAny = -Infinity;
 
@@ -37,13 +28,15 @@ class Voice {
     this.lastAny = now;
 
     // Never the same line twice in a row.
-    const choices = set.lines.filter((line) => line.text !== this.lastLine.get(id));
-    const line = choices[Math.floor(Math.random() * choices.length)] ?? set.lines[0];
-    this.lastLine.set(id, line.text);
+    const choices = set.lines.map((_, i) => i).filter((i) => i !== this.lastLine.get(id));
+    const index = choices[Math.floor(Math.random() * choices.length)] ?? 0;
+    this.lastLine.set(id, index);
 
-    const seconds = audio.speak(line.text, VOICES[line.who]);
+    const line = set.lines[index];
+    const member = CREW[line.who];
+    const seconds = audio.speak(voiceFile(id, index), member.rate);
     this.busyUntil = now + seconds;
-    return { name: CREW[line.who].name, text: line.text, seconds };
+    return { name: member.name, text: line.text, seconds };
   }
 }
 

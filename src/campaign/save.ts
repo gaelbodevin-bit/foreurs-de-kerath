@@ -1,3 +1,4 @@
+import { foundCouncil } from '../sim/council';
 import type { GameState } from '../sim/types';
 
 /** The version moved when the game became a single continuous world: older saves don't load. */
@@ -24,7 +25,19 @@ export function readSave(storage: SaveStorage): GameState | null {
     const raw = storage.getItem(KEY);
     if (!raw) return null;
     const data = JSON.parse(raw) as GameState;
-    return data.version === 2 ? data : null;
+    if (data.version !== 2) return null;
+    if (!data.delivered) {
+      data.delivered = {};
+      const owned = ['shelter', 'air', 'food', 'power', 'guard'];
+      if (data.cityLevel >= 1) owned.push('lab', 'barracks', 'commerce');
+      data.techs = [...new Set([...data.techs, ...owned])];
+    }
+    data.council ??= [];
+    data.candidates ??= [];
+    data.nextCandidatesAt ??= 0;
+    data.governorTrait ??= null;
+    if (data.settlement?.reached) foundCouncil(data);
+    return data;
   } catch {
     return null;
   }

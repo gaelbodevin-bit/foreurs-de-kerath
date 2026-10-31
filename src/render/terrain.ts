@@ -36,6 +36,7 @@ const BASE: Record<TileKind, THREE.Color> = {
   relicVault: hex(RESOURCES.relic.color),
 };
 const UNSEEN = hex(0x0b0a0e);
+const LAIR_STAIN = new THREE.Color(1.15, 0.55, 0.5);
 
 /** These stay lit whatever the scene lighting: they are what the player looks for in the dark. */
 const GLOWING = new Set<TileKind>([
@@ -306,6 +307,7 @@ export class TerrainView {
       return;
     }
     target.copy(BASE[tile.k]);
+    if (tile.lair) target.multiply(LAIR_STAIN);
     const g = 0.86 + grain(i) * 0.28;
     target.multiplyScalar((tile.k === 'rubble' ? g * (0.8 + tile.rubble * 0.1) : g) * this.boost);
   }

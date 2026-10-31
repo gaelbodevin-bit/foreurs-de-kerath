@@ -11,3 +11,6 @@ export const FIRST_CONTRACT_AT = 75;
 /** Seconds between two new requests, at random within this range. */
 export const CONTRACT_INTERVAL: readonly [number, number] = [35, 75];
 export const MAX_CONTRACTS = 4;
+
+/** How far from the headquarters city buildings can stand, in tiles: the city spreads as it ranks up. */
+export const cityRadius = (level: number): number => 10 + level * 4;

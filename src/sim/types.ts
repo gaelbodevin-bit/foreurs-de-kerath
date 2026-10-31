@@ -52,6 +52,8 @@ export interface Tile {
   regrow: number;
   /** Toxic gas in the air here, from 0 to about 1. Missing means none. */
   gas?: number;
+  /** Floor of a monsters' lair: stained, so that the room reads as one at a glance. */
+  lair?: boolean;
 }
 
 export type UnitType = 'foreur' | 'garde' | 'heavy' | 'hauler';
@@ -75,9 +77,26 @@ export type BuildingType =
   | 'barracks'
   | 'workshop'
   | 'turret'
-  | 'vent';
+  | 'vent'
+  | 'camp';
 
 export type AdvisorId = 'orsa' | 'krell' | 'soum';
+export type SeatId = 'engineering' | 'logistics' | 'science' | 'defense';
+export type GovernorTraitId = 'builder' | 'prospector' | 'warlord';
+
+/** Someone on the governor's council, or waiting to join it. */
+export interface Councillor {
+  id: number;
+  name: string;
+  seat: SeatId;
+  /** Key into COUNCIL_TRAITS. */
+  trait: string;
+  level: number;
+  /** Seconds in the seat since the last level. */
+  tenure: number;
+  /** Set for the expedition's own advisors, who are part of the plot. */
+  advisor?: AdvisorId;
+}
 export type PolicyId = 'rationing' | 'curfew' | 'propaganda' | 'overtime';
 
 export interface Unit {
@@ -133,6 +152,8 @@ export interface Enemy {
   cooldown: number;
   repathIn: number;
   spawnIn: number;
+  /** Asleep in its lair until someone comes near or hurts it. */
+  dormant?: boolean;
 }
 
 export interface Pickup {
@@ -183,6 +204,7 @@ export type VoiceId =
   | 'citizenLost'
   | 'sabotage'
   | 'gas'
+  | 'lair'
   | 'reunited'
   | 'contract'
   | 'contractDone'
@@ -305,6 +327,8 @@ export interface GameState {
   /** Points waiting to be spent. */
   research: number;
   techs: string[];
+  /** What has been handed over so far, for milestones still in progress. */
+  delivered: Record<string, Cost>;
   /** Index into CITY_LEVELS. It never goes back down, even if the population does. */
   cityLevel: number;
   conquered: string[];
@@ -312,6 +336,11 @@ export interface GameState {
   sectorStart: Record<string, number>;
   contracts: Contract[];
   nextContractAt: number;
+  /** Empty until the expedition reaches the city and its leader becomes governor. */
+  council: Councillor[];
+  candidates: Councillor[];
+  nextCandidatesAt: number;
+  governorTrait: GovernorTraitId | null;
   outcome: 'playing' | 'won' | 'lost';
   outcomeReason: string;
   log: LogEntry[];

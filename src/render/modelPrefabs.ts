@@ -367,6 +367,20 @@ const BUILDING_MODELS: Record<BuildingType, BuildingModel> = {
       { shape: 'box', color: 0xd9a441, x: -0.36, y: 0.06, z: 0, w: 0.04, h: 0.12, d: 0.7 },
     ],
   },
+  camp: {
+    trim: TEAL,
+    parts: [
+      { model: 'hangarSmallA', fit: 1.1, x: -0.25, z: -0.25 },
+      { model: 'turret', fit: 0.55, x: 0.62, z: 0.62 },
+      { model: 'wireless', fit: 0.3, x: 0.68, z: -0.68 },
+    ],
+    accents: [{ color: TEAL, x: 0.68, z: -0.68, y: 0.85, size: 0.07 }],
+    details: [
+      { shape: 'box', color: RUST, x: -0.62, y: 0.09, z: 0.68, w: 0.2, h: 0.18, d: 0.2 },
+      { shape: 'box', color: OLIVE, x: -0.36, y: 0.08, z: 0.72, w: 0.16, h: 0.16, d: 0.16 },
+      { shape: 'box', color: 0xd9a441, x: 0, y: 0.1, z: 0.9, w: 1.8, h: 0.14, d: 0.04 },
+    ],
+  },
   turret: {
     trim: RED,
     parts: [{ model: 'turret', fit: 0.74 }],
@@ -560,6 +574,20 @@ function hardHat(): THREE.Object3D {
   return hat;
 }
 
+/** Large for the hand holding it, or it would be lost at game distance. */
+function pickaxe(): THREE.Object3D {
+  const tool = new THREE.Group();
+  tool.add(
+    makeDetail({ shape: 'cyl', color: 0x9a6a3f, y: 0, w: 0.05, h: 0.56, d: 0.05 }),
+    makeDetail({ shape: 'box', color: 0xc9d0d8, y: 0.27, w: 0.42, h: 0.07, d: 0.07 }),
+    makeDetail({ shape: 'cyl', color: 0xc9d0d8, x: 0.21, y: 0.26, w: 0.045, h: 0.12, d: 0.045 }),
+    makeDetail({ shape: 'cyl', color: 0xc9d0d8, x: -0.21, y: 0.26, w: 0.045, h: 0.12, d: 0.045 }),
+  );
+  // Held out in front of the fist: pointing back up the arm, the head would vanish inside the body.
+  tool.rotation.x = 1.35;
+  return tool;
+}
+
 /** Held in one hand, working end down. */
 function jackhammer(): THREE.Object3D {
   const tool = new THREE.Group();
@@ -631,7 +659,7 @@ export function unitFromModels(type: UnitType, tool: DrillTool): THREE.Group | n
       if (!made) return null;
       attach(made.body, 'head', hardHat(), [0, 0.3, 0]);
       if (tool === 'pick') {
-        attach(made.body, 'arm-right', placeModel('pickaxe', 0.22), [0, -0.2, 0.08]);
+        attach(made.body, 'arm-right', pickaxe(), [0, -0.27, 0.2]);
       } else if (tool === 'hammer') {
         attach(made.body, 'arm-right', jackhammer(), [0, -0.12, 0.14]);
       } else {

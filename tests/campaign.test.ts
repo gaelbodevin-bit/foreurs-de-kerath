@@ -1,22 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import { clearSave, readSave, writeSave, type SaveStorage } from '../src/campaign/save';
-import { BUILDINGS } from '../src/data/buildings';
-import { CITY_LEVELS, MAX_CONTRACTS } from '../src/data/progression';
+import { BUILDINGS, CITY_BUILDINGS } from '../src/data/buildings';
+import { CITY_LEVELS, cityRadius, MAX_CONTRACTS } from '../src/data/progression';
 import { regionById, REGIONS, sectorAt, WORLD_SIZE } from '../src/data/regions';
 import { DRILL_TOOLS, WALLS } from '../src/data/resources';
-import { TECHS } from '../src/data/techs';
+import { techById, TECHS } from '../src/data/techs';
 import { contractStatus, deliverContract, updateContracts } from '../src/sim/contracts';
-import { createGame, placeBuilding, stepGame } from '../src/sim/game';
+import { updateNetwork } from '../src/sim/economy';
+import { createBuilding } from '../src/sim/entities';
+import { canPlaceBuilding, createGame, placeBuilding, stepGame } from '../src/sim/game';
 import {
   activeRegions,
   availableBuildings,
   buildingLock,
   buyTech,
+  canDeliver,
+  currentTier,
+  deliverParts,
+  partsLeft,
   planetControl,
+  techLock,
   updateProgress,
 } from '../src/sim/progress';
-import type { Contract } from '../src/sim/types';
-import { newGame, run } from './helpers';
+import { RESOURCE_IDS, type Contract, type GameState } from '../src/sim/types';
+import { reveal } from '../src/sim/grid';
+import { newGame, run, unlockEverything } from './helpers';
 
 const memoryStorage = (): SaveStorage => {
   const map = new Map<string, string>();
@@ -88,65 +96,153 @@ describe('monde unique', () => {
   });
 });
 
-describe('progression', () => {
-  it('on commence à la pioche, le marteau-piqueur puis le laser se débloquent dans l’ordre', () => {
+/** Plenty of everything, then every milestone up to and including this one. */
+function reachMilestone(state: GameState, id: string): void {
+  for (const r of RESOURCE_IDS) state.stock[r] = 100000;
+  state.settlement!.reached = true;
+  for (const tech of TECHS) {
+    if (!tech.parts) continue;
+    if (techLock(state, tech.id) === null) expect(deliverParts(state, tech.id)).toBe(true);
+    if (tech.id === id) return;
+  }
+}
+
+describe('progression par jalons', () => {
+  it('au départ, presque rien n’est débloqué', () => {
+    const state = newGame(1);
+    expect(availableBuildings(state)).toEqual([]);
+    expect(placeBuilding(state, 'habitat', 1, 1).ok).toBe(false);
+    expect(currentTier(state)).toBe(0);
+  });
+
+  it('livrer les pièces débloque le bâtiment, même en plusieurs fois', () => {
+    const state = newGame(1);
+    state.stock.ore = 5;
+    state.stock.stone = 100;
+    const needed = techById('shelter').parts!;
+    expect(deliverParts(state, 'shelter')).toBe(true);
+    expect(state.stock.ore).toBe(0);
+    expect(buildingLock(state, 'habitat')).not.toBeNull();
+    expect(partsLeft(state, 'shelter').ore).toBe((needed.ore ?? 0) - 5);
+    expect(canDeliver(state, 'shelter')).toBe(false);
+    state.stock.ore = 50;
+    expect(deliverParts(state, 'shelter')).toBe(true);
+    expect(buildingLock(state, 'habitat')).toBeNull();
+    expect(state.delivered.shelter).toBeUndefined();
+    expect(state.stock.ore).toBe(50 - ((needed.ore ?? 0) - 5));
+  });
+
+  it('un palier fermé ne prend aucune livraison', () => {
+    const state = newGame(1);
+    for (const r of RESOURCE_IDS) state.stock[r] = 1000;
+    expect(techLock(state, 'lab')).not.toBeNull();
+    expect(deliverParts(state, 'lab')).toBe(false);
+    expect(state.stock.ore).toBe(1000);
+    state.settlement!.reached = true;
+    expect(currentTier(state)).toBe(1);
+    expect(deliverParts(state, 'lab')).toBe(true);
+    expect(availableBuildings(state)).toContain('lab');
+  });
+
+  it('les outils suivent : pioche, marteau-piqueur au palier 2, laser au palier 4', () => {
     const state = newGame(1);
     expect(state.mods.drillPower).toBe(DRILL_TOOLS.pick.power);
-    state.research = 100;
-    expect(buyTech(state, 'drills2')).toBe(false);
-    expect(buyTech(state, 'drills3')).toBe(false);
-    expect(buyTech(state, 'drills1')).toBe(true);
-    expect(buyTech(state, 'drills2')).toBe(true);
+    state.settlement!.reached = true;
+    for (const r of RESOURCE_IDS) state.stock[r] = 100000;
+    expect(deliverParts(state, 'drills2')).toBe(false);
+    expect(deliverParts(state, 'phase1')).toBe(true);
+    expect(deliverParts(state, 'drills2')).toBe(true);
     expect(state.mods.drillPower).toBe(DRILL_TOOLS.hammer.power);
-    expect(buyTech(state, 'drills3')).toBe(true);
+    expect(deliverParts(state, 'drills3')).toBe(false);
+    reachMilestone(state, 'drills3');
     expect(state.mods.drillPower).toBe(DRILL_TOOLS.laser.power);
-    expect(state.mods.drillSpeed).toBeCloseTo(2);
   });
 
-  it('une technologie coûte ses points, et n’agit qu’une fois', () => {
+  it('l’atelier de véhicules vient après le raffinage et la phase 2', () => {
+    const state = newGame(1);
+    reachMilestone(state, 'phase2');
+    expect(state.techs).toContain('refining');
+    expect(buildingLock(state, 'workshop')).not.toBeNull();
+    expect(deliverParts(state, 'vehicles')).toBe(true);
+    expect(buildingLock(state, 'workshop')).toBeNull();
+  });
+
+  it('aucun jalon ne demande ce que ses outils ne permettent pas encore d’extraire', () => {
+    // Sulfur lies behind basalt, which takes the laser: nothing on the way to it can need sulfur.
+    const toLaser = TECHS.filter((t) => t.parts && (t.tier ?? 0) <= 4);
+    for (const tech of toLaser) expect(tech.parts?.sulfur).toBeUndefined();
+    expect(TECHS.find((t) => t.id === 'drills1')?.parts?.gold).toBeUndefined();
+  });
+
+  it('la branche de recherche se paie en points, pas en pièces', () => {
     const state = newGame(1);
     state.research = 4;
-    expect(buyTech(state, 'drills1')).toBe(false);
-    state.research = 5;
-    expect(buyTech(state, 'drills1')).toBe(true);
+    expect(buyTech(state, 'scrubbers')).toBe(false);
+    state.research = 6;
+    expect(buyTech(state, 'scrubbers')).toBe(true);
     expect(state.research).toBe(0);
     state.research = 50;
-    expect(buyTech(state, 'drills1')).toBe(false);
-    expect(state.research).toBe(50);
+    expect(buyTech(state, 'scrubbers')).toBe(false);
+    expect(buyTech(state, 'shelter')).toBe(false);
   });
 
-  it('le laboratoire vient avec le rang, puis la recherche ouvre l’atelier de véhicules', () => {
+  it('le rang de la cité ne redescend pas et élargit la zone', () => {
     const state = newGame(1);
-    expect(availableBuildings(state)).not.toContain('lab');
-    expect(availableBuildings(state)).not.toContain('workshop');
-    expect(placeBuilding(state, 'lab', 1, 1).ok).toBe(false);
-    state.city.population = CITY_LEVELS[1].population;
-    updateProgress(state);
-    expect(state.cityLevel).toBe(1);
-    expect(availableBuildings(state)).toContain('lab');
-    expect(buildingLock(state, 'workshop')).toContain('Atelier de véhicules');
-    state.research = 100;
-    expect(buyTech(state, 'vehicles')).toBe(false);
-    expect(buyTech(state, 'refining')).toBe(true);
-    expect(buyTech(state, 'vehicles')).toBe(true);
-    expect(availableBuildings(state)).toContain('workshop');
-  });
-
-  it('le rang de la cité ne redescend pas', () => {
-    const state = newGame(1);
+    const before = cityRadius(state.cityLevel);
     state.city.population = CITY_LEVELS[2].population;
     updateProgress(state);
     expect(state.cityLevel).toBe(2);
+    expect(cityRadius(state.cityLevel)).toBeGreaterThan(before);
     state.city.population = 3;
     updateProgress(state);
     expect(state.cityLevel).toBe(2);
     expect(state.story.flags.level1).toBe(true);
   });
 
-  it('chaque technologie débloquante existe', () => {
+  it('chaque technologie citée existe, et un seul mode de paiement', () => {
     const ids = TECHS.map((t) => t.id);
     for (const def of Object.values(BUILDINGS)) if (def.tech) expect(ids).toContain(def.tech);
-    for (const tech of TECHS) if (tech.requires) expect(ids).toContain(tech.requires);
+    for (const tech of TECHS) {
+      if (tech.requires) expect(ids).toContain(tech.requires);
+      expect(Boolean(tech.parts) !== (tech.cost !== undefined)).toBe(true);
+    }
+  });
+});
+
+describe('zone de la cité et avant-postes', () => {
+  it('un bâtiment de cité refuse de sortir de la zone, l’exploration non', () => {
+    const state = newGame(1);
+    unlockEverything(state);
+    state.cityLevel = 0;
+    const hq = state.buildings[0];
+    const x = hq.x + cityRadius(0) + 4;
+    const y = hq.y;
+    for (let dy = 0; dy < 2; dy++) {
+      for (let dx = 0; dx < 2; dx++) {
+        const tile = state.tiles[(y + dy) * state.w + x + dx];
+        tile.k = 'floor';
+        tile.seen = true;
+      }
+    }
+    expect(CITY_BUILDINGS.has('habitat')).toBe(true);
+    expect(canPlaceBuilding(state, 'habitat', x, y).ok).toBe(false);
+    expect(canPlaceBuilding(state, 'depot', x, y).ok).toBe(true);
+    expect(canPlaceBuilding(state, 'camp', x, y).ok).toBe(true);
+    state.cityLevel = 3;
+    expect(canPlaceBuilding(state, 'habitat', x, y).ok).toBe(true);
+  });
+
+  it('un avant-poste alimente son propre réseau, loin du Noyau', () => {
+    const state = newGame(1);
+    const hq = state.buildings[0];
+    const x = hq.x + 16;
+    const camp = createBuilding(state, 'camp', x, hq.y, 1);
+    const turret = createBuilding(state, 'turret', x + 2, hq.y, 1);
+    const lonely = createBuilding(state, 'turret', x + 8, hq.y, 1);
+    updateNetwork(state);
+    expect(camp.connected).toBe(true);
+    expect(turret.connected).toBe(true);
+    expect(lonely.connected).toBe(false);
   });
 });
 
@@ -166,6 +262,27 @@ describe('missions en continu', () => {
       expect(state.contracts.length).toBeLessThanOrEqual(MAX_CONTRACTS);
     }
     expect(seen).toBeGreaterThanOrEqual(8);
+  });
+
+  it('aucune n’arrive avant d’avoir rejoint la cité, puis elles commencent', () => {
+    const state = newGame(4);
+    run(state, 300);
+    expect(state.contracts).toEqual([]);
+    reveal(state, state.settlement!.x, state.settlement!.y);
+    run(state, 200);
+    expect(state.settlement!.reached).toBe(true);
+    expect(state.contracts.length).toBeGreaterThan(0);
+  });
+
+  it('aucune incursion ne tombe sur une colonie sans défense', () => {
+    const state = newGame(4);
+    state.settlement!.reached = true;
+    state.units = state.units.filter((u) => u.type !== 'garde');
+    for (let t = 0; t < 3000; t += 5) {
+      state.time = t;
+      updateContracts(state);
+      expect(state.contracts.some((c) => c.kind === 'defend')).toBe(false);
+    }
   });
 
   it('une commande se livre à la main, se paie et récompense', () => {
@@ -195,6 +312,7 @@ describe('missions en continu', () => {
 
   it('une mission manquée disparaît et pèse sur le moral', () => {
     const state = newGame(4);
+    state.settlement!.reached = true;
     state.nextContractAt = 1e9;
     state.contracts.push({
       id: 501,

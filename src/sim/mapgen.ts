@@ -16,6 +16,8 @@ export interface MapParams {
   /** Caverns filled with toxic gas, harmless until the player digs into them. */
   gasZones?: number;
   structures?: Partial<Record<EnemyType, number>>;
+  /** Sealed rooms with sleeping monsters, and something worth the risk. */
+  lairs?: { count: number; monsters: EnemyType[] };
   /** Places a sealed settlement in this sector, behind a band of fallen rock. */
   settlement?: boolean;
 }
@@ -27,6 +29,7 @@ export interface GeneratedMap {
   start: { x: number; y: number };
   structures: { type: EnemyType; x: number; y: number }[];
   settlement: { x: number; y: number } | null;
+  lairs: { x: number; y: number; monsters: EnemyType[] }[];
 }
 
 interface Cavern {
@@ -38,6 +41,8 @@ interface Cavern {
 const START_RADIUS = 4;
 const SETTLEMENT_RADIUS = 3;
 const SETTLEMENT_OFFSET = 10;
+/** No monsters waiting in or next to the city the colonists are holding out in. */
+const LAIR_CLEARANCE = 10;
 /** How wide the band of tough rock between two sectors is, in tiles on each side. */
 const BORDER = 1.6;
 /** The sectors of this rank and beyond are walled with what only a laser cuts. */
@@ -111,6 +116,7 @@ export function generateWorld(seed: number): GeneratedMap {
   };
 
   const structures: GeneratedMap['structures'] = [];
+  const lairs: GeneratedMap['lairs'] = [];
   REGIONS.forEach((region, index) => {
     const { map } = region;
     const caverns: Cavern[] = [];
@@ -135,6 +141,37 @@ export function generateWorld(seed: number): GeneratedMap {
         if (!cavern) break;
         used.add(cavern);
         structures.push({ type, x: cavern.x, y: cavern.y });
+      }
+    }
+
+    // Before anything else claims a cavern. Never where Port-Cendre may stand, and if no cavern fits,
+    // a room is dug for the purpose: every sector, the first above all, should have one to find.
+    const farFromCity = (x: number, y: number) =>
+      index > 0 ||
+      !map.settlement ||
+      ![1, -1].some(
+        (sign) =>
+          Math.hypot(x - (start.x + sign * SETTLEMENT_OFFSET), y - (start.y + SETTLEMENT_OFFSET)) <=
+          LAIR_CLEARANCE,
+      );
+    for (let i = 0; i < (map.lairs?.count ?? 0); i++) {
+      let c = byDistance.find(
+        (option) => !used.has(option) && option.r >= 2 && farFromCity(option.x, option.y),
+      );
+      for (let tries = 0; !c && tries < 60; tries++) {
+        const spot = spotIn(index, 3 + BORDER + 2);
+        if (!spot || !farFromCity(spot.x, spot.y)) continue;
+        if (Math.hypot(spot.x - start.x, spot.y - start.y) < START_RADIUS + 6) continue;
+        c = { ...spot, r: 3 };
+        carveBlob(c.x, c.y, c.r, 'floor', 1.2);
+      }
+      if (!c || !map.lairs) break;
+      used.add(c);
+      lairs.push({ x: c.x, y: c.y, monsters: map.lairs.monsters });
+      for (let y = c.y - c.r - 1; y <= c.y + c.r + 1; y++) {
+        for (let x = c.x - c.r - 1; x <= c.x + c.r + 1; x++) {
+          if (inner(x, y) && at(x, y).k === 'floor') at(x, y).lair = true;
+        }
       }
     }
 
@@ -233,6 +270,7 @@ export function generateWorld(seed: number): GeneratedMap {
         if (!inner(x, y)) continue;
         at(x, y).k = Math.hypot(x - sx, y - sy) <= SETTLEMENT_RADIUS ? 'floor' : 'loose';
         at(x, y).gas = 0;
+        at(x, y).lair = false;
       }
     }
     for (let d = 1; d < SETTLEMENT_OFFSET; d++) {
@@ -246,5 +284,5 @@ export function generateWorld(seed: number): GeneratedMap {
     }
   }
 
-  return { w, h, tiles, start, structures, settlement };
+  return { w, h, tiles, start, structures, settlement, lairs };
 }

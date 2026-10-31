@@ -9,7 +9,7 @@ vraie couche de gestion de cité et une campagne planétaire. C'est une créatio
 aucun lien avec LEGO : ni personnage, ni nom, ni élément graphique ou sonore n'en provient. Les
 modèles et les textures viennent de packs CC0 de Kenney et de Poly Haven
 ([crédits](public/assets/CREDITS.md)). La Faune et le Cœur du Dormeur sont construits à partir de
-formes simples. Les bruitages viennent aussi de Kenney, et l'ambiance de la grotte est synthétisée.
+formes simples. Les bruitages viennent aussi de Kenney, l'ambiance de la grotte est synthétisée, et les voix sont générées avec Piper (voix SIWIS, CC BY 4.0).
 
 ## Démarrer
 
@@ -35,20 +35,24 @@ npm run dev
 | Tracer une voie          | Touche P ou menu, puis glisser                          |
 | Caméra                   | ZQSD ou flèches, molette, A/E (clavier AZERTY)          |
 | Pause et vitesse         | Espace, puis 1, 2, 3                                    |
-| Cité, recherche, enquête | C, R et J                                               |
+| Cité, conseil, enquête   | C, K et J                                               |
+| Jalons et recherche      | R                                                       |
 | Carte de la planète      | M                                                       |
 
-**Pour bien commencer :** creusez jusqu'à Port-Cendre, l'anneau turquoise de la mini-carte. Forez
-cristal, minerai et glace, puis construisez une serre et un fondoir collés au Noyau (les bâtiments
-adjacents sont raccordés au réseau), un habitat et une centrale. À 14 habitants, le campement devient
-un bourg et peut bâtir son premier laboratoire.
+**Pour bien commencer :** forez minerai, cristal et glace, puis ouvrez Progression (touche R) et
+livrez ces ressources au Noyau pour débloquer abris, air, cultures et énergie. Creusez jusqu'à
+Port-Cendre, l'anneau turquoise de la mini-carte : vous devenez gouverneur, le conseil s'installe et
+le palier suivant s'ouvre.
 
 ## Contenu
 
 - **Une seule carte, une seule cité** : 7 secteurs autour de votre colonie, chacun avec ses objectifs
   et un bonus permanent une fois conquis. La roche entre eux demande de meilleurs outils.
-- **Une progression continue** : du campement à la capitale, de la pioche au marteau-piqueur puis au
-  laser, du laboratoire à l'atelier de véhicules
+- **Une progression par jalons** : on livre des ressources au Noyau, palier après palier, pour passer
+  de la pioche au marteau-piqueur puis au laser, et du laboratoire à l'atelier de véhicules
+- **Un gouverneur et son conseil** : quatre sièges, des candidats à recruter, des traits qui montent
+  en niveau
+- **Des salles de monstres** : endormis dans des cavernes scellées, avec un butin
 - **Des missions en continu** : commandes, chantiers, sauvetages, relevés, incursions et réfugiés
 - **12 ressources** : minerai, cristal, roche, glace, soufre, or, reliques, métal, eau, nourriture,
   alliage et crédits
@@ -57,7 +61,7 @@ un bourg et peut bâtir son premier laboratoire.
 - **Un complot** : un conseiller trahit, tiré au sort à chaque partie. Rassemblez les indices,
   puis accusez-le. Une erreur coûte cher.
 - **Trois camps ennemis** : la Faune, le Consortium Vantor et les Enfants du Noyau
-- **15 technologies** et **3 fins** selon vos décisions
+- **27 jalons et technologies** et **3 fins** selon vos décisions
 
 ## Développement
 

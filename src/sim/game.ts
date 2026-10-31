@@ -1,12 +1,13 @@
-import { BUILDINGS } from '../data/buildings';
+import { BUILDINGS, CITY_BUILDINGS } from '../data/buildings';
 import { REGIONS, sectorAt } from '../data/regions';
-import { FIRST_CONTRACT_AT } from '../data/progression';
+import { cityRadius, FIRST_CONTRACT_AT } from '../data/progression';
 import { ADVISOR_IDS } from '../data/story';
 import { RESOURCES, TILE_NAMES, WALLS } from '../data/resources';
 import { UNITS } from '../data/units';
 import { updateCombat } from './combat';
 import { addStock, canAfford, pay, storageCapacity, updateEconomy, updateNetwork } from './economy';
-import { createBuilding, log, spawnEnemy, spawnUnit } from './entities';
+import { updateCouncil, foundCouncil } from './council';
+import { createBuilding, log, spawnEnemy, spawnPickup, spawnUnit } from './entities';
 import { updateGas } from './gas';
 import { idx, inBounds, isWalkableKind, NEIGHBORS4, reveal, setTile, tileAt } from './grid';
 import { generateWorld } from './mapgen';
@@ -15,18 +16,27 @@ import { buildingLock, isWorldConquered, updateProgress } from './progress';
 import { rand, Rng } from './rng';
 import { updateContracts } from './contracts';
 import { updateStory } from './storyEngine';
-import type { BuildingType, Cost, GameState, PolicyId, StoryState, UnitType } from './types';
+import type {
+  BuildingType,
+  Cost,
+  GameState,
+  PolicyId,
+  ResourceId,
+  StoryState,
+  UnitType,
+} from './types';
 import { baseModifiers, emptyStock, RESOURCE_IDS, TICK_SECONDS } from './types';
 import { addJob, dropCarried, removeJob, updateRepairs } from './workers';
 
 const SETTLEMENT_SURVIVORS = 8;
 /** Keeps the crew from building over the settlement's own structures. */
 const SETTLEMENT_CLEARANCE = 3.5;
-const START_STOCK: Cost = { ore: 32, crystal: 6, stone: 20, food: 30, water: 8, credits: 80 };
+const START_STOCK: Cost = { ore: 32, crystal: 6, stone: 20, food: 45, water: 8, credits: 80 };
 const START_POPULATION = 6;
 const START_FOREURS = 4;
 const START_GUARDS = 1;
 const FIRST_RAID_AT = 360;
+const LAIR_LOOT: ResourceId[] = ['gold', 'crystal', 'crystal', 'ore'];
 
 /** The one and only game: a single map, a single city, from the landing to the end of the campaign. */
 export function createGame(seed: number): GameState {
@@ -79,11 +89,16 @@ export function createGame(seed: number): GameState {
     kills: {},
     research: 0,
     techs: [],
+    delivered: {},
     cityLevel: 0,
     conquered: [],
     sectorStart: { [REGIONS[0].id]: 0 },
     contracts: [],
     nextContractAt: FIRST_CONTRACT_AT,
+    council: [],
+    candidates: [],
+    nextCandidatesAt: 0,
+    governorTrait: null,
     outcome: 'playing',
     outcomeReason: '',
     log: [],
@@ -108,6 +123,23 @@ export function createGame(seed: number): GameState {
     spawnUnit(state, 'garde', map.start.x + i - 1 + 0.5, map.start.y - 1.5);
   }
   for (const s of map.structures) spawnEnemy(state, s.type, s.x + 0.5, s.y + 0.5);
+  for (const lair of map.lairs) {
+    lair.monsters.forEach((type, i) => {
+      const [dx, dy] = NEIGHBORS4[i % NEIGHBORS4.length];
+      const monster = spawnEnemy(state, type, lair.x + dx + 0.5, lair.y + dy + 0.5);
+      monster.dormant = true;
+    });
+    // What the room is worth. Nobody can reach it before a tunnel does.
+    for (const res of LAIR_LOOT) {
+      const id = spawnPickup(
+        state,
+        res,
+        lair.x + 0.2 + rand(state) * 0.6,
+        lair.y + 0.2 + rand(state) * 0.6,
+      );
+      addJob(state, 'haul', lair.x, lair.y, id);
+    }
+  }
   log(state, 'Arrivée sur Kerath.', 'info');
   return state;
 }
@@ -118,6 +150,7 @@ export function stepGame(state: GameState): void {
   state.time = state.tick * TICK_SECONDS;
 
   updateEconomy(state);
+  updateCouncil(state);
   updateCombat(state);
 
   if (state.tick % 10 === 0) {
@@ -140,8 +173,12 @@ function updateSettlement(state: GameState): void {
   state.city.population += SETTLEMENT_SURVIVORS;
   addStock(state, 'ore', 20);
   addStock(state, 'stone', 15);
+  addStock(state, 'food', 25);
+  // The city's requests start now that there is a city to ask.
+  state.nextContractAt = state.time + FIRST_CONTRACT_AT;
   state.research += 3;
   state.story.flags.cityReached = true;
+  foundCouncil(state);
   log(state, `La cité est rejointe : ${SETTLEMENT_SURVIVORS} habitants arrivent.`, 'good');
   state.fx.push(
     { kind: 'sound', id: 'plot' },
@@ -237,6 +274,13 @@ export function designateArea(
   return unmarked.length;
 }
 
+export function inCityZone(state: GameState, x: number, y: number): boolean {
+  const hq = state.buildings.find((b) => b.type === 'hq');
+  if (!hq) return false;
+  const half = BUILDINGS.hq.size / 2;
+  return Math.hypot(x - hq.x - half, y - hq.y - half) <= cityRadius(state.cityLevel);
+}
+
 export function canPlaceBuilding(
   state: GameState,
   type: BuildingType,
@@ -244,6 +288,12 @@ export function canPlaceBuilding(
   y: number,
 ): CommandResult {
   const def = BUILDINGS[type];
+  if (CITY_BUILDINGS.has(type) && !inCityZone(state, x + def.size / 2, y + def.size / 2)) {
+    return {
+      ok: false,
+      reason: 'Ce bâtiment ne se pose que dans la cité. Son rang élargit la zone.',
+    };
+  }
   for (let dy = 0; dy < def.size; dy++) {
     for (let dx = 0; dx < def.size; dx++) {
       const t = tileAt(state, x + dx, y + dy);
@@ -256,7 +306,7 @@ export function canPlaceBuilding(
       }
       const place = state.settlement;
       if (place && Math.hypot(x + dx - place.x, y + dy - place.y) < SETTLEMENT_CLEARANCE) {
-        return { ok: false, reason: 'Cet espace appartient à la cité.' };
+        return { ok: false, reason: 'Cet espace appartient à Port-Cendre.' };
       }
     }
   }
@@ -299,16 +349,23 @@ export function placePath(
   const [minX, maxX] = x0 < x1 ? [x0, x1] : [x1, x0];
   const [minY, maxY] = y0 < y1 ? [y0, y1] : [y1, y0];
   let count = 0;
+  const queued: number[] = [];
   for (let y = minY; y <= maxY; y++) {
     for (let x = minX; x <= maxX; x++) {
       const t = tileAt(state, x, y);
       if (!t || !t.seen || t.k !== 'floor') continue;
-      if (state.jobs.some((j) => j.kind === 'path' && j.x === x && j.y === y)) continue;
+      const job = state.jobs.find((j) => j.kind === 'path' && j.x === x && j.y === y);
+      if (job) {
+        queued.push(job.id);
+        continue;
+      }
       if (state.buildings.some((b) => tileIsUnder(b.type, b.x, b.y, x, y))) continue;
       addJob(state, 'path', x, y);
       count++;
     }
   }
+  // Everything was already queued: this drag is a cancellation, as it is for drilling.
+  if (count === 0) for (const id of queued) removeJob(state, id);
   return count;
 }
 

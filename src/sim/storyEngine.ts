@@ -8,6 +8,7 @@ import {
 } from '../data/story';
 import { INVESTIGATION_COST } from '../data/units';
 import { damageBuilding, spawnRaid } from './combat';
+import { chooseGovernorTrait } from './council';
 import { addStock } from './economy';
 import { log } from './entities';
 import { rand, randPick } from './rng';
@@ -112,6 +113,9 @@ function accuse(state: GameState, advisor: AdvisorId): void {
 
 function applyEffect(state: GameState, effect: Effect): void {
   switch (effect.kind) {
+    case 'governor':
+      chooseGovernorTrait(state, effect.trait);
+      break;
     case 'stock':
       addStock(state, effect.res, effect.amount);
       break;

@@ -1,7 +1,17 @@
 # Crédits des assets
 
-Tous les fichiers de ce dossier sont sous licence **CC0 1.0** (domaine public). Aucune attribution
-n'est exigée, mais ces auteurs la méritent.
+Sauf `audio/voices`, tous les fichiers de ce dossier sont sous licence **CC0 1.0** (domaine public).
+Aucune attribution n'est exigée, mais ces auteurs la méritent.
+
+## Voix de l'équipage
+
+Les fichiers de `audio/voices` sont générés avec [Piper](https://github.com/OHF-Voice/piper1-gpl) et la
+voix `fr_FR-siwis-medium`, entraînée sur le
+[SIWIS French Speech Synthesis Database](https://datashare.is.ed.ac.uk/handle/10283/2353), publié sous
+licence [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Le texte, la hauteur et le rythme
+sont propres au jeu.
+
+## Modèles, textures et bruitages
 
 | Dossier                  | Source                                                                |
 | ------------------------ | --------------------------------------------------------------------- |

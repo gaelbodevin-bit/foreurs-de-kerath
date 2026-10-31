@@ -5,6 +5,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { BUILDINGS } from '../data/buildings';
+import { cityRadius } from '../data/progression';
 import { drillToolFor, type DrillTool } from '../data/resources';
 import { ENEMIES, UNITS } from '../data/units';
 import type { BuildingType, GameState } from '../sim/types';
@@ -72,6 +73,16 @@ export class MissionView {
       depthTest: false,
     }),
   );
+  private readonly cityZone = new THREE.Mesh(
+    new THREE.RingGeometry(0.975, 1, 128),
+    new THREE.MeshBasicMaterial({
+      color: 0x35e0c2,
+      transparent: true,
+      opacity: 0.55,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    }),
+  );
   private readonly raycaster = new THREE.Raycaster();
   private readonly lamp = new THREE.PointLight(0xfff0d0, 10, 18, 1.6);
   private readonly key = new THREE.DirectionalLight(0xffe9d6, 2.6);
@@ -106,6 +117,9 @@ export class MissionView {
     readonly state: GameState,
   ) {
     this.scene.add(this.gas.object);
+    this.cityZone.rotation.x = -Math.PI / 2;
+    this.cityZone.visible = false;
+    this.scene.add(this.cityZone);
     this.settlement = state.settlement ? settlementFromModels() : null;
     if (this.settlement && state.settlement) {
       this.settlement.position.set(state.settlement.x + 0.5, 0, state.settlement.y + 0.5);
@@ -293,6 +307,17 @@ export class MissionView {
     this.ghost.scale.set(size, 1, size);
     this.ghost.position.set(x + size / 2, 0.3, y + size / 2);
     this.ghost.material = valid ? GHOST_OK : GHOST_BAD;
+  }
+
+  /** Outlines where city buildings may stand, while the player is holding one. */
+  setCityZone(visible: boolean): void {
+    this.cityZone.visible = visible;
+    const hq = this.state.buildings.find((b) => b.type === 'hq');
+    if (!visible || !hq) return;
+    const half = BUILDINGS.hq.size / 2;
+    const radius = cityRadius(this.state.cityLevel);
+    this.cityZone.position.set(hq.x + half, 0.08, hq.y + half);
+    this.cityZone.scale.set(radius, radius, 1);
   }
 
   setDragBox(area: { x0: number; y0: number; x1: number; y1: number } | null): void {
@@ -557,6 +582,7 @@ export class MissionView {
     for (const p of state.pickups) {
       const entry = this.track(`p${p.id}`, () => makePickup(p.res), p.x, p.y, seen);
       entry.object.position.set(p.x, 0, p.y);
+      entry.object.visible = state.tiles[Math.floor(p.y) * state.w + Math.floor(p.x)].seen;
       entry.object.rotation.y = time + p.id;
     }
 

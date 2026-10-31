@@ -37,7 +37,6 @@ export const MODEL_FILES = {
   rockLarge: space('rock_largeA'),
   rock: space('rock'),
   rifle: space('weapon_rifle'),
-  pickaxe: survival('tool-pickaxe'),
   stone: survival('resource-stone'),
 } as const;
 

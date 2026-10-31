@@ -1,6 +1,7 @@
 import { BUILDINGS } from '../data/buildings';
 import { CONTRACT_INTERVAL, MAX_CONTRACTS, FIRST_CONTRACT_AT } from '../data/progression';
 import { RESOURCES, WALLS } from '../data/resources';
+import { ENEMIES } from '../data/units';
 import { spawnRaid } from './combat';
 import { addStock, canAfford, pay } from './economy';
 import { log, newId, spawnUnit } from './entities';
@@ -8,6 +9,8 @@ import { idx } from './grid';
 import { activeRegions, availableBuildings } from './progress';
 import { rand, randPick } from './rng';
 import type { BuildingType, Contract, ContractReward, EnemyType, GameState } from './types';
+
+const HEAVY_ENEMY_HP = 150;
 
 const totalKills = (state: GameState): number =>
   Object.values(state.kills).reduce((sum, n) => sum + (n ?? 0), 0);
@@ -109,11 +112,16 @@ function rescueDraft(state: GameState): Draft | null {
 }
 
 function defendDraft(state: GameState): Draft | null {
-  const hasDefence = state.buildings.some((b) => b.type === 'turret' || b.type === 'barracks');
-  if (!hasDefence && state.units.every((u) => u.type !== 'garde')) return null;
+  // A raid the colony can't answer isn't a mission, it's the end of the game.
+  const turrets = state.buildings.filter((b) => b.type === 'turret' && b.built >= 1).length;
+  const guards = state.units.filter((u) => u.type === 'garde').length;
+  const defence = turrets * 2 + guards;
+  if (defence < 3) return null;
   const pool = activeRegions(state).flatMap((r) => r.waves.pool);
   const type: EnemyType = randPick(state, pool.length > 0 ? pool : ['rongeur']);
-  const goal = Math.min(8, 2 + state.cityLevel);
+  // Heavy enemies count for several: a golem alone is already a serious fight.
+  const weight = ENEMIES[type].hp >= HEAVY_ENEMY_HP ? 3 : 1;
+  const goal = Math.max(1, Math.min(8, Math.floor((defence + state.cityLevel) / weight)));
   const spawned = spawnRaid(state, type, goal);
   if (spawned === 0) return null;
   state.fx.push({ kind: 'sound', id: 'alert' }, { kind: 'voice', id: 'raid' });
@@ -246,6 +254,8 @@ export function deliverContract(state: GameState, id: number): boolean {
 
 /** Once a second: new requests keep coming, whatever the player is busy with. */
 export function updateContracts(state: GameState): void {
+  // Until the expedition reaches the city, nobody can reach the expedition either.
+  if (!(state.settlement?.reached ?? true)) return;
   for (const c of [...state.contracts]) {
     if (isComplete(state, c)) {
       complete(state, c);

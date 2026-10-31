@@ -16,7 +16,7 @@ import {
 } from '../src/sim/game';
 import { updateNetwork } from '../src/sim/economy';
 import { answerEvent, eventById, investigate, updateStory } from '../src/sim/storyEngine';
-import { drillAround, instantBuilding, newGame, run } from './helpers';
+import { drillAround, instantBuilding, newGame, run, unlockEverything } from './helpers';
 
 describe('génération de carte', () => {
   it.each([1, 2, 3, 4])('graine %i : tout reste accessible en forant', (seed) => {
@@ -85,7 +85,13 @@ describe('forage et transport', () => {
   it('un filon foré finit dans les réserves', () => {
     const state = newGame();
     const before = state.stock.crystal;
-    const seam = state.tiles.findIndex((t) => t.seen && t.k === 'crystalSeam');
+    // Seen diagonally is not enough: a foreur has to be able to stand next to it.
+    const seam = state.tiles.findIndex(
+      (t, i) =>
+        t.seen &&
+        t.k === 'crystalSeam' &&
+        [1, -1, state.w, -state.w].some((d) => isWalkableKind(state.tiles[i + d].k)),
+    );
     expect(seam).toBeGreaterThan(-1);
     designateArea(
       state,
@@ -161,6 +167,7 @@ describe('réseau et bâtiments', () => {
   it('les foreurs construisent ce qui est posé et posent les voies', () => {
     const state = newGame();
     const hq = hqOf(state);
+    unlockEverything(state);
     expect(placeBuilding(state, 'depot', hq.x + 3, hq.y).ok).toBe(true);
     expect(placePath(state, hq.x + 2, hq.y, hq.x + 2, hq.y)).toBe(1);
     run(state, 40);
@@ -189,6 +196,16 @@ describe('réseau et bâtiments', () => {
     expect(state.city.population).toBe(population - 1);
     run(state, 8);
     expect(state.units.length).toBe(units + 1);
+  });
+});
+
+describe('faim', () => {
+  it('sans rien faire, la colonie de départ tient plus de dix minutes avant le premier mort', () => {
+    const state = newGame();
+    const start = state.city.population;
+    run(state, 660);
+    expect(state.stock.food).toBeGreaterThan(0);
+    expect(state.city.population).toBeGreaterThanOrEqual(start);
   });
 });
 
@@ -268,6 +285,7 @@ describe('intrigues', () => {
     for (const mole of ['orsa', 'krell', 'soum'] as const) {
       const state = newGame();
       state.story.mole = mole;
+      state.story.flags.cityReached = true;
       state.time = 500;
       state.tick = 5000;
       updateStory(state);

@@ -30,7 +30,7 @@ export function pay(state: GameState, cost: Cost): void {
   for (const r of RESOURCE_IDS) state.stock[r] -= cost[r] ?? 0;
 }
 
-/** Recomputes which buildings hang off the HQ through energy paths and adjoining buildings. */
+/** Recomputes which buildings hang off the HQ or an outpost, through paths and adjoining buildings. */
 export function updateNetwork(state: GameState): void {
   state.networkDirty = false;
   const owner = new Map<number, Building>();
@@ -42,9 +42,10 @@ export function updateNetwork(state: GameState): void {
       for (let dx = 0; dx < size; dx++) owner.set(idx(state, b.x + dx, b.y + dy), b);
     }
   }
-  const hq = state.buildings.find((b) => b.type === 'hq');
-  if (!hq) return;
-  const stack = [idx(state, hq.x, hq.y)];
+  const roots = state.buildings.filter(
+    (b) => b.type === 'hq' || (b.type === 'camp' && b.built >= 1),
+  );
+  const stack = roots.map((b) => idx(state, b.x, b.y));
   const seen = new Set(stack);
   while (stack.length > 0) {
     const cur = stack.pop() as number;
@@ -175,6 +176,13 @@ function runTraining(state: GameState, b: Building): void {
   log(state, `${UNITS[type].name} prêt au service.`, 'good');
 }
 
+/** Seconds one person takes to eat one unit of food. */
+const FOOD_PER_MOUTH_SECONDS = 240;
+/** Warned at this stock: about four minutes' notice for a young colony. */
+const LOW_FOOD = 12;
+/** Seconds between two deaths, for as long as the colony goes hungry or breathless. */
+const DEATH_EVERY = 60;
+
 interface CityInputs {
   oxygenFlow: number;
   securityPressure: number;
@@ -193,8 +201,17 @@ function updateCity(state: GameState, inputs: CityInputs): void {
   city.oxygen = Math.min(100, Math.max(0, city.oxygen + o2Flow * dt));
 
   // Food.
-  const appetite = (mouths / 120) * (city.policies.rationing ? 0.65 : 1);
-  state.stock.food = Math.max(0, state.stock.food - appetite * dt);
+  const appetite = (mouths / FOOD_PER_MOUTH_SECONDS) * (city.policies.rationing ? 0.65 : 1);
+  const foodBefore = state.stock.food;
+  state.stock.food = Math.max(0, foodBefore - appetite * dt);
+  if (foodBefore >= LOW_FOOD && state.stock.food < LOW_FOOD) {
+    log(
+      state,
+      'Nourriture presque épuisée : débloquez les cultures (touche R) et bâtissez une serre.',
+      'warn',
+    );
+    state.fx.push({ kind: 'sound', id: 'alert' });
+  }
   const starving = state.stock.food <= 0;
 
   // Taxes and upkeep.
@@ -244,7 +261,7 @@ function updateCity(state: GameState, inputs: CityInputs): void {
   }
   city.declineT += dt;
   const dying = starving || city.oxygen <= 0 || city.morale < 10;
-  if (dying && city.population > 0 && city.declineT >= 30) {
+  if (dying && city.population > 0 && city.declineT >= DEATH_EVERY) {
     city.declineT = 0;
     city.population -= 1;
     const why = city.oxygen <= 0 ? 'asphyxie' : starving ? 'la faim' : 'le désespoir';

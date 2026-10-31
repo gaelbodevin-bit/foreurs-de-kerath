@@ -76,6 +76,21 @@ function updateWaves(state: GameState): void {
   }
 }
 
+/** How close a unit has to come before a lair's monsters notice it. */
+const WAKE_RANGE = 7;
+/** Everyone sleeping within this distance wakes up with the first one. */
+const LAIR_SIZE = 7;
+
+function wakeLair(state: GameState, e: Enemy): void {
+  for (const other of state.enemies) {
+    if (other.dormant && Math.hypot(other.x - e.x, other.y - e.y) <= LAIR_SIZE) {
+      other.dormant = false;
+    }
+  }
+  log(state, 'Une salle infestée se réveille !', 'bad');
+  state.fx.push({ kind: 'sound', id: 'alert' }, { kind: 'voice', id: 'lair' });
+}
+
 const nearestBuilding = (state: GameState, e: Enemy): Building | null => {
   let best: Building | null = null;
   let bestD = Infinity;
@@ -136,6 +151,13 @@ function updateEnemy(state: GameState, e: Enemy): void {
   const def = ENEMIES[e.type];
   e.cooldown = Math.max(0, e.cooldown - TICK_SECONDS);
 
+  if (e.dormant) {
+    const seen = state.tiles[idx(state, Math.floor(e.x), Math.floor(e.y))].seen;
+    if (!seen) return;
+    if (e.hp >= def.hp && !nearestUnit(state, e, WAKE_RANGE)) return;
+    wakeLair(state, e);
+  }
+
   if (def.structure) {
     // Dormant until the player discovers it.
     if (!state.tiles[idx(state, Math.floor(e.x), Math.floor(e.y))].seen) return;
@@ -143,7 +165,9 @@ function updateEnemy(state: GameState, e: Enemy): void {
     if (e.spawnIn <= 0) {
       e.spawnIn = def.structure.every;
       // A structure left alone must stay a threat, not bury the map under its spawn.
-      const roaming = state.enemies.filter((other) => !ENEMIES[other.type].structure).length;
+      const roaming = state.enemies.filter(
+        (other) => !ENEMIES[other.type].structure && !other.dormant,
+      ).length;
       if (roaming < MAX_ROAMING_ENEMIES) {
         spawnEnemy(state, randPick(state, def.structure.spawns), e.x, e.y + 1);
       }

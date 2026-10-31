@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { VOICE_FILES } from '../src/data/voiceLines';
 import { MODEL_FILES, SOUND_FILES, TEXTURE_FILES } from '../src/render/assetManifest';
 
 const files = Object.keys(import.meta.glob('/public/assets/**/*'));
@@ -22,5 +23,14 @@ describe('assets', () => {
   it('les modèles retrouvent leur palette de couleurs', () => {
     expect(files).toContain('/public/assets/models/characters/Textures/colormap.png');
     expect(files).toContain('/public/assets/models/survival/Textures/colormap.png');
+  });
+});
+
+describe('voix', () => {
+  it('chaque réplique a son enregistrement, et aucun fichier ne traîne', () => {
+    const onDisk = files
+      .filter((f) => f.startsWith('/public/assets/audio/voices/'))
+      .map((f) => f.replace('/public/assets/', ''));
+    expect([...onDisk].sort()).toEqual([...VOICE_FILES].sort());
   });
 });

@@ -73,7 +73,7 @@ export function objectiveProgress(
   }
 }
 
-const applyMods = (state: GameState, extra: Partial<Modifiers> | undefined): void => {
+export const applyMods = (state: GameState, extra: Partial<Modifiers> | undefined): void => {
   for (const [key, value] of Object.entries(extra ?? {}) as [keyof Modifiers, number][]) {
     state.mods[key] += value;
   }
@@ -121,37 +121,83 @@ export function updateProgress(state: GameState): void {
 /** Why a building can't be placed yet, or null once it can. */
 export function buildingLock(state: GameState, type: BuildingType): string | null {
   const def = BUILDINGS[type];
-  const level = def.level ?? 0;
-  if (level > state.cityLevel) {
-    const needed = CITY_LEVELS[level];
-    return needed ? `${needed.name} (${needed.population} hab.)` : 'Indisponible';
-  }
-  if (def.tech && !state.techs.includes(def.tech)) return `Recherche : ${techById(def.tech).name}`;
+  if (type === 'hq') return 'Indisponible';
+  if (def.tech && !state.techs.includes(def.tech))
+    return `À débloquer : ${techById(def.tech).name}`;
   return null;
 }
 
 export const availableBuildings = (state: GameState): BuildingType[] =>
   (Object.keys(BUILDINGS) as BuildingType[]).filter((t) => buildingLock(state, t) === null);
 
+/** The highest tier open: reaching the city opens the first, big deliveries open the others. */
+export function currentTier(state: GameState): number {
+  let tier = (state.settlement?.reached ?? true) ? 1 : 0;
+  for (const id of state.techs) tier = Math.max(tier, techById(id).opensTier ?? 0);
+  return tier;
+}
+
 export function techLock(state: GameState, id: string): string | null {
   const tech = techById(id);
   if (state.techs.includes(id)) return 'Acquis';
+  if ((tech.tier ?? 0) > currentTier(state)) return `Palier ${tech.tier} fermé`;
   if (tech.requires && !state.techs.includes(tech.requires)) {
     return `Après : ${techById(tech.requires).name}`;
   }
   return null;
 }
 
-/** Research is spent in play: its effect is immediate. */
-export function buyTech(state: GameState, id: string): boolean {
+function completeTech(state: GameState, id: string): void {
   const tech = techById(id);
-  if (techLock(state, id) !== null || state.research < tech.cost) return false;
-  state.research -= tech.cost;
   state.techs.push(id);
   applyMods(state, tech.mods);
   giveStock(state, tech.stock);
-  log(state, `Recherche terminée : ${tech.name}.`, 'good');
+  log(state, `Débloqué : ${tech.name}.`, 'good');
   state.fx.push({ kind: 'sound', id: 'build' });
+}
+
+/** Research branch: points from the laboratory, with immediate effect. */
+export function buyTech(state: GameState, id: string): boolean {
+  const tech = techById(id);
+  if (tech.cost === undefined || techLock(state, id) !== null || state.research < tech.cost) {
+    return false;
+  }
+  state.research -= tech.cost;
+  completeTech(state, id);
+  return true;
+}
+
+/** How much of a milestone's parts are still to come. */
+export function partsLeft(state: GameState, id: string): Partial<Record<ResourceId, number>> {
+  const left: Partial<Record<ResourceId, number>> = {};
+  const { parts } = techById(id);
+  for (const r of RESOURCE_IDS) {
+    const missing = (parts?.[r] ?? 0) - (state.delivered[id]?.[r] ?? 0);
+    if (missing > 0) left[r] = missing;
+  }
+  return left;
+}
+
+export function canDeliver(state: GameState, id: string): boolean {
+  if (techLock(state, id) !== null) return false;
+  return Object.keys(partsLeft(state, id)).some((r) => state.stock[r as ResourceId] >= 1);
+}
+
+/** Hands over whatever the stock can spare: a milestone can be paid off a little at a time. */
+export function deliverParts(state: GameState, id: string): boolean {
+  if (!techById(id).parts || !canDeliver(state, id)) return false;
+  const delivered = (state.delivered[id] ??= {});
+  for (const [key, missing] of Object.entries(partsLeft(state, id))) {
+    const r = key as ResourceId;
+    const amount = Math.min(Math.floor(state.stock[r]), missing ?? 0);
+    state.stock[r] -= amount;
+    delivered[r] = (delivered[r] ?? 0) + amount;
+  }
+  if (Object.keys(partsLeft(state, id)).length === 0) {
+    delete state.delivered[id];
+    completeTech(state, id);
+    state.fx.push({ kind: 'voice', id: 'contractDone' });
+  }
   return true;
 }
 

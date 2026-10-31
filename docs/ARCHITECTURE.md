@@ -40,8 +40,9 @@ La partie est suspendue tant qu'une décision d'intrigue attend une réponse (`s
 | -------------------- | --------------------------------------------------------------- |
 | `sim/types.ts`       | Toutes les structures de l'état                                 |
 | `sim/mapgen.ts`      | Génération de la carte unique, secteur par secteur              |
-| `sim/progress.ts`    | Secteurs, rang de la cité, déblocages et recherche              |
+| `sim/progress.ts`    | Secteurs, rang de la cité, jalons et recherche                  |
 | `sim/contracts.ts`   | Missions qui arrivent en continu                                |
+| `sim/council.ts`     | Conseil du gouverneur : sièges, candidats, traits, niveaux      |
 | `sim/pathfinding.ts` | A\* pour les trajets, champ de distance pour choisir les tâches |
 | `sim/workers.ts`     | File de tâches et exécution : forage, transport, chantier       |
 | `sim/economy.ts`     | Réseau, production et cité                                      |
@@ -107,10 +108,11 @@ l'animation, le rayon et le son s'en déduisent à l'affichage.
 
 ## Voix
 
-L'équipage parle une langue inventée, sous-titrée en français. `render/babble.ts` synthétise une
-voix à partir des voyelles et de la ponctuation de la réplique, puis la fait passer par le filtre
-d'une radio de chantier. `render/voice.ts` choisit qui parle et quand, et `data/voiceLines.ts` tient
-les répliques. La simulation signale seulement l'événement, par un effet `voice`.
+Les répliques (`data/voiceLines.ts`) sont des fichiers audio pré-générés, sous-titrés en jeu.
+`tools/voices` les fabrique avec Piper et la voix `fr_FR-siwis-medium` : l'outil ne fait pas partie du
+jeu, seuls les WAV sont livrés. Après avoir modifié une réplique, il faut les régénérer. Une seule voix
+en donne cinq : `CREW` fixe pour chacune une vitesse de lecture, qui règle la hauteur, et un rythme.
+`render/voice.ts` choisit qui parle et quand, et la simulation signale l'événement par un effet `voice`.
 
 ## Gaz
 

@@ -187,7 +187,7 @@ p {
 .build-menu {
   position: absolute;
   left: 10px;
-  top: 58px;
+  top: calc(var(--top-bar, 48px) + 8px);
   bottom: 10px;
   width: 228px;
   overflow-y: auto;
@@ -240,7 +240,11 @@ p {
 .right-col {
   position: absolute;
   right: 10px;
-  top: 58px;
+  top: calc(var(--top-bar, 48px) + 8px);
+  /* Stops above the minimap, and scrolls rather than running under it. */
+  max-height: calc(100% - var(--top-bar, 48px) - 210px);
+  overflow-y: auto;
+  scrollbar-width: thin;
   width: 262px;
   display: flex;
   flex-direction: column;
@@ -825,4 +829,93 @@ p {
 
 .sector p {
   margin: 2px 0 0;
+}
+
+.seat {
+  padding: 4px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.seat h3 {
+  margin: 6px 0 0;
+}
+
+.seat p {
+  margin: 2px 0 4px;
+}
+
+.councillor {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  align-items: center;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+}
+
+.councillor em {
+  font-style: normal;
+  color: var(--amber, #ffb347);
+}
+
+.councillor span {
+  color: var(--dim);
+}
+
+.cancel-tool {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  z-index: 5;
+  transform: translateX(-50%);
+}
+
+.cancel-tool[hidden] {
+  display: none;
+}
+
+.tier.closed {
+  opacity: 0.55;
+}
+
+.milestones {
+  display: grid;
+  gap: 4px;
+}
+
+.milestone {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  align-items: center;
+  padding: 7px 9px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+}
+
+.milestone em {
+  font-style: normal;
+  color: var(--amber, #ffb347);
+}
+
+.milestone.owned {
+  opacity: 0.6;
+}
+
+.milestone .dim {
+  grid-column: 1 / -1;
+}
+
+.parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+
+.part {
+  font-variant-numeric: tabular-nums;
 }

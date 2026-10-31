@@ -2,12 +2,16 @@ import type { VoiceId } from '../sim/types';
 
 export type CrewMember = 'bako' | 'nina' | 'harl' | 'orsa' | 'krell';
 
-export const CREW: Record<CrewMember, { name: string }> = {
-  bako: { name: 'Bako, foreur' },
-  nina: { name: 'Nina, foreuse' },
-  harl: { name: 'Sergent Harl' },
-  orsa: { name: 'Orsa Veld' },
-  krell: { name: 'Tomas Krell' },
+/**
+ * One recorded voice, made into five people. `rate` is the playback speed, which sets the pitch;
+ * `pace` is how fast they talk once that's accounted for.
+ */
+export const CREW: Record<CrewMember, { name: string; rate: number; pace: number }> = {
+  bako: { name: 'Bako, foreur', rate: 0.82, pace: 1 },
+  nina: { name: 'Nina, foreuse', rate: 1.06, pace: 0.92 },
+  harl: { name: 'Sergent Harl', rate: 0.76, pace: 0.95 },
+  orsa: { name: 'Orsa Veld', rate: 1, pace: 1 },
+  krell: { name: 'Tomas Krell', rate: 0.88, pace: 1.08 },
 };
 
 export interface LineSet {
@@ -108,6 +112,15 @@ export const VOICE_LINES: Record<VoiceId, LineSet> = {
       ...say('orsa', 'Gaz toxique. Il nous faut un ventilateur.'),
     ],
   },
+  lair: {
+    gap: 30,
+    urgent: true,
+    lines: [
+      ...say('bako', 'Y a quelque chose là-dedans…', 'Euh, chef ? Ça vient de bouger.'),
+      ...say('nina', 'Ça bouge au fond de la salle !'),
+      ...say('harl', 'Des bêtes ! Toute une nichée !'),
+    ],
+  },
   reunited: {
     gap: 0,
     urgent: true,
@@ -164,3 +177,10 @@ export const VOICE_LINES: Record<VoiceId, LineSet> = {
     ],
   },
 };
+
+/** Where a line's recording lives, relative to `public/assets`. */
+export const voiceFile = (id: VoiceId, index: number): string => `audio/voices/${id}_${index}.wav`;
+
+export const VOICE_FILES: string[] = (Object.keys(VOICE_LINES) as VoiceId[]).flatMap((id) =>
+  VOICE_LINES[id].lines.map((_, index) => voiceFile(id, index)),
+);

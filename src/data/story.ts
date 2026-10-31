@@ -1,4 +1,4 @@
-import type { AdvisorId, BuildingType, EnemyType, ResourceId } from '../sim/types';
+import type { AdvisorId, BuildingType, EnemyType, GovernorTraitId, ResourceId } from '../sim/types';
 
 export const ADVISORS: Record<AdvisorId, { name: string; role: string; color: string }> = {
   orsa: { name: 'Orsa Veld', role: 'Ingénieure en chef', color: '#f2a65a' },
@@ -16,7 +16,8 @@ export type Effect =
   | { kind: 'flag'; flag: string }
   | { kind: 'spawn'; enemy: EnemyType; count: number }
   | { kind: 'sabotage'; count: number }
-  | { kind: 'accuse'; advisor: AdvisorId };
+  | { kind: 'accuse'; advisor: AdvisorId }
+  | { kind: 'governor'; trait: GovernorTraitId };
 
 export interface StoryChoice {
   label: string;
@@ -54,40 +55,42 @@ export const STORY_EVENTS: StoryEvent[] = [
     id: 'lab_ready',
     speaker: 'Dr Ilyane Soum',
     title: 'Le laboratoire tourne',
-    text: "Mes équipes sont au travail, Gouverneur. Chaque laboratoire alimenté produit des points de recherche, à dépenser quand vous voulez dans le panneau Recherche (touche R).\n\nCommencez par ce qui vous bloque. La roche qui sépare ce secteur des suivants ne cédera qu'au marteau-piqueur, ou à une foreuse lourde sortie de l'atelier de véhicules.",
+    text: "Mes équipes sont au travail, Gouverneur. Chaque laboratoire alimenté produit des points de recherche, à dépenser dans le panneau Progression (touche R) pour améliorer la colonie.\n\nPour les outils et les usines, ce sont les livraisons au Noyau qui comptent. La roche qui sépare ce secteur des suivants ne cédera qu'au marteau-piqueur, ou à une foreuse lourde.",
     when: { built: 'lab' },
     choices: [{ label: 'Compris.', effects: [] }],
-  },
-  {
-    id: 'city_town',
-    speaker: 'Tomas Krell',
-    title: 'Un vrai bourg',
-    text: "Quatorze habitants, Gouverneur, et les registres commencent à ressembler à ceux d'une ville. Nous pouvons maintenant bâtir un laboratoire, une caserne, un marché et une place publique. Regardez le menu de construction.",
-    when: { flags: ['level1'] },
-    choices: [{ label: 'Continuons.', effects: [] }],
   },
   {
     id: 'landing',
     speaker: 'Orsa Veld',
     title: 'Coupés de Port-Cendre',
-    text: "Gouverneur, bienvenue sous la croûte. Kerath est un monde creux : le cristal, le métal et l'air respirable se trouvent tous en profondeur. La Charte nous envoie en prendre le contrôle, avant que d'autres ne s'en emparent. Tout partira d'ici : ce campement doit devenir la capitale de Kerath.\n\nLes colons de Port-Cendre devaient nous accueillir, mais un éboulement a fermé la galerie à notre arrivée. Nous sommes isolés, et eux aussi.\n\nNotre priorité : les rejoindre. Ils sont signalés par l'anneau turquoise sur la mini-carte. Glissez sur la roche pour marquer le passage à forer. Nos pioches n'entament que la roche tendre : il faudra contourner la roche dure.",
+    text: "Chef d'expédition, bienvenue sous la croûte. Kerath est un monde creux : le cristal, le métal et l'air respirable se trouvent tous en profondeur. La Charte nous envoie en prendre le contrôle, avant que d'autres ne s'en emparent. Tout partira d'ici : ce campement doit devenir la capitale de Kerath, et il lui faudra un gouverneur.\n\nLes colons de Port-Cendre devaient nous accueillir, mais un éboulement a fermé la galerie à notre arrivée. Nous sommes isolés, et eux aussi.\n\nNotre priorité : les rejoindre. Ils sont signalés par l'anneau turquoise sur la mini-carte. Glissez sur la roche pour marquer le passage à forer. Nos pioches n'entament que la roche tendre : il faudra contourner la roche dure.\n\nNous n'avons presque rien monté. Ouvrez Progression (touche R) et livrez des ressources au Noyau pour débloquer abris, air, cultures et énergie.",
     when: { regions: ['ash'], minTime: 1 },
     choices: [{ label: 'En route, on creuse.', effects: [] }],
   },
   {
     id: 'city_reached',
     speaker: 'Orsa Veld',
-    title: 'Port-Cendre est rejointe',
-    text: "La galerie est ouverte ! Huit colons rejoignent notre campement, avec ce qu'ils ont pu sauver.\n\nÀ présent, il faut les faire respirer et les loger. Reliez chaque bâtiment au réseau avec des voies : elles coûtent cher, alors tracez court.\n\nÀ 14 habitants, nous serons un bourg et pourrons bâtir un laboratoire. C'est la clé de tout : le marteau-piqueur pour la roche dure, la foreuse laser pour le basalte, l'atelier de véhicules.",
+    title: 'Gouverneur de Kerath',
+    text: "La galerie est ouverte ! Huit colons rejoignent notre campement, avec ce qu'ils ont pu sauver.\n\nIls vous reconnaissent comme gouverneur : la colonie est à vous, et le conseil aussi (touche K). Krell, Soum et moi y siégeons, le siège de la Défense est libre, et vous pourrez recruter qui vous voudrez.\n\nFaites respirer et logez ces gens, dans la zone de la cité. Un nouveau palier de jalons s'ouvre dans Progression : laboratoire, milice, puis la grande livraison qui lancera l'industrie. Le marteau-piqueur, les véhicules et le laser sont au bout de cette chaîne.\n\nQuel gouverneur serez-vous ?",
     when: { regions: ['ash'], flags: ['cityReached'] },
-    choices: [{ label: 'Au travail.', effects: [] }],
+    choices: [
+      {
+        label: 'Un bâtisseur (construction +20 %)',
+        effects: [{ kind: 'governor', trait: 'builder' }],
+      },
+      {
+        label: 'Un prospecteur (forage +20 %)',
+        effects: [{ kind: 'governor', trait: 'prospector' }],
+      },
+      { label: 'Un stratège (dégâts +20 %)', effects: [{ kind: 'governor', trait: 'warlord' }] },
+    ],
   },
   {
     id: 'missing_crates',
     speaker: 'Tomas Krell',
     title: 'Des caisses manquantes',
     text: "Gouverneur, l'inventaire ne tombe pas juste : des cristaux ont disparu de nos réserves, et quelqu'un a envoyé un message longue portée hors de nos fréquences. Nous ne sommes pas seuls à vouloir Kerath.",
-    when: { regions: ['ash'], minTime: 200 },
+    when: { regions: ['ash'], minTime: 200, flags: ['cityReached'] },
     clue: {
       orsa: "Le relais longue portée a été activé avec un badge d'ingénierie.",
       krell: "Les bordereaux de l'inventaire ont été corrigés après coup, d'une écriture soignée.",
