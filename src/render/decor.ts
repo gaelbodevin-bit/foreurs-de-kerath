@@ -36,6 +36,82 @@ const CAP_COLORS = [0x9ccc5a, 0xc7e07a, 0x7fb04a, 0xe0c26a].map((c) => new THREE
 /** A freshly picked patch only has small ones left, until it grows back. */
 const PICKED_SCALE = 0.35;
 
+const MAX_PEBBLES = 3200;
+const MAX_LICHEN = 1100;
+const MAX_LAMPS = 320;
+const LICHEN_COLORS = [0x35e0c2, 0x7fd8ff, 0xb79cff].map((c) =>
+  new THREE.Color(c).multiplyScalar(1.5),
+);
+/** One lamp every this many tiles of road. */
+const LAMP_SPACING = 4;
+
+function instanced(
+  geometry: THREE.BufferGeometry,
+  material: THREE.Material,
+  capacity: number,
+): THREE.InstancedMesh {
+  const mesh = new THREE.InstancedMesh(geometry, material, capacity);
+  mesh.frustumCulled = false;
+  mesh.count = 0;
+  return mesh;
+}
+
+/** The pool of light at a lamp's foot, drawn once. */
+function poolTexture(): THREE.Texture {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  gradient.addColorStop(0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.4, 'rgba(255,255,255,.35)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  return new THREE.CanvasTexture(canvas);
+}
+
+function makeGroundDetail() {
+  const pebbles = instanced(
+    new THREE.IcosahedronGeometry(1, 0),
+    new THREE.MeshStandardMaterial({ color: 0x8a7a6a, roughness: 1, flatShading: true }),
+    MAX_PEBBLES,
+  );
+  pebbles.receiveShadow = true;
+  const lichen = instanced(
+    new THREE.SphereGeometry(1, 6, 4),
+    new THREE.MeshBasicMaterial({ color: 0xffffff }),
+    MAX_LICHEN,
+  );
+  const poleShape = new THREE.CylinderGeometry(0.018, 0.028, 1, 6);
+  poleShape.translate(0, 0.5, 0);
+  const poles = instanced(
+    poleShape,
+    new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.6, metalness: 0.4 }),
+    MAX_LAMPS,
+  );
+  poles.castShadow = true;
+  const heads = instanced(
+    new THREE.SphereGeometry(0.05, 8, 6),
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffd9a0).multiplyScalar(3) }),
+    MAX_LAMPS,
+  );
+  const pools = instanced(
+    new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({
+      color: 0xffb870,
+      map: poolTexture(),
+      transparent: true,
+      opacity: 0.28,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+    MAX_LAMPS,
+  );
+  return { pebbles, lichen, poles, heads, pools };
+}
+
 function makeMushrooms(): { stems: THREE.InstancedMesh; caps: THREE.InstancedMesh } {
   const stemShape = new THREE.CylinderGeometry(0.5, 0.75, 1, 7);
   stemShape.translate(0, 0.5, 0);
@@ -101,6 +177,7 @@ export class DecorView {
   private readonly placed = new Map<number, { model: ModelId; object: THREE.Object3D }>();
   private readonly spikes = makeSpikes();
   private readonly mushrooms = makeMushrooms();
+  private readonly ground = makeGroundDetail();
   private buildingCount = -1;
 
   constructor(
@@ -108,9 +185,15 @@ export class DecorView {
     private readonly heightAt: (x: number, y: number) => number,
   ) {
     for (let i = 0; i < state.tiles.length; i++) this.syncTile(i);
-    this.group.add(this.spikes, this.mushrooms.stems, this.mushrooms.caps);
+    this.group.add(
+      this.spikes,
+      this.mushrooms.stems,
+      this.mushrooms.caps,
+      ...Object.values(this.ground),
+    );
     this.rebuildSpikes();
     this.rebuildMushrooms();
+    this.rebuildGround();
   }
 
   /** A wall's height depends on its neighbours, so those are refreshed along with it. */
@@ -124,7 +207,10 @@ export class DecorView {
     }
     for (const i of todo) this.syncTile(i);
     if (changed.length > 0) this.rebuildMushrooms();
-    if (changed.length > 0 || state.buildings.length !== this.buildingCount) this.rebuildSpikes();
+    if (changed.length > 0 || state.buildings.length !== this.buildingCount) {
+      this.rebuildSpikes();
+      this.rebuildGround();
+    }
   }
 
   private syncTile(i: number): void {
@@ -213,6 +299,83 @@ export class DecorView {
     if (caps.instanceColor) caps.instanceColor.needsUpdate = true;
   }
 
+  /** Loose stones on the floor, faintly glowing lichen at the walls' feet, lamps along the roads. */
+  private rebuildGround(): void {
+    const { state } = this;
+    const { pebbles, lichen, poles, heads, pools } = this.ground;
+    const occupied = new Set<number>();
+    for (const b of state.buildings) {
+      const size = BUILDINGS[b.type].size;
+      for (let dy = 0; dy < size; dy++) {
+        for (let dx = 0; dx < size; dx++) occupied.add((b.y + dy) * state.w + b.x + dx);
+      }
+    }
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const turn = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    let stones = 0;
+    let spots = 0;
+    let lamps = 0;
+    for (let i = 0; i < state.tiles.length; i++) {
+      const tile = state.tiles[i];
+      if (!tile.seen || occupied.has(i)) continue;
+      const x = i % state.w;
+      const y = Math.floor(i / state.w);
+      if (tile.k === 'path') {
+        if ((x + y) % LAMP_SPACING !== 0 || lamps >= MAX_LAMPS) continue;
+        const px = x + 0.14;
+        const pz = y + 0.14;
+        poles.setMatrixAt(lamps, matrix.makeScale(1, 0.72, 1).setPosition(px, 0, pz));
+        heads.setMatrixAt(lamps, matrix.makeTranslation(px, 0.74, pz));
+        pools.setMatrixAt(lamps, matrix.makeScale(3, 1, 3).setPosition(px, 0.04, pz));
+        lamps++;
+        continue;
+      }
+      if (tile.k !== 'floor') continue;
+      const stoneCount = grain(i + 41) < 0.45 ? 1 + Math.floor(grain(i + 43) * 3) : 0;
+      for (let n = 0; n < stoneCount && stones < MAX_PEBBLES; n++) {
+        const seed = i * 5 + n * 11;
+        const size = 0.018 + grain(seed + 1) * 0.04;
+        turn.setFromAxisAngle(up, grain(seed + 2) * 6.28);
+        pebbles.setMatrixAt(
+          stones++,
+          matrix.compose(
+            position.set(x + grain(seed + 3), size * 0.3, y + grain(seed + 4)),
+            turn,
+            scale.set(size, size * 0.65, size * (0.7 + grain(seed + 5) * 0.6)),
+          ),
+        );
+      }
+      if (grain(i + 61) >= 0.16 || !this.nextToWall(x, y)) continue;
+      const color = LICHEN_COLORS[Math.floor(grain(i + 67) * LICHEN_COLORS.length)];
+      for (let n = 0; n < 7 && spots < MAX_LICHEN; n++) {
+        const seed = i * 3 + n * 17;
+        const size = 0.012 + grain(seed + 1) * 0.022;
+        lichen.setMatrixAt(
+          spots,
+          matrix.compose(
+            position.set(
+              x + 0.1 + grain(seed + 2) * 0.8,
+              size * 0.4,
+              y + 0.1 + grain(seed + 3) * 0.8,
+            ),
+            turn.identity(),
+            scale.set(size, size * 0.6, size),
+          ),
+        );
+        lichen.setColorAt(spots, color);
+        spots++;
+      }
+    }
+    pebbles.count = stones;
+    lichen.count = spots;
+    poles.count = heads.count = pools.count = lamps;
+    for (const mesh of Object.values(this.ground)) mesh.instanceMatrix.needsUpdate = true;
+    if (lichen.instanceColor) lichen.instanceColor.needsUpdate = true;
+  }
+
   /** Redone in full on each change: a few thousand tile checks, and it only runs after a dig. */
   private rebuildSpikes(): void {
     const { state, spikes } = this;
@@ -257,7 +420,7 @@ export class DecorView {
     this.spikes.geometry.dispose();
     (this.spikes.material as THREE.Material).dispose();
     this.spikes.dispose();
-    for (const mesh of [this.mushrooms.stems, this.mushrooms.caps]) {
+    for (const mesh of [this.mushrooms.stems, this.mushrooms.caps, ...Object.values(this.ground)]) {
       mesh.geometry.dispose();
       (mesh.material as THREE.Material).dispose();
       mesh.dispose();

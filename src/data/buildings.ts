@@ -32,6 +32,10 @@ export interface BuildingDef {
   taxBonus?: number;
   trains?: UnitType[];
   turret?: { range: number; damage: number; cooldown: number };
+  /** Tiles around it where tremors bring nothing down. */
+  shoring?: number;
+  /** Share of the colony's food it saves. */
+  appetite?: number;
 }
 
 export const BUILDINGS: Record<BuildingType, BuildingDef> = {
@@ -236,6 +240,71 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     jobs: 2,
     trains: ['heavy', 'hauler'],
   },
+  seismo: {
+    tech: 'seismology',
+    name: 'Station sismique',
+    desc: 'Annonce les secousses à l’avance, avec leur magnitude et leur zone (touche T). Doit être reliée au réseau.',
+    size: 1,
+    cost: { ore: 10, crystal: 2, stone: 4 },
+    buildTime: 7,
+    hp: 150,
+    power: 1,
+  },
+  prop: {
+    tech: 'stability',
+    name: 'Étai de soutènement',
+    desc: 'Dans un rayon de 5 cases, rien ne s’éboule et les secousses abîment deux fois moins les bâtiments.',
+    size: 1,
+    cost: { ore: 6, stone: 10 },
+    buildTime: 5,
+    hp: 260,
+    shoring: 5,
+  },
+  geothermal: {
+    tech: 'grid',
+    name: 'Centrale géothermique',
+    desc: 'Tire son énergie des profondeurs : sans cristal, sans personnel, mais coûteuse à forer.',
+    size: 2,
+    cost: { metal: 14, crystal: 8, stone: 14 },
+    buildTime: 16,
+    hp: 340,
+    powerOutput: 10,
+  },
+  silo: {
+    tech: 'logistics',
+    name: 'Grand silo',
+    desc: 'Stocke trois fois plus qu’un entrepôt, mais ne se pose qu’une fois la logistique maîtrisée.',
+    size: 2,
+    cost: { metal: 10, stone: 16 },
+    buildTime: 12,
+    hp: 320,
+    storage: 300,
+  },
+  canteen: {
+    name: 'Cantine',
+    desc: 'Moins de gaspillage, de meilleurs repas : la colonie mange 15 % de moins et le moral monte.',
+    size: 2,
+    cost: { ore: 14, stone: 8, credits: 25 },
+    buildTime: 8,
+    hp: 170,
+    power: 1,
+    jobs: 2,
+    morale: 5,
+    appetite: 0.15,
+  },
+  academy: {
+    tech: 'education',
+    name: 'Académie',
+    desc: 'Forme la relève : un peu de recherche, un peu de moral.',
+    size: 2,
+    cost: { ore: 16, crystal: 6, credits: 60 },
+    buildTime: 12,
+    hp: 190,
+    power: 2,
+    jobs: 2,
+    morale: 3,
+    research: 1 / 60,
+  },
   turret: {
     name: 'Tourelle laser',
     desc: 'Tire automatiquement sur les ennemis, tant qu’elle est sous tension.',
@@ -266,8 +335,8 @@ export const BUILD_MENUS: BuildMenu[] = [
     id: 'explore',
     name: 'Exploration',
     groups: [
-      { name: 'Réseau', buildings: ['generator', 'depot'] },
-      { name: 'Terrain', buildings: ['vent', 'camp'] },
+      { name: 'Réseau', buildings: ['generator', 'geothermal', 'depot', 'silo'] },
+      { name: 'Terrain', buildings: ['vent', 'seismo', 'prop', 'camp'] },
       { name: 'Véhicules', buildings: ['workshop'] },
       { name: 'Défense', buildings: ['turret', 'barracks'] },
     ],
@@ -276,9 +345,9 @@ export const BUILD_MENUS: BuildMenu[] = [
     id: 'city',
     name: 'Cité',
     groups: [
-      { name: 'Vie', buildings: ['habitat', 'oxygen', 'plaza', 'clinic'] },
+      { name: 'Vie', buildings: ['habitat', 'oxygen', 'plaza', 'canteen', 'clinic'] },
       { name: 'Production', buildings: ['melter', 'farm', 'refinery', 'foundry'] },
-      { name: 'Administration', buildings: ['market', 'lab', 'security'] },
+      { name: 'Administration', buildings: ['market', 'lab', 'academy', 'security'] },
     ],
   },
 ];

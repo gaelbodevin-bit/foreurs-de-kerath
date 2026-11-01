@@ -71,7 +71,7 @@ export const STORY_EVENTS: StoryEvent[] = [
     id: 'city_reached',
     speaker: 'Orsa Veld',
     title: 'Gouverneur de Kerath',
-    text: "La galerie est ouverte ! Les douze colons de CITY se joignent à nous, et leurs logements avec eux.\n\nIls vous reconnaissent comme gouverneur : la colonie est à vous, et le conseil aussi : il siège au centre de la ville (cliquez dessus, ou touche K). Krell, Soum et moi y siégeons, le siège de la Défense est libre, et vous pourrez recruter qui vous voudrez.\n\nLe menu de construction s'ouvre sur la cité : vous pouvez bâtir autour du Noyau comme autour de CITY, raccordée au réseau. Faites respirer, nourrissez et logez ces gens. Bâtissez vite un laboratoire : sa recherche (touche R) mène au marteau-piqueur, au laser et aux véhicules.\n\nQuel gouverneur serez-vous ?",
+    text: "La galerie est ouverte ! Les douze colons de CITY se joignent à nous, avec leurs logements, et dix de leurs mineurs passent sous vos ordres.\n\nIls vous reconnaissent comme gouverneur : la colonie est à vous, et le conseil aussi : il siège au centre de la ville (cliquez dessus, ou touche K). Krell, Soum et moi y siégeons, le siège de la Défense est libre, et vous pourrez recruter qui vous voudrez.\n\nLe menu de construction s'ouvre sur la cité : vous pouvez bâtir autour du Noyau comme autour de CITY, raccordée au réseau. Faites respirer, nourrissez et logez ces gens. Bâtissez vite un laboratoire : sa recherche (touche R) mène au marteau-piqueur, au laser et aux véhicules.\n\nQuel gouverneur serez-vous ?",
     when: { regions: ['ash'], flags: ['cityReached'] },
     choices: [
       {

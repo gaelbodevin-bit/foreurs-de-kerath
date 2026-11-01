@@ -28,6 +28,8 @@ export interface RegionDef {
   intrigue: number;
   /** Rate at which lava eats the ground around it. */
   erosion: number;
+  /** Seconds between two tremors, on average, and the range of their magnitude. */
+  seismic: { every: number; magnitude: readonly [number, number] };
   objectives: Objective[];
   perk: { name: string; desc: string; stock?: Cost; mods?: Partial<Modifiers> };
 }
@@ -55,6 +57,7 @@ export const REGIONS: RegionDef[] = [
     waves: { first: 360, every: 180, pool: ['rongeur'], size: 2, growth: 0.35 },
     intrigue: 0.005,
     erosion: 0,
+    seismic: { every: 300, magnitude: [2, 4.4] },
     objectives: [
       { kind: 'reach', place: 'CITY' },
       { kind: 'resource', res: 'crystal', amount: 20 },
@@ -88,6 +91,7 @@ export const REGIONS: RegionDef[] = [
     waves: { first: 210, every: 130, pool: ['rongeur', 'rongeur', 'golem'], size: 2, growth: 0.45 },
     intrigue: 0.01,
     erosion: 0,
+    seismic: { every: 220, magnitude: [3, 5.6] },
     objectives: [
       { kind: 'resource', res: 'crystal', amount: 50 },
       { kind: 'population', amount: 22 },
@@ -121,6 +125,7 @@ export const REGIONS: RegionDef[] = [
     waves: { first: 240, every: 140, pool: ['saboteur', 'rongeur'], size: 2, growth: 0.45 },
     intrigue: 0.02,
     erosion: 0,
+    seismic: { every: 260, magnitude: [2.5, 5] },
     objectives: [
       { kind: 'resource', res: 'food', amount: 50 },
       { kind: 'resource', res: 'water', amount: 30 },
@@ -154,6 +159,7 @@ export const REGIONS: RegionDef[] = [
     waves: { first: 180, every: 110, pool: ['drone', 'drone', 'rongeur'], size: 3, growth: 0.5 },
     intrigue: 0.015,
     erosion: 0.01,
+    seismic: { every: 180, magnitude: [3.5, 6.2] },
     objectives: [
       { kind: 'resource', res: 'alloy', amount: 10 },
       { kind: 'population', amount: 26 },
@@ -187,6 +193,7 @@ export const REGIONS: RegionDef[] = [
     waves: { first: 150, every: 100, pool: ['drone'], size: 3, growth: 0.6 },
     intrigue: 0.02,
     erosion: 0,
+    seismic: { every: 200, magnitude: [3, 5.5] },
     objectives: [
       { kind: 'destroy', enemy: 'outpost', amount: 2 },
       { kind: 'resource', res: 'metal', amount: 40 },
@@ -220,6 +227,7 @@ export const REGIONS: RegionDef[] = [
     waves: { first: 150, every: 100, pool: ['larve', 'saboteur', 'golem'], size: 3, growth: 0.55 },
     intrigue: 0.03,
     erosion: 0.04,
+    seismic: { every: 120, magnitude: [4.5, 7.2] },
     objectives: [
       { kind: 'resource', res: 'relic', amount: 3 },
       { kind: 'population', amount: 30 },
@@ -259,6 +267,7 @@ export const REGIONS: RegionDef[] = [
     },
     intrigue: 0.03,
     erosion: 0.03,
+    seismic: { every: 100, magnitude: [5, 7.8] },
     objectives: [{ kind: 'destroy', enemy: 'heart', amount: 1 }],
     perk: {
       name: 'Maître de Kerath',

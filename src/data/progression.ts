@@ -18,6 +18,10 @@ export const cityRadius = (level: number): number => 10 + level * 4;
 /** The colonists waiting in the city, and the homes they already have there. */
 export const CITY_SETTLERS = 12;
 export const CITY_HOUSING = 16;
+/** The city's own miners, who take the governor's orders as soon as the tunnel is through. */
+export const CITY_MINERS = 10;
+/** What the city's air plant adds, enough to keep that many more people breathing. */
+export const CITY_OXYGEN = 0.2;
 /** How close to the middle of the city a click reaches the council's seat. */
 export const COUNCIL_SEAT_RADIUS = 2;
 /** The city's own grid reaches this far from its middle: a building or road at its edge is on it. */

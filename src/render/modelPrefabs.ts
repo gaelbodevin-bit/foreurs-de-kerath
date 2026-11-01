@@ -43,10 +43,16 @@ interface Accent {
 
 /** A hand-placed primitive, for what the model packs don't have: tanks, pipes, awnings, windows. */
 interface Detail {
-  shape: 'box' | 'cyl' | 'dome';
+  shape: 'box' | 'cyl' | 'dome' | 'ring';
   color: number;
   /** Lit from within, and goes dark when the building loses power. */
   glow?: boolean;
+  /** See-through, for what stands under a dome. */
+  clear?: boolean;
+  /** Keeps turning while the building has power. */
+  spin?: boolean;
+  /** Leans a ring over, in radians. */
+  tilt?: number;
   x?: number;
   y: number;
   z?: number;
@@ -299,25 +305,144 @@ const BUILDING_MODELS: Record<BuildingType, BuildingModel> = {
   lab: {
     trim: SCIENCE,
     parts: [
-      { model: 'hangarGlass', fit: 1.7 },
-      { model: 'dish', fit: 0.6, x: 0.68, z: 0.68, spin: true },
+      { model: 'dish', fit: 0.42, x: 0.56, y: 0.5, z: 0.52, spin: true },
+      { model: 'computer', fit: 0.4, x: -0.64, z: 0.68 },
     ],
-    accents: [{ color: SCIENCE, y: 1, size: 0.14 }],
+    // The sample under study, floating in the dome.
+    accents: [{ color: SCIENCE, x: -0.2, z: -0.2, y: 0.74, size: 0.15, shape: 'gem' }],
     details: [
-      { shape: 'cyl', color: SCIENCE, glow: true, y: 0.22, w: 1.62, h: 0.05, d: 1.62 },
-      { shape: 'cyl', color: STEEL, x: -0.72, y: 0.55, z: -0.72, w: 0.04, h: 1.1, d: 0.04 },
+      // The round floor of the main hall, lit around its edge.
+      { shape: 'cyl', color: 0x5d6372, x: -0.2, y: 0.11, z: -0.2, w: 1.42, h: 0.1, d: 1.42 },
       {
-        shape: 'dome',
+        shape: 'cyl',
         color: SCIENCE,
         glow: true,
-        x: -0.72,
-        y: 1.12,
-        z: -0.72,
-        w: 0.06,
-        h: 0.06,
-        d: 0.06,
+        x: -0.2,
+        y: 0.17,
+        z: -0.2,
+        w: 1.3,
+        h: 0.025,
+        d: 1.3,
       },
-      { shape: 'box', color: DARK, x: -0.68, y: 0.14, z: 0.62, w: 0.34, h: 0.28, d: 0.3 },
+      { shape: 'cyl', color: 0x474c59, x: -0.2, y: 0.185, z: -0.2, w: 1.2, h: 0.02, d: 1.2 },
+      // The containment rig: a plinth and two gimbals turning around the sample.
+      { shape: 'cyl', color: DARK, x: -0.2, y: 0.28, z: -0.2, w: 0.34, h: 0.2, d: 0.34 },
+      {
+        shape: 'cyl',
+        color: SCIENCE,
+        glow: true,
+        x: -0.2,
+        y: 0.39,
+        z: -0.2,
+        w: 0.22,
+        h: 0.02,
+        d: 0.22,
+      },
+      {
+        shape: 'ring',
+        color: 0xe6dcff,
+        x: -0.2,
+        y: 0.74,
+        z: -0.2,
+        w: 0.62,
+        h: 0.62,
+        d: 0.62,
+        spin: true,
+        tilt: 0.5,
+      },
+      {
+        shape: 'ring',
+        color: STEEL,
+        x: -0.2,
+        y: 0.74,
+        z: -0.2,
+        w: 0.8,
+        h: 0.8,
+        d: 0.8,
+        spin: true,
+        tilt: -0.7,
+      },
+      {
+        shape: 'dome',
+        color: 0xcfdcff,
+        clear: true,
+        x: -0.2,
+        y: 0.17,
+        z: -0.2,
+        w: 0.66,
+        h: 0.98,
+        d: 0.66,
+      },
+      { shape: 'cyl', color: STEEL, x: -0.2, y: 1.16, z: -0.2, w: 0.16, h: 0.05, d: 0.16 },
+      // The offices and their strip of windows, under the dish.
+      { shape: 'box', color: WHITE, x: 0.56, y: 0.27, z: 0.52, w: 0.76, h: 0.42, d: 0.76 },
+      { shape: 'box', color: DARK, x: 0.56, y: 0.5, z: 0.52, w: 0.82, h: 0.04, d: 0.82 },
+      {
+        shape: 'box',
+        color: 0xbfe9ff,
+        glow: true,
+        x: 0.56,
+        y: 0.33,
+        z: 0.905,
+        w: 0.62,
+        h: 0.09,
+        d: 0.02,
+      },
+      {
+        shape: 'box',
+        color: 0xbfe9ff,
+        glow: true,
+        x: 0.945,
+        y: 0.33,
+        z: 0.52,
+        w: 0.02,
+        h: 0.09,
+        d: 0.62,
+      },
+      { shape: 'box', color: DARK, x: 0.32, y: 0.17, z: 0.91, w: 0.16, h: 0.2, d: 0.02 },
+      // Reagent tanks, piped to the hall.
+      { shape: 'cyl', color: STEEL, x: 0.68, y: 0.3, z: -0.72, w: 0.3, h: 0.48, d: 0.3 },
+      {
+        shape: 'cyl',
+        color: SCIENCE,
+        glow: true,
+        x: 0.68,
+        y: 0.38,
+        z: -0.72,
+        w: 0.31,
+        h: 0.05,
+        d: 0.31,
+      },
+      { shape: 'dome', color: STEEL, x: 0.68, y: 0.54, z: -0.72, w: 0.15, h: 0.08, d: 0.15 },
+      { shape: 'cyl', color: STEEL, x: 0.68, y: 0.26, z: -0.32, w: 0.22, h: 0.4, d: 0.22 },
+      {
+        shape: 'cyl',
+        color: SCIENCE,
+        glow: true,
+        x: 0.68,
+        y: 0.32,
+        z: -0.32,
+        w: 0.23,
+        h: 0.04,
+        d: 0.23,
+      },
+      { shape: 'box', color: DARK, x: 0.5, y: 0.14, z: -0.5, w: 0.5, h: 0.04, d: 0.05 },
+      // A mast, for the instruments the rock would otherwise blind.
+      { shape: 'cyl', color: STEEL, x: -0.84, y: 0.62, z: -0.84, w: 0.04, h: 1.24, d: 0.04 },
+      { shape: 'box', color: STEEL, x: -0.84, y: 1, z: -0.84, w: 0.26, h: 0.02, d: 0.02 },
+      {
+        shape: 'dome',
+        color: RED,
+        glow: true,
+        x: -0.84,
+        y: 1.24,
+        z: -0.84,
+        w: 0.05,
+        h: 0.05,
+        d: 0.05,
+      },
+      // The walkway from the door to the hall.
+      { shape: 'box', color: 0x6a6d74, x: -0.2, y: 0.09, z: 0.72, w: 0.3, h: 0.03, d: 0.5 },
     ],
   },
   security: {
@@ -379,6 +504,179 @@ const BUILDING_MODELS: Record<BuildingType, BuildingModel> = {
       { shape: 'box', color: RUST, x: -0.62, y: 0.09, z: 0.68, w: 0.2, h: 0.18, d: 0.2 },
       { shape: 'box', color: OLIVE, x: -0.36, y: 0.08, z: 0.72, w: 0.16, h: 0.16, d: 0.16 },
       { shape: 'box', color: 0xd9a441, x: 0, y: 0.1, z: 0.9, w: 1.8, h: 0.14, d: 0.04 },
+    ],
+  },
+  seismo: {
+    trim: 0xffd166,
+    parts: [{ model: 'wireless', fit: 0.42, z: -0.16 }],
+    accents: [{ color: 0xffd166, z: -0.16, y: 0.72, size: 0.045 }],
+    details: [
+      // The recording desk, and the rods driven into the rock.
+      { shape: 'box', color: DARK, y: 0.17, z: 0.22, w: 0.56, h: 0.22, d: 0.26 },
+      { shape: 'box', color: 0x7dffb0, glow: true, y: 0.21, z: 0.355, w: 0.44, h: 0.1, d: 0.02 },
+      { shape: 'cyl', color: RUST, x: 0.34, y: 0.16, z: -0.32, w: 0.09, h: 0.24, d: 0.09 },
+      { shape: 'cyl', color: RUST, x: -0.34, y: 0.16, z: -0.32, w: 0.09, h: 0.24, d: 0.09 },
+      { shape: 'box', color: 0xd9a441, x: 0, y: 0.09, z: -0.32, w: 0.7, h: 0.03, d: 0.03 },
+    ],
+  },
+  prop: {
+    trim: 0xd9a441,
+    parts: [],
+    accents: [{ color: AMBER, y: 1.16, size: 0.04 }],
+    details: [
+      { shape: 'box', color: STEEL, x: -0.3, y: 0.58, z: -0.3, w: 0.09, h: 1.04, d: 0.09 },
+      { shape: 'box', color: STEEL, x: 0.3, y: 0.58, z: -0.3, w: 0.09, h: 1.04, d: 0.09 },
+      { shape: 'box', color: STEEL, x: -0.3, y: 0.58, z: 0.3, w: 0.09, h: 1.04, d: 0.09 },
+      { shape: 'box', color: STEEL, x: 0.3, y: 0.58, z: 0.3, w: 0.09, h: 1.04, d: 0.09 },
+      { shape: 'box', color: 0xd9a441, y: 1.08, w: 0.82, h: 0.08, d: 0.82 },
+      { shape: 'box', color: DARK, y: 1.13, w: 0.5, h: 0.03, d: 0.5 },
+      { shape: 'box', color: DARK, y: 0.42, z: -0.3, w: 0.62, h: 0.05, d: 0.05 },
+      { shape: 'box', color: DARK, y: 0.42, z: 0.3, w: 0.62, h: 0.05, d: 0.05 },
+      { shape: 'cyl', color: 0xd9a441, y: 0.3, w: 0.26, h: 0.44, d: 0.26 },
+      { shape: 'cyl', color: WHITE, y: 0.78, w: 0.13, h: 0.56, d: 0.13 },
+    ],
+  },
+  canteen: {
+    trim: 0xffa45a,
+    parts: [
+      { model: 'hangarSmallA', fit: 1.15, x: -0.3, z: -0.32 },
+      { model: 'chimney', fit: 0.22, x: 0.68, z: -0.68 },
+    ],
+    accents: [{ color: 0xffa45a, x: 0.68, z: -0.68, y: 1.2, size: 0.05, smoke: true }],
+    details: [
+      {
+        shape: 'box',
+        color: 0xffc98a,
+        glow: true,
+        x: -0.3,
+        y: 0.27,
+        z: 0.27,
+        w: 0.7,
+        h: 0.12,
+        d: 0.02,
+      },
+      // The terrace, under its awning.
+      { shape: 'box', color: 0xc14b3a, x: 0.46, y: 0.56, z: 0.5, w: 0.84, h: 0.04, d: 0.8 },
+      { shape: 'cyl', color: STEEL, x: 0.84, y: 0.3, z: 0.86, w: 0.04, h: 0.5, d: 0.04 },
+      { shape: 'cyl', color: STEEL, x: 0.1, y: 0.3, z: 0.86, w: 0.04, h: 0.5, d: 0.04 },
+      { shape: 'cyl', color: WHITE, x: 0.3, y: 0.2, z: 0.45, w: 0.3, h: 0.03, d: 0.3 },
+      { shape: 'cyl', color: DARK, x: 0.3, y: 0.13, z: 0.45, w: 0.05, h: 0.12, d: 0.05 },
+      { shape: 'cyl', color: WHITE, x: 0.66, y: 0.2, z: 0.62, w: 0.3, h: 0.03, d: 0.3 },
+      { shape: 'cyl', color: DARK, x: 0.66, y: 0.13, z: 0.62, w: 0.05, h: 0.12, d: 0.05 },
+      {
+        shape: 'dome',
+        color: 0xffc98a,
+        glow: true,
+        x: 0.48,
+        y: 0.5,
+        z: 0.5,
+        w: 0.07,
+        h: 0.05,
+        d: 0.07,
+      },
+    ],
+  },
+  academy: {
+    trim: 0x7fb4ff,
+    parts: [
+      { model: 'hangarLargeB', fit: 1.25, x: 0.14, z: 0.2 },
+      { model: 'structure', fit: 0.56, x: -0.62, z: -0.62 },
+    ],
+    accents: [{ color: 0x7fb4ff, x: -0.62, z: -0.62, y: 1.06, size: 0.1, shape: 'gem' }],
+    details: [
+      { shape: 'box', color: WHITE, x: 0.14, y: 0.09, z: 0.86, w: 1.2, h: 0.05, d: 0.16 },
+      { shape: 'cyl', color: WHITE, x: -0.3, y: 0.3, z: 0.88, w: 0.06, h: 0.42, d: 0.06 },
+      { shape: 'cyl', color: WHITE, x: 0.14, y: 0.3, z: 0.88, w: 0.06, h: 0.42, d: 0.06 },
+      { shape: 'cyl', color: WHITE, x: 0.58, y: 0.3, z: 0.88, w: 0.06, h: 0.42, d: 0.06 },
+      {
+        shape: 'box',
+        color: 0x7fb4ff,
+        glow: true,
+        x: 0.14,
+        y: 0.25,
+        z: 0.83,
+        w: 0.8,
+        h: 0.08,
+        d: 0.02,
+      },
+      { shape: 'box', color: WHITE, x: 0.14, y: 0.53, z: 0.88, w: 1.1, h: 0.04, d: 0.12 },
+    ],
+  },
+  geothermal: {
+    trim: 0xff6a2a,
+    parts: [
+      { model: 'barrelLarge', fit: 0.7, x: -0.52, z: -0.5 },
+      { model: 'chimney', fit: 0.24, x: 0.66, z: -0.66 },
+    ],
+    accents: [{ color: 0xff6a2a, x: 0.66, z: -0.66, y: 1.32, size: 0.05, smoke: true }],
+    details: [
+      // The bore, with the depths showing at the bottom.
+      { shape: 'cyl', color: DARK, x: 0.2, y: 0.12, z: 0.32, w: 1.14, h: 0.12, d: 1.14 },
+      {
+        shape: 'cyl',
+        color: 0xff7a2a,
+        glow: true,
+        x: 0.2,
+        y: 0.185,
+        z: 0.32,
+        w: 0.84,
+        h: 0.015,
+        d: 0.84,
+      },
+      { shape: 'box', color: STEEL, x: 0.2, y: 0.22, z: 0.32, w: 1, h: 0.04, d: 0.05 },
+      { shape: 'box', color: STEEL, x: 0.2, y: 0.22, z: 0.32, w: 0.05, h: 0.04, d: 1 },
+      { shape: 'box', color: RUST, x: 0.02, y: 0.28, z: -0.5, w: 0.8, h: 0.07, d: 0.07 },
+      { shape: 'box', color: RUST, x: -0.34, y: 0.28, z: -0.1, w: 0.07, h: 0.07, d: 0.8 },
+    ],
+  },
+  silo: {
+    trim: TEAL,
+    parts: [],
+    accents: [{ color: AMBER, x: 0.48, z: 0.48, y: 1.32, size: 0.05 }],
+    details: [
+      { shape: 'cyl', color: WHITE, x: -0.46, y: 0.68, z: -0.46, w: 0.78, h: 1.22, d: 0.78 },
+      { shape: 'dome', color: STEEL, x: -0.46, y: 1.29, z: -0.46, w: 0.39, h: 0.2, d: 0.39 },
+      {
+        shape: 'cyl',
+        color: TEAL,
+        glow: true,
+        x: -0.46,
+        y: 0.92,
+        z: -0.46,
+        w: 0.79,
+        h: 0.03,
+        d: 0.79,
+      },
+      { shape: 'cyl', color: WHITE, x: 0.46, y: 0.56, z: -0.46, w: 0.74, h: 0.98, d: 0.74 },
+      { shape: 'dome', color: STEEL, x: 0.46, y: 1.05, z: -0.46, w: 0.37, h: 0.18, d: 0.37 },
+      {
+        shape: 'cyl',
+        color: TEAL,
+        glow: true,
+        x: 0.46,
+        y: 0.74,
+        z: -0.46,
+        w: 0.75,
+        h: 0.03,
+        d: 0.75,
+      },
+      { shape: 'cyl', color: WHITE, x: -0.46, y: 0.5, z: 0.46, w: 0.74, h: 0.86, d: 0.74 },
+      { shape: 'dome', color: STEEL, x: -0.46, y: 0.93, z: 0.46, w: 0.37, h: 0.17, d: 0.37 },
+      {
+        shape: 'cyl',
+        color: TEAL,
+        glow: true,
+        x: -0.46,
+        y: 0.66,
+        z: 0.46,
+        w: 0.75,
+        h: 0.03,
+        d: 0.75,
+      },
+      // The conveyor tower that fills them.
+      { shape: 'box', color: 0xd9a441, x: 0.48, y: 0.66, z: 0.48, w: 0.14, h: 1.2, d: 0.14 },
+      { shape: 'box', color: STEEL, x: 0, y: 1.08, z: 0.48, w: 0.9, h: 0.05, d: 0.08 },
+      { shape: 'box', color: STEEL, x: 0.48, y: 1.08, z: 0, w: 0.08, h: 0.05, d: 0.9 },
     ],
   },
   turret: {
@@ -443,16 +741,32 @@ function matte(color: number): THREE.MeshStandardMaterial {
 }
 
 const cylinderGeometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 16);
+const ringGeometry = new THREE.TorusGeometry(0.5, 0.02, 8, 40).rotateX(Math.PI / 2);
+const glass = new THREE.MeshStandardMaterial({
+  color: 0xcfdcff,
+  transparent: true,
+  opacity: 0.26,
+  roughness: 0.08,
+  metalness: 0.3,
+  depthWrite: false,
+});
 
 function makeDetail(detail: Detail): THREE.Mesh {
-  const material = detail.glow ? glow(detail.color) : matte(detail.color);
+  const material = detail.clear ? glass : detail.glow ? glow(detail.color) : matte(detail.color);
   const geometry =
-    detail.shape === 'box' ? barGeometry : detail.shape === 'cyl' ? cylinderGeometry : capGeometry;
+    detail.shape === 'box'
+      ? barGeometry
+      : detail.shape === 'cyl'
+        ? cylinderGeometry
+        : detail.shape === 'ring'
+          ? ringGeometry
+          : capGeometry;
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(detail.x ?? 0, detail.y, detail.z ?? 0);
   mesh.scale.set(detail.w, detail.h, detail.d);
-  mesh.castShadow = !detail.glow;
-  mesh.receiveShadow = !detail.glow;
+  mesh.rotation.z = detail.tilt ?? 0;
+  mesh.castShadow = !detail.glow && !detail.clear;
+  mesh.receiveShadow = !detail.glow && !detail.clear;
   return mesh;
 }
 
@@ -519,13 +833,26 @@ export function buildingFromModels(type: BuildingType): THREE.Group | null {
   root.position.set(center, 0, center);
   g.add(root);
   root.add(foundation(BUILDINGS[type].size, spec.trim));
-  for (const detail of spec.details) root.add(makeDetail(detail));
+  const spinning: THREE.Object3D[] = [];
+  for (const detail of spec.details) {
+    const mesh = makeDetail(detail);
+    if (!detail.spin) {
+      root.add(mesh);
+      continue;
+    }
+    // Around the vertical: the mesh keeps its own lean inside the pivot.
+    const pivot = new THREE.Group();
+    pivot.position.copy(mesh.position);
+    mesh.position.set(0, 0, 0);
+    pivot.add(mesh);
+    root.add(pivot);
+    spinning.push(pivot);
+  }
   if (type === 'hq') {
     const growth = headquartersGrowth();
     root.add(...growth);
     g.userData.growth = growth;
   }
-  const spinning: THREE.Object3D[] = [];
   const smoke: THREE.Vector3[] = [];
   for (const part of spec.parts) {
     const piece = placeModel(part.model, part.fit);
@@ -812,6 +1139,30 @@ export function settlementFromModels(): THREE.Group {
     if (!piece) continue;
     piece.position.set(x, 0, z);
     g.add(piece);
+  }
+  // Street lamps around the square: the city is lit, the cave around it is not.
+  for (let i = 0; i < 8; i++) {
+    const angle = ((i + 0.5) / 8) * Math.PI * 2;
+    const x = Math.cos(angle) * 5.1;
+    const z = Math.sin(angle) * 5.1;
+    const pool = groundGlow(AMBER, 3.4, 0.24);
+    pool.position.x = x;
+    pool.position.z = z;
+    g.add(
+      makeDetail({ shape: 'cyl', color: DARK, x, y: 0.4, z, w: 0.05, h: 0.8, d: 0.05 }),
+      makeDetail({
+        shape: 'dome',
+        color: AMBER,
+        glow: true,
+        x,
+        y: 0.8,
+        z,
+        w: 0.08,
+        h: 0.08,
+        d: 0.08,
+      }),
+      pool,
+    );
   }
   const seat = councilSeat();
   g.add(seat, groundGlow(TEAL, 10, 0.1));

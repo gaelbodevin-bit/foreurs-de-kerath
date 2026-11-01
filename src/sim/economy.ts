@@ -1,5 +1,5 @@
 import { BUILDINGS, type BuildingDef } from '../data/buildings';
-import { CITY_GRID_RADIUS, CITY_HOUSING } from '../data/progression';
+import { CITY_GRID_RADIUS, CITY_HOUSING, CITY_OXYGEN } from '../data/progression';
 import { REGIONS } from '../data/regions';
 import { RESOURCES } from '../data/resources';
 import { POLICIES, TAX_LEVELS, UNITS } from '../data/units';
@@ -129,7 +129,8 @@ export function updateEconomy(state: GameState): void {
   const strike = city.morale < 25 ? 0.5 : 1;
   const overtime = city.policies.overtime ? 1.25 : 1;
 
-  let oxygenFlow = 0;
+  let oxygenFlow = state.settlement?.reached ? CITY_OXYGEN : 0;
+  let appetiteCut = 0;
   let securityPressure = 0;
   let moraleBonus = 0;
   let taxBonus = 0;
@@ -150,6 +151,7 @@ export function updateEconomy(state: GameState): void {
     oxygenFlow += (def.oxygen ?? 0) * b.eff;
     securityPressure += (def.conspiracy ?? 0) * b.eff;
     moraleBonus += (def.morale ?? 0) * b.eff;
+    appetiteCut += (def.appetite ?? 0) * b.eff;
     taxBonus += (def.taxBonus ?? 0) * b.eff;
 
     if (def.research) state.research += def.research * b.eff * state.mods.research * dt;
@@ -157,7 +159,7 @@ export function updateEconomy(state: GameState): void {
     if (b.queue.length > 0) runTraining(state, b);
   }
 
-  updateCity(state, { oxygenFlow, securityPressure, moraleBonus, taxBonus });
+  updateCity(state, { oxygenFlow, securityPressure, moraleBonus, taxBonus, appetiteCut });
 }
 
 function runRecipe(state: GameState, b: Building, def: BuildingDef, boost: number): void {
@@ -189,6 +191,8 @@ function runTraining(state: GameState, b: Building): void {
 
 /** Seconds one person takes to eat one unit of food. */
 const FOOD_PER_MOUTH_SECONDS = 360;
+/** However many canteens: people still have to eat. */
+const MAX_APPETITE_CUT = 0.5;
 /** Warned at this stock: about four minutes' notice for a young colony. */
 const LOW_FOOD = 12;
 /** Seconds between two deaths, for as long as the colony goes hungry or breathless. */
@@ -199,6 +203,7 @@ interface CityInputs {
   securityPressure: number;
   moraleBonus: number;
   taxBonus: number;
+  appetiteCut: number;
 }
 
 function updateCity(state: GameState, inputs: CityInputs): void {
@@ -216,7 +221,9 @@ function updateCity(state: GameState, inputs: CityInputs): void {
   const fed = !(state.settlement?.reached ?? true);
   const appetite = fed
     ? 0
-    : (mouths / FOOD_PER_MOUTH_SECONDS) * (city.policies.rationing ? 0.65 : 1);
+    : (mouths / FOOD_PER_MOUTH_SECONDS) *
+      (city.policies.rationing ? 0.65 : 1) *
+      (1 - Math.min(MAX_APPETITE_CUT, inputs.appetiteCut));
   const foodBefore = state.stock.food;
   state.stock.food = Math.max(0, foodBefore - appetite * dt);
   if (foodBefore >= LOW_FOOD && state.stock.food < LOW_FOOD) {

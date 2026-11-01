@@ -63,10 +63,18 @@ import type {
 } from '../sim/types';
 import { RESOURCE_IDS, TICK_SECONDS } from '../sim/types';
 import { clear, h } from './dom';
+import { regionById, REGIONS } from '../data/regions';
 import { resourceIcon } from './icons';
+import { formatMagnitude, hasSeismicStation, riskName, tremorRadius } from '../sim/seismic';
 import { renderPlanetMap, renderSectorList } from './planet';
 
-type Modal = 'city' | 'council' | 'dossier' | 'research' | 'planet';
+/** Seconds a tremor stays marked on the minimap. */
+const RECENT_TREMOR = 60;
+const MAX_TREMOR_BARS = 30;
+/** The top of the seismograph's scale. */
+const MAX_MAGNITUDE = 8;
+
+type Modal = 'city' | 'council' | 'dossier' | 'research' | 'planet' | 'seismic';
 const GOVERNOR_MODALS: ReadonlySet<Modal> = new Set<Modal>(['city', 'research', 'council']);
 type Tool =
   | { kind: 'select' }
@@ -161,6 +169,15 @@ export class MissionScreen {
   private readonly governorChips: HTMLButtonElement[] = [];
   private readonly menuTabs = h('div', { class: 'menu-tabs' });
   private readonly speedButtons: HTMLButtonElement[] = [];
+  private readonly seismicChip = h(
+    'button',
+    {
+      class: 'chip accent',
+      title: 'Sismographe : secousses et activité de chaque zone',
+      onclick: () => this.openModal('seismic'),
+    },
+    'Sismique (T)',
+  );
 
   constructor(
     host: HTMLElement,
@@ -240,6 +257,7 @@ export class MissionScreen {
         this.governorChip('city', 'Cité (C)'),
         this.governorChip('research', 'Recherche (R)'),
         this.governorChip('council', 'Conseil (K)'),
+        this.seismicChip,
         h(
           'button',
           { class: 'chip accent', onclick: () => this.openModal('planet') },
@@ -586,6 +604,9 @@ export class MissionScreen {
       case 'KeyJ':
         this.openModal(this.modal === 'dossier' ? null : 'dossier');
         break;
+      case 'KeyT':
+        this.openModal(this.modal === 'seismic' ? null : 'seismic');
+        break;
       case 'KeyP':
         this.setTool({ kind: 'path' });
         break;
@@ -788,6 +809,10 @@ export class MissionScreen {
     this.updateHint();
     this.updateMinimap();
     this.updateOverlay();
+    const lastTremor = this.state.seismic.history.at(-1);
+    this.seismicChip.textContent = lastTremor
+      ? `Sismique · M ${formatMagnitude(lastTremor.magnitude)} (T)`
+      : 'Sismique (T)';
     this.speedButtons.forEach((b, i) =>
       b.classList.toggle('on', !this.paused && this.speed === [1, 2, 4][i]),
     );
@@ -1191,6 +1216,15 @@ export class MissionScreen {
       ctx.arc((c.x + 0.5) * sx, (c.y + 0.5) * sy, 2 * sx, 0, Math.PI * 2);
       ctx.stroke();
     }
+    // The last tremors, fading out over a minute.
+    for (const tremor of state.seismic.history) {
+      const age = (state.time - tremor.t) / RECENT_TREMOR;
+      if (age >= 1) continue;
+      ctx.strokeStyle = `rgba(255,179,71,${1 - age})`;
+      ctx.beginPath();
+      ctx.arc(tremor.x * sx, tremor.y * sy, tremorRadius(tremor.magnitude) * sx, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.strokeStyle = 'rgba(255,255,255,.6)';
     ctx.strokeRect((this.view.focus.x - 8) * sx, (this.view.focus.z - 6) * sy, 16 * sx, 12 * sy);
   }
@@ -1226,6 +1260,7 @@ export class MissionScreen {
     else if (this.modal === 'research') this.renderResearch();
     else if (this.modal === 'council') this.renderCouncil();
     else if (this.modal === 'planet') this.renderPlanet();
+    else if (this.modal === 'seismic') this.renderSeismic();
     else this.renderDossier();
   }
 
@@ -1459,6 +1494,97 @@ export class MissionScreen {
         ),
       ),
     ]);
+  }
+
+  /** One bar per tremor, oldest on the left, then where the ground moves and how hard. */
+  private renderSeismic(): void {
+    const { state } = this;
+    const { history, zones } = state.seismic;
+    const station = hasSeismicStation(state);
+    const open = REGIONS.filter((r) => state.sectorStart[r.id] !== undefined);
+    const clock = (t: number) =>
+      `${Math.floor(t / 60)} min ${String(Math.floor(t % 60)).padStart(2, '0')}`;
+    const sig = `sis${history.length}${open.length}${station}${Math.floor(state.time / 2)}`;
+    this.patch(this.overlay, sig, () => {
+      const bars = history.slice(-MAX_TREMOR_BARS).map((tremor) => {
+        const bar = h('div', { class: 'quake-bar' });
+        bar.style.height = `${(tremor.magnitude / MAX_MAGNITUDE) * 100}%`;
+        bar.title = `M ${formatMagnitude(tremor.magnitude)} · ${regionById(tremor.sector).name} · à ${clock(tremor.t)} · ${tremor.fallen} cases éboulées`;
+        return bar;
+      });
+      return [
+        h(
+          'div',
+          { class: 'dialog wide seismic' },
+          this.closeButton(),
+          h('h2', {}, 'Sismographe'),
+          h(
+            'p',
+            { class: 'dim' },
+            station
+              ? 'La station lit la croûte : chaque secousse est annoncée, avec sa magnitude.'
+              : 'Sans station sismique (recherche : Sismologie), les secousses arrivent sans prévenir.',
+          ),
+          h('h3', {}, 'Magnitude des dernières secousses'),
+          history.length === 0
+            ? h('p', { class: 'dim' }, 'Aucune secousse enregistrée pour l’instant.')
+            : h(
+                'div',
+                { class: 'quake-chart' },
+                ...[8, 6, 4, 2].map((m) => {
+                  const line = h('span', { class: 'quake-grid' }, String(m));
+                  line.style.bottom = `${(m / MAX_MAGNITUDE) * 100}%`;
+                  return line;
+                }),
+                h('div', { class: 'quake-bars' }, ...bars),
+              ),
+          h('h3', {}, 'Activité par zone'),
+          h(
+            'table',
+            { class: 'quake-table' },
+            h(
+              'thead',
+              {},
+              h(
+                'tr',
+                {},
+                ...['Zone', 'Risque', 'Plage', 'Secousses', 'Dernière', 'Maximum', 'Prévision'].map(
+                  (name) => h('th', {}, name),
+                ),
+              ),
+            ),
+            h(
+              'tbody',
+              {},
+              ...open.map((region) => {
+                const felt = history.filter((t) => t.sector === region.id);
+                const zone = zones[region.id];
+                const last = felt.at(-1);
+                const peak = Math.max(0, ...felt.map((t) => t.magnitude));
+                const [low, high] = region.seismic.magnitude;
+                return h(
+                  'tr',
+                  {},
+                  h('td', {}, region.name),
+                  h('td', {}, riskName(region)),
+                  h('td', {}, `M ${formatMagnitude(low)} – ${formatMagnitude(high)}`),
+                  h('td', {}, String(felt.length)),
+                  h('td', {}, last ? `M ${formatMagnitude(last.magnitude)}` : '–'),
+                  h('td', {}, peak > 0 ? `M ${formatMagnitude(peak)}` : '–'),
+                  h(
+                    'td',
+                    {},
+                    station && zone
+                      ? `M ${formatMagnitude(zone.nextMagnitude)} dans ${Math.max(0, Math.ceil(zone.nextAt - state.time))} s`
+                      : 'Inconnue',
+                  ),
+                );
+              }),
+            ),
+          ),
+        ),
+      ];
+    });
   }
 
   private renderPlanet(): void {

@@ -351,6 +351,10 @@ export function makeBuilding(type: BuildingType): THREE.Group {
         box(glow(0xff5a5a), 0.07, 0.07, 0.48, 0, 0.5, 0.3),
       );
       break;
+    default: {
+      const side = BUILDINGS[type].size * 0.7;
+      root.add(box(lambert(STEEL), side, 0.5, side));
+    }
   }
   return g;
 }

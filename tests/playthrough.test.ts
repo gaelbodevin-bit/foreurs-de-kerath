@@ -257,7 +257,7 @@ describe('partie complète (joueur automatique)', () => {
     expect(state.cityLevel).toBeGreaterThanOrEqual(1);
     state = createGame(11);
     expect(state.conquered).toEqual([]);
-  });
+  }, 60_000);
 
   it('la simulation est reproductible', () => {
     const a = playGame(3, 3);

@@ -1,6 +1,8 @@
 import { COUNCIL_TRAITS } from '../data/council';
 import { TECHS } from '../data/techs';
 import { foundCouncil } from '../sim/council';
+import { spawnCityMiners } from '../sim/game';
+import { emptySeismic } from '../sim/seismic';
 import type { Councillor, GameState, Modifiers } from '../sim/types';
 
 /** The version moved when the game became a single continuous world: older saves don't load. */
@@ -42,7 +44,11 @@ export function readSave(storage: SaveStorage): GameState | null {
     data.candidates ??= [];
     data.nextCandidatesAt ??= 0;
     data.governorTrait ??= null;
-    if (data.settlement?.reached) foundCouncil(data);
+    data.seismic ??= emptySeismic();
+    if (data.settlement?.reached) {
+      foundCouncil(data);
+      spawnCityMiners(data);
+    }
     return data;
   } catch {
     return null;

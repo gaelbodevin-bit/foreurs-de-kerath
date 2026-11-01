@@ -55,6 +55,18 @@ de cliquer pour ouvrir le panneau. Le conseil a
 quatre sièges : Ingénierie, Intendance, Science et Défense. Orsa Veld, Tomas Krell et Ilyane Soum
 occupent les trois premiers. De nouveaux candidats se présentent toutes les 3 minutes, chacun avec un trait. Renvoyer un conseiller ne règle pas le complot.
 
+## Les secousses
+
+Chaque secteur ouvert a sa propre activité : la fréquence et la plage de magnitude sont fixées par
+zone, de M 2 à 4,4 au Val de Cendre jusqu'à M 7,8 au Noyau. Sous M 2,8, le sol tremble seulement. Au
+dessus, la roche tombe au pied des murs (à déblayer, et dangereuse pour qui se trouve dessous) et la
+roche meuble s'effondre. Dès M 3,5, les bâtiments sont abîmés, sans jamais être abattus. Les routes
+tiennent, et le sol de CITY aussi.
+
+Le sismographe (touche T) trace l'historique des magnitudes et le bilan par zone. La station
+sismique annonce la prochaine secousse et sa magnitude. L'étai de soutènement protège 5 cases autour
+de lui. En rejoignant CITY, le gouverneur reçoit aussi 10 mineurs.
+
 ## Le sol technique
 
 Il se trace et se retire à la main : un foreur vient le poser ou le démonter. Le retirer rend une

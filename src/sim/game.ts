@@ -1,6 +1,6 @@
 import { BUILDINGS, CITY_BUILDINGS } from '../data/buildings';
 import { REGIONS, sectorAt } from '../data/regions';
-import { CITY_SETTLERS, cityRadius, FIRST_CONTRACT_AT } from '../data/progression';
+import { CITY_MINERS, CITY_SETTLERS, cityRadius, FIRST_CONTRACT_AT } from '../data/progression';
 import { ADVISOR_IDS } from '../data/story';
 import { RESOURCES, TILE_NAMES, WALLS } from '../data/resources';
 import { UNITS } from '../data/units';
@@ -9,6 +9,7 @@ import { addStock, canAfford, pay, storageCapacity, updateEconomy, updateNetwork
 import { updateCouncil, foundCouncil } from './council';
 import { createBuilding, log, spawnEnemy, spawnPickup, spawnUnit } from './entities';
 import { updateGas } from './gas';
+import { emptySeismic, updateSeismic } from './seismic';
 import { idx, inBounds, isWalkableKind, NEIGHBORS4, reveal, setTile, tileAt } from './grid';
 import { generateWorld } from './mapgen';
 import { findPath } from './pathfinding';
@@ -85,6 +86,7 @@ export function createGame(seed: number): GameState {
     power: { produced: 0, demand: 0, ratio: 1 },
     story,
     waves: { nextAt: FIRST_RAID_AT, count: 0 },
+    seismic: emptySeismic(),
     kills: {},
     research: 0,
     techs: [],
@@ -156,10 +158,29 @@ export function stepGame(state: GameState): void {
     updateHazards(state);
     updateSettlement(state);
     updateGas(state);
+    updateSeismic(state);
     updateProgress(state);
     updateContracts(state);
     updateStory(state);
     updateOutcome(state);
+  }
+}
+
+/** Standing around the council's seat. A flag, for saves that reached the city before they came. */
+export function spawnCityMiners(state: GameState): void {
+  const place = state.settlement;
+  if (!place || state.story.flags.cityMiners) return;
+  state.story.flags.cityMiners = true;
+  for (let i = 0; i < CITY_MINERS; i++) {
+    const angle = (i / CITY_MINERS) * Math.PI * 2;
+    for (let radius = 3.4; radius >= 0; radius -= 0.4) {
+      const x = place.x + 0.5 + Math.cos(angle) * radius;
+      const y = place.y + 0.5 + Math.sin(angle) * radius;
+      const tile = tileAt(state, Math.floor(x), Math.floor(y));
+      if (radius > 0.4 && (!tile || !isWalkableKind(tile.k))) continue;
+      spawnUnit(state, 'foreur', x, y);
+      break;
+    }
   }
 }
 
@@ -171,14 +192,19 @@ function updateSettlement(state: GameState): void {
   state.city.population += CITY_SETTLERS;
   addStock(state, 'ore', 20);
   addStock(state, 'stone', 15);
-  addStock(state, 'food', 25);
+  addStock(state, 'food', 40);
+  spawnCityMiners(state);
   // The city's requests start now that there is a city to ask.
   state.nextContractAt = state.time + FIRST_CONTRACT_AT;
   state.research += 5;
   state.story.flags.cityReached = true;
   state.networkDirty = true;
   foundCouncil(state);
-  log(state, `La cité est rejointe : ${CITY_SETTLERS} habitants s’ajoutent à la colonie.`, 'good');
+  log(
+    state,
+    `La cité est rejointe : ${CITY_SETTLERS} habitants et ${CITY_MINERS} mineurs s’ajoutent à la colonie.`,
+    'good',
+  );
   state.fx.push(
     { kind: 'sound', id: 'plot' },
     { kind: 'voice', id: 'reunited' },

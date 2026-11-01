@@ -78,7 +78,13 @@ export type BuildingType =
   | 'workshop'
   | 'turret'
   | 'vent'
-  | 'camp';
+  | 'camp'
+  | 'seismo'
+  | 'prop'
+  | 'canteen'
+  | 'academy'
+  | 'geothermal'
+  | 'silo';
 
 export type AdvisorId = 'orsa' | 'krell' | 'soum';
 export type SeatId = 'engineering' | 'logistics' | 'science' | 'defense';
@@ -187,6 +193,7 @@ export interface LogEntry {
 export type Fx =
   | { kind: 'laser'; x1: number; y1: number; x2: number; y2: number; hostile: boolean }
   | { kind: 'burst'; x: number; y: number; color: number }
+  | { kind: 'quake'; x: number; y: number; magnitude: number }
   | { kind: 'sound'; id: SoundId; x?: number; y?: number; machine?: boolean }
   | { kind: 'voice'; id: VoiceId };
 
@@ -277,6 +284,31 @@ export interface Settlement {
   reached: boolean;
 }
 
+/** A tremor that happened: what the seismograph keeps track of. */
+export interface Tremor {
+  t: number;
+  x: number;
+  y: number;
+  magnitude: number;
+  /** Id of the region it struck. */
+  sector: string;
+  /** How many tiles took a fall. */
+  fallen: number;
+}
+
+/** What is coming in a sector, drawn in advance: only a seismic station can read it. */
+export interface SeismicZone {
+  nextAt: number;
+  nextMagnitude: number;
+  warned: boolean;
+}
+
+export interface SeismicState {
+  /** By region id. A sector gets its entry once it has opened. */
+  zones: Record<string, SeismicZone>;
+  history: Tremor[];
+}
+
 export type ContractKind = 'deliver' | 'build' | 'survey' | 'rescue' | 'defend' | 'refugees';
 
 export interface ContractReward {
@@ -324,6 +356,7 @@ export interface GameState {
   power: PowerState;
   story: StoryState;
   waves: WaveState;
+  seismic: SeismicState;
   kills: Partial<Record<EnemyType, number>>;
   /** Points waiting to be spent. */
   research: number;

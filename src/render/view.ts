@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { BUILDINGS } from '../data/buildings';
 import { cityRadius } from '../data/progression';
@@ -15,6 +16,7 @@ import { Dust, GasClouds, Smoke } from './particles';
 import { residentFromModels, settlementFromModels } from './modelPrefabs';
 import { makeBuilding, makeEnemy, makePickup, makeUnit } from './prefabs';
 import { TerrainView } from './terrain';
+import { tremorRadius } from '../sim/seismic';
 
 interface Tracked {
   object: THREE.Object3D;
@@ -52,7 +54,30 @@ interface FxSprite {
   life: number;
   max: number;
   velocity?: THREE.Vector3[];
+  /** Widens to this radius over its life. */
+  grow?: number;
 }
+
+/** The look of the picture, applied last: closes in the edges, cool shadows, warm lights. */
+const GRADE = {
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: `varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: `uniform sampler2D tDiffuse;
+    varying vec2 vUv;
+    void main() {
+      vec3 color = texture2D(tDiffuse, vUv).rgb;
+      float light = dot(color, vec3(0.2126, 0.7152, 0.0722));
+      color = mix(vec3(light), color, 1.14);
+      color = mix(color, color * color * (3.0 - 2.0 * color), 0.22);
+      color += mix(vec3(0.0, 0.006, 0.016), vec3(0.018, 0.008, -0.008), smoothstep(0.1, 0.7, light));
+      float edge = smoothstep(0.42, 0.98, length(vUv - 0.5) * 1.3);
+      gl_FragColor = vec4(color * (1.0 - edge * 0.42), 1.0);
+    }`,
+};
 
 const GHOST_OK = new THREE.MeshBasicMaterial({ color: 0x35e0c2, transparent: true, opacity: 0.35 });
 const GHOST_BAD = new THREE.MeshBasicMaterial({
@@ -139,6 +164,8 @@ export class MissionView {
   private readonly dust = new Dust();
   private readonly gas = new GasClouds();
   private shake = 0;
+  /** Seconds of ground still shaking, around the camera. */
+  private rumble = 0;
   private frameCount = 0;
   private sampleTime = 0;
   private sampleFrames = 0;
@@ -216,6 +243,7 @@ export class MissionView {
     this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.4, 0.5, 1.5);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
+    this.composer.addPass(new ShaderPass(GRADE));
 
     this.terrain = new TerrainView(state);
     this.decor = new DecorView(state, (x, y) => this.terrain.heightAt(x, y));
@@ -435,7 +463,11 @@ export class MissionView {
       const object = make();
       object.position.set(x, 0, y);
       object.traverse((child) => {
-        if (child instanceof THREE.Mesh && !(child.material instanceof THREE.MeshBasicMaterial)) {
+        if (
+          child instanceof THREE.Mesh &&
+          !(child.material instanceof THREE.MeshBasicMaterial) &&
+          !(child.material as THREE.Material).transparent
+        ) {
           child.castShadow = true;
           child.receiveShadow = true;
         }
@@ -781,6 +813,8 @@ export class MissionView {
         for (let i = 0; i < 12; i++) this.smoke.emit(fx.x, 0.4, fx.y, 0.5, 1.8, 1.6);
         const away = Math.hypot(fx.x - this.focus.x, fx.y - this.focus.z);
         this.shake = Math.max(this.shake, 0.22 * Math.max(0, 1 - away / 18));
+      } else if (fx.kind === 'quake') {
+        this.showQuake(fx.x, fx.y, fx.magnitude);
       }
     }
 
@@ -794,9 +828,10 @@ export class MissionView {
           child.position.addScaledVector(v, dt);
         });
       }
+      if (f.grow) f.object.scale.setScalar(Math.max(0.01, (1 - f.life / f.max) * f.grow));
       const material =
-        f.object instanceof THREE.Line
-          ? (f.object.material as THREE.LineBasicMaterial)
+        f.object instanceof THREE.Line || f.object instanceof THREE.Mesh
+          ? (f.object.material as THREE.MeshBasicMaterial)
           : ((f.object.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial);
       material.opacity = Math.max(0, f.life / f.max);
       if (f.life <= 0) {
@@ -804,6 +839,33 @@ export class MissionView {
         this.fx.splice(i, 1);
       }
     }
+  }
+
+  /** A ring running out from the epicentre, dust coming down, and the camera shaking with it. */
+  private showQuake(x: number, y: number, magnitude: number): void {
+    const radius = tremorRadius(magnitude);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.93, 1, 64),
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color(0xffb347).multiplyScalar(2),
+        transparent: true,
+        side: THREE.DoubleSide,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(x, 0.1, y);
+    ring.renderOrder = 5;
+    this.fxGroup.add(ring);
+    this.fx.push({ object: ring, life: 1.1, max: 1.1, grow: radius });
+    for (let i = 0; i < magnitude * 12; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const away = Math.random() * radius;
+      this.smoke.emit(x + Math.cos(angle) * away, 1.6, y + Math.sin(angle) * away, 0.7, 2.4, 0.8);
+    }
+    const felt = Math.max(0, 1 - Math.hypot(x - this.focus.x, y - this.focus.z) / (radius + 22));
+    this.rumble = Math.max(this.rumble, magnitude * 0.42 * felt);
   }
 
   /** `alpha` is how far we are between the last sim tick and the next one, 0 to 1. */
@@ -821,6 +883,10 @@ export class MissionView {
     this.smoke.update(dt);
     this.dust.update(time, this.focus);
     this.shake *= Math.exp(-dt * 7);
+    if (this.rumble > 0) {
+      this.rumble = Math.max(0, this.rumble - dt);
+      this.shake = Math.max(this.shake, Math.min(0.75, this.rumble * 0.28));
+    }
     this.placeCamera();
     this.adaptQuality(dt);
     // Past the first step down, shadows are only redrawn on one frame out of three.

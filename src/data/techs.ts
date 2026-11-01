@@ -71,7 +71,7 @@ export const TECHS: TechDef[] = [
   {
     id: 'logistics',
     name: 'Logistique de terrain',
-    desc: 'Déplacements 15 % plus rapides, construction 25 % plus rapide.',
+    desc: 'Déplacements 15 % plus rapides, construction 25 % plus rapide. Débloque le grand silo.',
     cost: 8,
     mods: { moveSpeed: 0.15, buildSpeed: 0.25 },
   },
@@ -92,7 +92,7 @@ export const TECHS: TechDef[] = [
   {
     id: 'grid',
     name: 'Réseau optimisé',
-    desc: 'Les centrales produisent 25 % d’énergie de plus.',
+    desc: 'Les centrales produisent 25 % d’énergie de plus. Débloque la centrale géothermique.',
     cost: 8,
     mods: { powerOutput: 0.25 },
   },
@@ -119,9 +119,21 @@ export const TECHS: TechDef[] = [
     mods: { conspiracyGain: -0.3 },
   },
   {
+    id: 'seismology',
+    name: 'Sismologie',
+    desc: 'Débloque la station sismique, qui annonce les secousses à l’avance.',
+    cost: 3,
+  },
+  {
+    id: 'education',
+    name: 'Instruction publique',
+    desc: 'Débloque l’académie.',
+    cost: 7,
+  },
+  {
     id: 'stability',
     name: 'Étais renforcés',
-    desc: 'Éboulements et érosion de la lave réduits de moitié.',
+    desc: 'Éboulements et érosion de la lave réduits de moitié. Débloque l’étai de soutènement.',
     cost: 6,
     mods: { hazard: -0.5 },
   },
