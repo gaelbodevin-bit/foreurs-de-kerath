@@ -189,7 +189,11 @@ function updateSettlement(state: GameState): void {
 function updateHazards(state: GameState): void {
   for (let i = 0; i < state.tiles.length; i++) {
     const tile = state.tiles[i];
-    if (tile.regrow > 0) tile.regrow -= 1;
+    if (tile.regrow > 0) {
+      tile.regrow -= 1;
+      // Grown back: the mushrooms on it need redrawing.
+      if (tile.regrow <= 0) state.dirty.push(i);
+    }
     if (tile.k !== 'lava' || !tile.seen) continue;
     // Each sector has its own lava: some crusts over, some keeps eating the ground.
     const sector = sectorAt(i % state.w, Math.floor(i / state.w), state.w, state.h).index;
@@ -335,7 +339,9 @@ export function placeBuilding(
   // Work scheduled under the new walls would never finish.
   for (let dy = 0; dy < def.size; dy++) {
     for (let dx = 0; dx < def.size; dx++) {
-      const job = state.jobs.find((j) => j.kind === 'path' && j.x === x + dx && j.y === y + dy);
+      const job = state.jobs.find(
+        (j) => (j.kind === 'path' || j.kind === 'unpath') && j.x === x + dx && j.y === y + dy,
+      );
       if (job) removeJob(state, job.id);
     }
   }
@@ -370,6 +376,49 @@ export function placePath(
   // Everything was already queued: this drag is a cancellation, as it is for drilling.
   if (count === 0) for (const id of queued) removeJob(state, id);
   return count;
+}
+
+/**
+ * Marks the roads in a rectangle to be taken up, and drops roads still waiting to be laid there.
+ * Dragging over what is already marked cancels it. Returns how many tiles changed.
+ */
+export function removePaths(
+  state: GameState,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): number {
+  const [minX, maxX] = x0 < x1 ? [x0, x1] : [x1, x0];
+  const [minY, maxY] = y0 < y1 ? [y0, y1] : [y1, y0];
+  let changed = 0;
+  const marked: number[] = [];
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      const t = tileAt(state, x, y);
+      if (!t || !t.seen) continue;
+      const planned = state.jobs.find((j) => j.kind === 'path' && j.x === x && j.y === y);
+      if (planned) {
+        removeJob(state, planned.id);
+        changed++;
+      }
+      if (t.k !== 'path') continue;
+      // Under a building, the road is part of its foundations.
+      if (state.buildings.some((b) => tileIsUnder(b.type, b.x, b.y, x, y))) continue;
+      const job = state.jobs.find((j) => j.kind === 'unpath' && j.x === x && j.y === y);
+      if (job) {
+        marked.push(job.id);
+        continue;
+      }
+      addJob(state, 'unpath', x, y);
+      changed++;
+    }
+  }
+  if (changed === 0) {
+    for (const id of marked) removeJob(state, id);
+    return marked.length;
+  }
+  return changed;
 }
 
 export function demolish(state: GameState, buildingId: number): CommandResult {

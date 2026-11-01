@@ -624,7 +624,15 @@ export class MissionView {
               ]
             : 'interact-right';
         const swinging = !moving && target !== undefined && tool === 'pick';
-        rig.play(moving ? 'walk' : u.working ? working : idle, swinging ? PICK_SWING_SPEED : 1);
+        const fighting = !moving && u.type === 'foreur' && u.cooldown > 0;
+        if (fighting) {
+          const foe = state.enemies.find((e) => e.id === u.targetId);
+          if (foe) entry.object.rotation.y = Math.atan2(foe.x - x, foe.y - y);
+        }
+        rig.play(
+          moving ? 'walk' : fighting ? 'attack-melee-right' : u.working ? working : idle,
+          swinging || fighting ? PICK_SWING_SPEED : 1,
+        );
         rig.update(dt);
         if (swinging) {
           const phase = rig.phase;
@@ -701,7 +709,7 @@ export class MissionView {
 
   private syncMarks(): void {
     const jobs = this.state.jobs.filter(
-      (j) => j.kind === 'drill' || j.kind === 'path' || j.kind === 'harvest',
+      (j) => j.kind === 'drill' || j.kind === 'path' || j.kind === 'unpath' || j.kind === 'harvest',
     );
     while (this.markPool.length < jobs.length) {
       const mark = new THREE.Mesh(
@@ -724,7 +732,13 @@ export class MissionView {
       const wall = job.kind === 'drill';
       mark.position.set(job.x + 0.5, wall ? 1.56 : 0.06, job.y + 0.5);
       (mark.material as THREE.MeshBasicMaterial).color.setHex(
-        wall ? 0xffb347 : job.kind === 'path' ? 0x4ee0ff : 0x9ccc5a,
+        wall
+          ? 0xffb347
+          : job.kind === 'path'
+            ? 0x4ee0ff
+            : job.kind === 'unpath'
+              ? 0xff5a5a
+              : 0x9ccc5a,
       );
     });
   }

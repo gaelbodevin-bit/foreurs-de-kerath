@@ -1,4 +1,4 @@
-import { BUILD_TIME_FACTOR, BUILDINGS, PATH_COST } from '../data/buildings';
+import { BUILD_TIME_FACTOR, BUILDINGS, PATH_COST, PATH_REFUND } from '../data/buildings';
 import { WALLS } from '../data/resources';
 import { UNITS } from '../data/units';
 import { canAfford, hasRoomFor, addStock, pay } from './economy';
@@ -19,6 +19,7 @@ const JOB_PRIORITY: Record<JobKind, number> = {
   build: 0,
   haul: 2,
   path: 3,
+  unpath: 3,
   clear: 3,
   drill: 4,
   harvest: 6,
@@ -287,6 +288,20 @@ function runJob(state: GameState, unit: Unit, job: Job, speed: number): void {
       }
       return;
     }
+    case 'unpath': {
+      if (tile.k !== 'path') return removeJob(state, job.id);
+      if (!approach(state, unit, job, 1.1, speed)) return;
+      unit.working = true;
+      tile.work += dt;
+      if (tile.work >= PATH_TIME) {
+        tile.work = 0;
+        setTile(state, job.x, job.y, 'floor');
+        addStock(state, 'stone', PATH_REFUND);
+        state.networkDirty = true;
+        removeJob(state, job.id);
+      }
+      return;
+    }
     case 'harvest': {
       if (tile.k !== 'fungus') return removeJob(state, job.id);
       if (!approach(state, unit, job, 1, speed)) return;
@@ -295,6 +310,7 @@ function runJob(state: GameState, unit: Unit, job: Job, speed: number): void {
       if (tile.work >= HARVEST_TIME) {
         tile.work = 0;
         tile.regrow = FUNGUS_REGROW;
+        state.dirty.push(idx(state, job.x, job.y));
         for (let i = 0; i < 3; i++) dropAround(state, 'food', job.x, job.y);
         removeJob(state, job.id);
       }

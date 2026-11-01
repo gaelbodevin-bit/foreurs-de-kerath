@@ -4,6 +4,7 @@ import {
   BUILDINGS,
   CITY_BUILDINGS,
   PATH_COST,
+  PATH_REFUND,
   type BuildMenuId,
 } from '../data/buildings';
 import {
@@ -31,6 +32,7 @@ import {
   orderMove,
   placeBuilding,
   placePath,
+  removePaths,
   setTaxLevel,
   stepGame,
   togglePolicy,
@@ -66,7 +68,11 @@ import { renderPlanetMap, renderSectorList } from './planet';
 
 type Modal = 'city' | 'council' | 'dossier' | 'research' | 'planet';
 const GOVERNOR_MODALS: ReadonlySet<Modal> = new Set<Modal>(['city', 'research', 'council']);
-type Tool = { kind: 'select' } | { kind: 'path' } | { kind: 'build'; type: BuildingType };
+type Tool =
+  | { kind: 'select' }
+  | { kind: 'path' }
+  | { kind: 'removePath' }
+  | { kind: 'build'; type: BuildingType };
 
 function costLabel(cost: Cost): DocumentFragment {
   const label = document.createDocumentFragment();
@@ -142,6 +148,15 @@ export class MissionScreen {
   private readonly minimap = h('canvas', { class: 'minimap', width: 180, height: 180 });
   private readonly buildButtons = new Map<BuildingType | 'path', HTMLButtonElement>();
   private readonly buildLocks = new Map<BuildingType, HTMLElement>();
+  private readonly removePathButton = h(
+    'button',
+    {
+      class: 'build-btn',
+      onclick: () =>
+        this.setTool(this.tool.kind === 'removePath' ? { kind: 'select' } : { kind: 'removePath' }),
+    },
+    h('span', { class: 'b-name' }, 'Retirer le sol technique'),
+  );
   /** What only exists once the city is reached: the build menu's tabs, and these buttons. */
   private readonly governorChips: HTMLButtonElement[] = [];
   private readonly menuTabs = h('div', { class: 'menu-tabs' });
@@ -311,6 +326,7 @@ export class MissionScreen {
     pathButton.title =
       'Sol technique : relie les bâtiments au réseau. Glissez pour tracer. Les foreurs y marchent plus vite et la lave ne le ronge pas.';
     this.buildButtons.set('path', pathButton);
+    this.removePathButton.title = `Glissez sur le sol technique : un foreur vient le démonter et récupère ${PATH_REFUND} roche par case.`;
 
     const pages = new Map<BuildMenuId, HTMLElement>();
     const tabs = new Map<BuildMenuId, HTMLElement>();
@@ -320,7 +336,7 @@ export class MissionScreen {
     };
     for (const menu of BUILD_MENUS) {
       const page = h('div', { class: 'build-page' });
-      if (menu.id === 'explore') page.append(pathButton);
+      if (menu.id === 'explore') page.append(pathButton, this.removePathButton);
       for (const group of menu.groups) {
         page.append(h('h4', {}, group.name));
         for (const type of group.buildings) {
@@ -607,6 +623,11 @@ export class MissionScreen {
       }
       return;
     }
+    if (tool.kind === 'removePath') {
+      const n = removePaths(state, drag.x0, drag.y0, drag.x1, drag.y1);
+      if (n === 0) this.say('Il n’y a pas de sol technique à retirer ici.');
+      return;
+    }
     if (tool.kind === 'path') {
       const n = placePath(state, drag.x0, drag.y0, drag.x1, drag.y1);
       if (n === 0) this.say('Une voie se pose sur un sol dégagé (déblayez les gravats d’abord).');
@@ -729,6 +750,11 @@ export class MissionScreen {
     this.view.setCityZone(tool.kind === 'build' && CITY_BUILDINGS.has(tool.type));
     if (tool.kind === 'select' || !hover) {
       this.view.setGhost(null, 0, 0, false);
+      return;
+    }
+    if (tool.kind === 'removePath') {
+      const t = this.state.tiles[hover.y * this.state.w + hover.x];
+      this.view.setGhost('path', hover.x, hover.y, t.seen && t.k === 'path');
       return;
     }
     if (tool.kind === 'path') {
@@ -861,6 +887,7 @@ export class MissionScreen {
   }
 
   private updateBuildMenu(): void {
+    this.removePathButton.classList.toggle('on', this.tool.kind === 'removePath');
     const governed = hasReachedCity(this.state);
     this.menuTabs.hidden = !governed;
     for (const chip of this.governorChips) chip.hidden = !governed;
@@ -1100,13 +1127,15 @@ export class MissionScreen {
     const { tool } = this;
     this.cancelTool.hidden = tool.kind === 'select';
     const text =
-      tool.kind === 'path'
-        ? 'Glissez pour tracer la voie. Clic droit pour finir.'
-        : tool.kind === 'build'
-          ? `${BUILDINGS[tool.type].name} : cliquez pour poser, Maj pour enchaîner, clic droit pour annuler.`
-          : this.paused
-            ? '⏸ Pause. Espace pour reprendre.'
-            : 'Glissez sur la roche pour forer · Clic droit : déplacer · ZQSD/WASD et molette : caméra · A/E ou Q/E : rotation';
+      tool.kind === 'removePath'
+        ? 'Glissez sur le sol technique à retirer. Repassez pour annuler. Clic droit pour finir.'
+        : tool.kind === 'path'
+          ? 'Glissez pour tracer la voie. Clic droit pour finir.'
+          : tool.kind === 'build'
+            ? `${BUILDINGS[tool.type].name} : cliquez pour poser, Maj pour enchaîner, clic droit pour annuler.`
+            : this.paused
+              ? '⏸ Pause. Espace pour reprendre.'
+              : 'Glissez sur la roche pour forer · Clic droit : déplacer · ZQSD/WASD et molette : caméra · A/E ou Q/E : rotation';
     if (this.hint.textContent !== text) this.hint.textContent = text;
   }
 

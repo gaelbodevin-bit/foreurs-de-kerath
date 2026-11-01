@@ -55,6 +55,11 @@ de cliquer pour ouvrir le panneau. Le conseil a
 quatre sièges : Ingénierie, Intendance, Science et Défense. Orsa Veld, Tomas Krell et Ilyane Soum
 occupent les trois premiers. De nouveaux candidats se présentent toutes les 3 minutes, chacun avec un trait. Renvoyer un conseiller ne règle pas le complot.
 
+## Le sol technique
+
+Il se trace et se retire à la main : un foreur vient le poser ou le démonter. Le retirer rend une
+roche par case et peut couper le réseau derrière lui.
+
 ## Les salles de monstres
 
 Certaines cavernes scellées abritent des monstres endormis et un butin. Ils se réveillent ensemble
@@ -102,6 +107,9 @@ déplacements et arrêtent la lave : le tracé de la ville est une vraie décisi
 | La Faune          | Rongeur, golem, larve | Nid             | Surgit des parois     |
 | Consortium Vantor | Drone                 | Avant-poste     | Raids à distance      |
 | Enfants du Noyau  | Saboteur              | Cœur du Dormeur | Vise l'infrastructure |
+
+Les foreurs rendent les coups au corps à corps, faiblement mais plus fort avec de meilleurs outils,
+sans quitter leur travail : les gardes et les tourelles restent la vraie défense.
 
 Les structures dorment tant qu'elles n'ont pas été découvertes : creuser vers elles, c'est aussi
 décider quand le combat commence.

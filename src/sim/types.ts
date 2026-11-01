@@ -164,7 +164,7 @@ export interface Pickup {
   claimedBy: number | null;
 }
 
-export type JobKind = 'build' | 'drill' | 'path' | 'haul' | 'harvest' | 'clear';
+export type JobKind = 'build' | 'drill' | 'path' | 'unpath' | 'haul' | 'harvest' | 'clear';
 
 export interface Job {
   id: number;
@@ -190,7 +190,8 @@ export type Fx =
   | { kind: 'sound'; id: SoundId; x?: number; y?: number; machine?: boolean }
   | { kind: 'voice'; id: VoiceId };
 
-export type SoundId = 'drill' | 'collect' | 'build' | 'alert' | 'laser' | 'collapse' | 'plot';
+export type SoundId =
+  'drill' | 'collect' | 'build' | 'alert' | 'laser' | 'collapse' | 'plot' | 'hit';
 
 export type VoiceId =
   | 'ack'

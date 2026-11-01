@@ -330,6 +330,20 @@ function updateGuard(state: GameState, unit: Unit): void {
   }
 }
 
+/** A miner under attack hits back with the tool in hand, while getting on with the job. */
+function minerDefence(state: GameState, unit: Unit): void {
+  const melee = UNITS[unit.type].melee;
+  if (!melee) return;
+  unit.cooldown = Math.max(0, unit.cooldown - TICK_SECONDS);
+  if (unit.cooldown > 0) return;
+  const target = nearestEnemy(state, unit.x, unit.y, melee.range);
+  if (!target) return;
+  unit.cooldown = melee.cooldown;
+  unit.targetId = target.id;
+  hurtEnemy(state, target, melee.damage * state.mods.drillPower);
+  state.fx.push({ kind: 'sound', id: 'hit', x: target.x, y: target.y });
+}
+
 function updateTurrets(state: GameState): void {
   for (const b of state.buildings) {
     const turret = BUILDINGS[b.type].turret;
@@ -352,7 +366,10 @@ export function updateCombat(state: GameState): void {
   for (const e of [...state.enemies]) updateEnemy(state, e);
   for (const unit of [...state.units]) {
     if (UNITS[unit.type].attack) updateGuard(state, unit);
-    else updateWorker(state, unit);
+    else {
+      updateWorker(state, unit);
+      minerDefence(state, unit);
+    }
   }
   updateTurrets(state);
 

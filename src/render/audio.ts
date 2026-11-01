@@ -14,6 +14,12 @@ interface SoundDef {
 }
 
 const SOUNDS: Record<SoundKey, SoundDef> = {
+  hit: {
+    gain: 0.14,
+    gap: 0.2,
+    wet: 0.25,
+    synth: { freq: 240, to: 110, time: 0.08, type: 'triangle', gain: 0.04 },
+  },
   rattle: {
     gain: 0,
     gap: 0.5,

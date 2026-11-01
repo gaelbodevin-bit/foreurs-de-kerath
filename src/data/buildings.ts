@@ -249,6 +249,8 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
 };
 
 export const PATH_COST: Cost = { stone: 2, ore: 1 };
+/** What taking a stretch of road up gives back: half of the stone, and none of the ore. */
+export const PATH_REFUND = 1;
 
 export type BuildMenuId = 'explore' | 'city';
 

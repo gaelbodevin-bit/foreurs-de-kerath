@@ -20,7 +20,8 @@ const BASE: Record<TileKind, THREE.Color> = {
   rubble: hex(0x6e5f50),
   // The ground under a road: the lane itself is drawn on top.
   path: hex(0x5a4a3e),
-  fungus: hex(0x4e6b3a),
+  // Damp, dark ground: the mushrooms themselves stand on it, see `decor.ts`.
+  fungus: hex(0x4d4436),
   lava: hex(0xff5a1f),
   water: hex(0x1f5f8f),
   dirt: hex(0x6e5b4c),

@@ -29,6 +29,41 @@ function decorFor(tile: Tile, i: number): { model: ModelId; fit: number } | null
 }
 
 const MAX_SPIKES = 1400;
+const MUSHROOMS_PER_TILE = 6;
+const MAX_MUSHROOMS = 1800;
+/** Caps of the same family, from pale to ripe: a patch of a single green would look printed. */
+const CAP_COLORS = [0x9ccc5a, 0xc7e07a, 0x7fb04a, 0xe0c26a].map((c) => new THREE.Color(c));
+/** A freshly picked patch only has small ones left, until it grows back. */
+const PICKED_SCALE = 0.35;
+
+function makeMushrooms(): { stems: THREE.InstancedMesh; caps: THREE.InstancedMesh } {
+  const stemShape = new THREE.CylinderGeometry(0.5, 0.75, 1, 7);
+  stemShape.translate(0, 0.5, 0);
+  const stems = new THREE.InstancedMesh(
+    stemShape,
+    new THREE.MeshStandardMaterial({ color: 0xefe6c8, roughness: 0.85 }),
+    MAX_MUSHROOMS,
+  );
+  // A dome, flattened at the base: the shape that says mushroom from any distance.
+  const capShape = new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+  const caps = new THREE.InstancedMesh(
+    capShape,
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.6,
+      // A faint glow of their own, so that they can be picked out in the dark of the cave.
+      emissive: 0x4a6a1e,
+      emissiveIntensity: 0.55,
+    }),
+    MAX_MUSHROOMS,
+  );
+  for (const mesh of [stems, caps]) {
+    mesh.castShadow = true;
+    mesh.frustumCulled = false;
+    mesh.count = 0;
+  }
+  return { stems, caps };
+}
 
 /** Spires of rock, on the walls and at their feet: one draw call, however many there are. */
 function makeSpikes(): THREE.InstancedMesh {
@@ -65,6 +100,7 @@ export class DecorView {
   readonly group = new THREE.Group();
   private readonly placed = new Map<number, { model: ModelId; object: THREE.Object3D }>();
   private readonly spikes = makeSpikes();
+  private readonly mushrooms = makeMushrooms();
   private buildingCount = -1;
 
   constructor(
@@ -72,8 +108,9 @@ export class DecorView {
     private readonly heightAt: (x: number, y: number) => number,
   ) {
     for (let i = 0; i < state.tiles.length; i++) this.syncTile(i);
-    this.group.add(this.spikes);
+    this.group.add(this.spikes, this.mushrooms.stems, this.mushrooms.caps);
     this.rebuildSpikes();
+    this.rebuildMushrooms();
   }
 
   /** A wall's height depends on its neighbours, so those are refreshed along with it. */
@@ -86,6 +123,7 @@ export class DecorView {
       }
     }
     for (const i of todo) this.syncTile(i);
+    if (changed.length > 0) this.rebuildMushrooms();
     if (changed.length > 0 || state.buildings.length !== this.buildingCount) this.rebuildSpikes();
   }
 
@@ -129,6 +167,50 @@ export class DecorView {
       if (tile && isWallKind(tile.k)) return true;
     }
     return false;
+  }
+
+  /** Clusters scattered over each known patch, the same every time thanks to `grain`. */
+  private rebuildMushrooms(): void {
+    const { state } = this;
+    const { stems, caps } = this.mushrooms;
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const noTurn = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    let count = 0;
+    for (let i = 0; i < state.tiles.length; i++) {
+      const tile = state.tiles[i];
+      if (!tile.seen || tile.k !== 'fungus') continue;
+      const x = i % state.w;
+      const y = Math.floor(i / state.w);
+      const growth = tile.regrow > 0 ? PICKED_SCALE : 1;
+      for (let n = 0; n < MUSHROOMS_PER_TILE && count < MAX_MUSHROOMS; n++) {
+        const seed = i * 7 + n * 13;
+        const px = x + 0.12 + grain(seed + 1) * 0.76;
+        const pz = y + 0.12 + grain(seed + 2) * 0.76;
+        const size = (0.05 + grain(seed + 3) * 0.09) * growth;
+        const tall = size * (1.4 + grain(seed + 4));
+        stems.setMatrixAt(
+          count,
+          matrix.compose(position.set(px, 0, pz), noTurn, scale.set(size * 0.6, tall, size * 0.6)),
+        );
+        caps.setMatrixAt(
+          count,
+          matrix.compose(
+            position.set(px, tall * 0.92, pz),
+            noTurn,
+            scale.set(size * 1.5, size * 1.05, size * 1.5),
+          ),
+        );
+        caps.setColorAt(count, CAP_COLORS[Math.floor(grain(seed + 5) * CAP_COLORS.length)]);
+        count++;
+      }
+    }
+    stems.count = count;
+    caps.count = count;
+    stems.instanceMatrix.needsUpdate = true;
+    caps.instanceMatrix.needsUpdate = true;
+    if (caps.instanceColor) caps.instanceColor.needsUpdate = true;
   }
 
   /** Redone in full on each change: a few thousand tile checks, and it only runs after a dig. */
@@ -175,5 +257,10 @@ export class DecorView {
     this.spikes.geometry.dispose();
     (this.spikes.material as THREE.Material).dispose();
     this.spikes.dispose();
+    for (const mesh of [this.mushrooms.stems, this.mushrooms.caps]) {
+      mesh.geometry.dispose();
+      (mesh.material as THREE.Material).dispose();
+      mesh.dispose();
+    }
   }
 }

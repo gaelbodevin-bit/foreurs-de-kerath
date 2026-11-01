@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { REGIONS } from '../src/data/regions';
-import { BUILDINGS } from '../src/data/buildings';
+import { BUILDINGS, PATH_REFUND } from '../src/data/buildings';
 import { STORY_EVENTS } from '../src/data/story';
+import { UNITS } from '../src/data/units';
 import { generateWorld } from '../src/sim/mapgen';
 import { idx, isWalkableKind, reveal } from '../src/sim/grid';
 import { findPath } from '../src/sim/pathfinding';
-import { spawnEnemy } from '../src/sim/entities';
+import { createBuilding, spawnEnemy } from '../src/sim/entities';
 import {
   canPlaceBuilding,
   designateArea,
   placeBuilding,
   placePath,
+  removePaths,
   stepGame,
   trainUnit,
 } from '../src/sim/game';
@@ -216,6 +218,66 @@ describe('gravats et stock plein', () => {
   });
 });
 
+describe('retirer le sol technique', () => {
+  const road = () => {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    const x = hq.x + 3;
+    const y = hq.y;
+    state.tiles[idx(state, x, y)].k = 'path';
+    return { state, x, y };
+  };
+
+  it('un foreur le démonte et récupère de la roche', () => {
+    const { state, x, y } = road();
+    const stone = state.stock.stone;
+    expect(removePaths(state, x, y, x, y)).toBe(1);
+    run(state, 25);
+    expect(state.tiles[idx(state, x, y)].k).toBe('floor');
+    expect(state.stock.stone).toBe(stone + PATH_REFUND);
+    expect(state.jobs.some((j) => j.kind === 'unpath')).toBe(false);
+  });
+
+  it('repasser annule, et un sol prévu mais pas encore posé disparaît', () => {
+    const { state, x, y } = road();
+    expect(removePaths(state, x, y, x, y)).toBe(1);
+    expect(removePaths(state, x, y, x, y)).toBe(1);
+    expect(state.jobs.some((j) => j.kind === 'unpath')).toBe(false);
+    const free = x + 1;
+    state.tiles[idx(state, free, y)].k = 'floor';
+    expect(placePath(state, free, y, free, y)).toBe(1);
+    expect(removePaths(state, free, y, free, y)).toBe(1);
+    expect(state.jobs.some((j) => j.kind === 'path')).toBe(false);
+  });
+
+  it('coupe le réseau derrière lui, et ne touche pas ce qui est sous un bâtiment', () => {
+    const { state, x, y } = road();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    expect(removePaths(state, hq.x, hq.y, hq.x, hq.y)).toBe(0);
+    const oxygen = createBuilding(state, 'oxygen', x + 1, y, 1);
+    state.tiles[idx(state, x - 1, y)].k = 'path';
+    updateNetwork(state);
+    expect(oxygen.connected).toBe(true);
+    removePaths(state, x - 1, y, x, y);
+    run(state, 40);
+    updateNetwork(state);
+    expect(oxygen.connected).toBe(false);
+  });
+});
+
+describe('champignons', () => {
+  it('la récolte et la repousse redessinent la case', () => {
+    const state = newGame();
+    const i = state.tiles.findIndex((t) => t.k !== 'solid');
+    state.tiles[i].k = 'fungus';
+    state.tiles[i].regrow = 1;
+    state.dirty = [];
+    run(state, 1.1);
+    expect(state.tiles[i].regrow).toBe(0);
+    expect(state.dirty).toContain(i);
+  });
+});
+
 describe('faim', () => {
   it('personne ne meurt de faim avant d’avoir rejoint la cité', () => {
     const state = newGame();
@@ -279,6 +341,58 @@ describe('cité', () => {
 });
 
 describe('combat', () => {
+  /** A lone miner out of range of the headquarters' turret, on open and known ground. */
+  const loneMiner = () => {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    const foreur = state.units.find((u) => u.type === 'foreur')!;
+    state.units = [foreur];
+    foreur.x = hq.x + 20.5;
+    foreur.y = hq.y + 0.5;
+    for (let dy = -3; dy <= 3; dy++) {
+      for (let dx = -8; dx <= 8; dx++) {
+        const tile = state.tiles[idx(state, Math.floor(foreur.x) + dx, Math.floor(foreur.y) + dy)];
+        tile.k = 'floor';
+        tile.seen = true;
+      }
+    }
+    return { state, foreur };
+  };
+
+  it('un foreur rend les coups, un peu, et plus fort avec de meilleurs outils', () => {
+    const hitWith = (drillPower: number) => {
+      const { state, foreur } = loneMiner();
+      state.mods.drillPower = drillPower;
+      const enemy = spawnEnemy(state, 'golem', foreur.x + 0.5, foreur.y);
+      const hp = enemy.hp;
+      run(state, 0.3);
+      return hp - enemy.hp;
+    };
+    expect(hitWith(1)).toBe(UNITS.foreur.melee!.damage);
+    expect(hitWith(3)).toBe(UNITS.foreur.melee!.damage * 3);
+  });
+
+  it('un foreur finit par abattre un rongeur', () => {
+    const { state, foreur } = loneMiner();
+    foreur.hp = 500;
+    spawnEnemy(state, 'rongeur', foreur.x + 0.5, foreur.y);
+    run(state, 15);
+    expect(state.kills.rongeur).toBe(1);
+  });
+
+  it('un foreur ne frappe ni à distance, ni ce qu’il ne voit pas', () => {
+    const { state, foreur } = loneMiner();
+    const far = spawnEnemy(state, 'golem', foreur.x + 5, foreur.y);
+    far.dormant = true;
+    const hidden = spawnEnemy(state, 'golem', foreur.x + 0.5, foreur.y);
+    hidden.dormant = true;
+    state.tiles[idx(state, Math.floor(hidden.x), Math.floor(hidden.y))].seen = false;
+    const hp = far.hp;
+    run(state, 3);
+    expect(far.hp).toBe(hp);
+    expect(hidden.hp).toBe(hp);
+  });
+
   it('une tourelle sous tension abat un rongeur', () => {
     const state = newGame();
     const hq = state.buildings.find((b) => b.type === 'hq')!;
