@@ -7,9 +7,11 @@ Needs `pip install piper-tts`, and these voices from huggingface.co/rhasspy/pipe
 models folder: fr_FR-siwis-medium, fr_FR-upmc-medium and fr_FR-gilles-low.
 """
 
+import array
 import json
 import subprocess
 import sys
+import wave
 from pathlib import Path
 
 # The file each voice comes from, and its speaker inside that file.
@@ -19,6 +21,23 @@ VOICES = {
     "pierre": ("fr_FR-upmc-medium.onnx", 1),
     "gilles": ("fr_FR-gilles-low.onnx", 0),
 }
+
+SILENCE = 700
+KEEP_BEFORE = 0.03
+KEEP_AFTER = 0.1
+
+
+def trim(path: Path) -> None:
+    """Cuts the silence around a line, so that the subtitle and the voice start together."""
+    with wave.open(str(path)) as source:
+        params = source.getparams()
+        samples = array.array("h", source.readframes(source.getnframes()))
+    loud = [i for i, sample in enumerate(samples) if abs(sample) > SILENCE]
+    start = max(0, loud[0] - int(KEEP_BEFORE * params.framerate))
+    end = min(len(samples), loud[-1] + int(KEEP_AFTER * params.framerate))
+    with wave.open(str(path), "wb") as target:
+        target.setparams(params)
+        target.writeframes(samples[start:end].tobytes())
 
 
 def main() -> None:
@@ -31,6 +50,10 @@ def main() -> None:
         subprocess.run(
             [
                 sys.executable,
+                # Without this, Windows reads the text in its own encoding: every accented letter
+                # turns into two wrong ones, and the voice speaks gibberish without any error.
+                "-X",
+                "utf8",
                 "-m",
                 "piper",
                 "--model",
@@ -51,6 +74,7 @@ def main() -> None:
             check=True,
             capture_output=True,
         )
+        trim(target)
 
 
 if __name__ == "__main__":

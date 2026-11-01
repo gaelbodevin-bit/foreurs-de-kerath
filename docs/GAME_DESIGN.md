@@ -48,7 +48,9 @@ Ceux du menu Exploration se posent partout. L'avant-poste sert de dépôt et de 
 
 ## Le gouverneur et son conseil
 
-Rejoindre CITY fait du chef d'expédition le gouverneur, qui choisit son style. Le conseil a
+Rejoindre CITY fait du chef d'expédition le gouverneur, qui choisit son style. La ville compte déjà
+douze habitants et de quoi les loger, et abrite le siège du conseil, un bâtiment unique qu'il suffit
+de cliquer pour ouvrir le panneau. Le conseil a
 quatre sièges : Ingénierie, Intendance, Science et Défense. Orsa Veld, Tomas Krell et Ilyane Soum
 occupent les trois premiers. De nouveaux candidats se présentent toutes les 3 minutes, chacun avec un
 trait dont l'effet grandit à chaque niveau. Renvoyer un conseiller ne règle pas le complot.

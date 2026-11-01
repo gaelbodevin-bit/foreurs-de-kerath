@@ -14,3 +14,9 @@ export const MAX_CONTRACTS = 4;
 
 /** How far from the headquarters city buildings can stand, in tiles: the city spreads as it ranks up. */
 export const cityRadius = (level: number): number => 10 + level * 4;
+
+/** The colonists waiting in the city, and the homes they already have there. */
+export const CITY_SETTLERS = 12;
+export const CITY_HOUSING = 16;
+/** How close to the middle of the city a click reaches the council's seat. */
+export const COUNCIL_SEAT_RADIUS = 2;

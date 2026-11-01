@@ -720,15 +720,92 @@ export function unitFromModels(type: UnitType, tool: DrillTool): THREE.Group | n
   }
 }
 
-/** The city the first mission digs towards: a few hangars around a beacon. */
+/**
+ * The one building of its kind: a stepped plinth, a ring of columns around a rotunda, a gold dome and
+ * a spire. Nothing the crew can build looks like it, so it stands out from anywhere in the city.
+ */
+function councilSeat(): THREE.Group {
+  const seat = new THREE.Group();
+  const stone = 0xd9d4c5;
+  const gold = new THREE.MeshStandardMaterial({
+    color: 0xd4a73a,
+    metalness: 0.75,
+    roughness: 0.32,
+  });
+  seat.add(
+    makeDetail({ shape: 'cyl', color: 0x8d8778, y: 0.06, w: 3.4, h: 0.12, d: 3.4 }),
+    makeDetail({ shape: 'cyl', color: 0xaaa494, y: 0.18, w: 3, h: 0.12, d: 3 }),
+    makeDetail({ shape: 'cyl', color: stone, y: 0.3, w: 2.6, h: 0.12, d: 2.6 }),
+    makeDetail({ shape: 'cyl', color: TEAL, glow: true, y: 0.37, w: 2.66, h: 0.02, d: 2.66 }),
+    makeDetail({ shape: 'cyl', color: 0xc9c3b2, y: 0.85, w: 1.5, h: 0.95, d: 1.5 }),
+    makeDetail({ shape: 'cyl', color: 0xffd98a, glow: true, y: 0.85, w: 1.54, h: 0.14, d: 1.54 }),
+    makeDetail({ shape: 'cyl', color: stone, y: 1.37, w: 2.34, h: 0.1, d: 2.34 }),
+  );
+  for (let i = 0; i < 10; i++) {
+    const angle = (i / 10) * Math.PI * 2;
+    seat.add(
+      makeDetail({
+        shape: 'cyl',
+        color: stone,
+        x: Math.cos(angle) * 1.08,
+        y: 0.85,
+        z: Math.sin(angle) * 1.08,
+        w: 0.13,
+        h: 0.95,
+        d: 0.13,
+      }),
+    );
+  }
+  const dome = new THREE.Mesh(capGeometry, gold);
+  dome.position.y = 1.42;
+  dome.scale.set(0.85, 0.72, 0.85);
+  dome.castShadow = true;
+  const spire = new THREE.Mesh(cylinderGeometry, gold);
+  spire.position.y = 2.32;
+  spire.scale.set(0.05, 0.4, 0.05);
+  seat.add(dome, spire);
+  // The Charter's colours, on either side of the steps.
+  for (const side of [-1, 1]) {
+    seat.add(
+      makeDetail({
+        shape: 'cyl',
+        color: 0x6f6a5e,
+        x: side * 0.72,
+        y: 0.75,
+        z: 1.45,
+        w: 0.05,
+        h: 1.5,
+        d: 0.05,
+      }),
+      makeDetail({
+        shape: 'box',
+        color: 0x1f8f7d,
+        x: side * 0.72,
+        y: 1.1,
+        z: 1.47,
+        w: 0.34,
+        h: 0.62,
+        d: 0.02,
+      }),
+    );
+  }
+  const gem = makeAccent({ color: TEAL, y: 2.68, size: 0.17, shape: 'gem' });
+  seat.add(gem);
+  seat.userData.beacon = gem;
+  return seat;
+}
+
+/** The city the first mission digs towards: the council's seat, among what its people live in. */
 export function settlementFromModels(): THREE.Group {
   const g = new THREE.Group();
   const parts: [ModelId, number, number, number][] = [
-    ['hangarRoundA', 1.9, 0, -0.3],
-    ['hangarGlass', 1.2, -1.9, 0.5],
-    ['hangarSmallB', 1, 1.9, 0.6],
-    ['barrels', 0.7, -1, 1.9],
-    ['structure', 0.8, 1, -2.1],
+    ['hangarGlass', 1.3, -3.5, 0],
+    ['hangarSmallB', 1.2, 3.5, 0.3],
+    ['hangarRoundB', 1.4, 0.3, 3.7],
+    ['hangarGlass', 1.1, -2.5, -2.7],
+    ['structure', 0.9, 2.6, -2.6],
+    ['barrels', 0.8, 2.5, 2.8],
+    ['platformSmall', 1.1, -2.6, 2.8],
   ];
   for (const [model, fit, x, z] of parts) {
     const piece = placeModel(model, fit);
@@ -736,10 +813,16 @@ export function settlementFromModels(): THREE.Group {
     piece.position.set(x, 0, z);
     g.add(piece);
   }
-  const beacon = makeAccent({ color: TEAL, y: 1.7, size: 0.2, shape: 'gem' });
-  g.add(beacon, groundGlow(TEAL, 8, 0.14));
-  g.userData.beacon = beacon;
+  const seat = councilSeat();
+  g.add(seat, groundGlow(TEAL, 10, 0.1));
+  g.userData.beacon = seat.userData.beacon;
   return g;
+}
+
+/** Someone who lives in the city: no hard hat, no tool, and nobody gives them orders. */
+export function residentFromModels(index: number): THREE.Group | null {
+  const looks: ModelId[] = ['saboteur', 'saboteurB', 'foreurA', 'foreurB'];
+  return characterGroup(looks[index % looks.length], 0.92)?.group ?? null;
 }
 
 /** Cloned once: darkens the sect's robes without touching the shared worker colours. */

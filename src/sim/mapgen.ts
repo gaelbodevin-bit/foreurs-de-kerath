@@ -39,10 +39,13 @@ interface Cavern {
 }
 
 const START_RADIUS = 4;
-const SETTLEMENT_RADIUS = 3;
-const SETTLEMENT_OFFSET = 10;
+const SETTLEMENT_RADIUS = 5;
+const SETTLEMENT_OFFSET = 14;
+/** The sector definitions count for a 90-tile world: this keeps the rock as rich on a larger one. */
+const DENSITY = (WORLD_SIZE / 90) ** 2;
+const scaled = (count: number | undefined): number => Math.round((count ?? 0) * DENSITY);
 /** No monsters waiting in or next to the city the colonists are holding out in. */
-const LAIR_CLEARANCE = 10;
+const LAIR_CLEARANCE = 14;
 /** How wide the band of tough rock between two sectors is, in tiles on each side. */
 const BORDER = 1.6;
 /** The sectors of this rank and beyond are walled with what only a laser cuts. */
@@ -120,7 +123,8 @@ export function generateWorld(seed: number): GeneratedMap {
   REGIONS.forEach((region, index) => {
     const { map } = region;
     const caverns: Cavern[] = [];
-    for (let attempt = 0; attempt < map.caverns * 30 && caverns.length < map.caverns; attempt++) {
+    const wanted = scaled(map.caverns);
+    for (let attempt = 0; attempt < wanted * 30 && caverns.length < wanted; attempt++) {
       const r = rng.int(2, 4);
       const spot = spotIn(index, r + BORDER + 2);
       if (!spot) break;
@@ -154,7 +158,7 @@ export function generateWorld(seed: number): GeneratedMap {
           Math.hypot(x - (start.x + sign * SETTLEMENT_OFFSET), y - (start.y + SETTLEMENT_OFFSET)) <=
           LAIR_CLEARANCE,
       );
-    for (let i = 0; i < (map.lairs?.count ?? 0); i++) {
+    for (let i = 0; i < scaled(map.lairs?.count); i++) {
       let c = byDistance.find(
         (option) => !used.has(option) && option.r >= 2 && farFromCity(option.x, option.y),
       );
@@ -195,10 +199,10 @@ export function generateWorld(seed: number): GeneratedMap {
         splash(c.x, c.y, kind, Math.max(1, c.r - spread));
       }
     };
-    decorate(map.lavaPools, 'lava', 2);
-    decorate(map.waterPools, 'water', 2);
-    decorate(map.fungusPatches, 'fungus', 1);
-    for (let i = 0; i < (map.gasZones ?? 0); i++) {
+    decorate(scaled(map.lavaPools), 'lava', 2);
+    decorate(scaled(map.waterPools), 'water', 2);
+    decorate(scaled(map.fungusPatches), 'fungus', 1);
+    for (let i = 0; i < scaled(map.gasZones); i++) {
       const options = free();
       if (options.length === 0) break;
       const c = rng.pick(options);
@@ -211,12 +215,12 @@ export function generateWorld(seed: number): GeneratedMap {
     }
 
     for (const [kind, count] of Object.entries(map.seams) as [TileKind, number][]) {
-      for (let i = 0; i < count; i++) {
+      for (let i = 0; i < scaled(count); i++) {
         const spot = spotIn(index, BORDER);
         if (spot) paintVein(kind, spot.x, spot.y, rng.int(3, 6));
       }
     }
-    for (let i = 0; i < (map.relics ?? 0); i++) {
+    for (let i = 0; i < scaled(map.relics); i++) {
       const spot = spotIn(index, BORDER + 1);
       if (!spot || !isWallKind(at(spot.x, spot.y).k)) continue;
       at(spot.x, spot.y).k = 'relicVault';

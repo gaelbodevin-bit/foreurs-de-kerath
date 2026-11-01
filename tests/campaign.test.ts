@@ -1,19 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { clearSave, readSave, writeSave, type SaveStorage } from '../src/campaign/save';
-import { BUILDINGS, CITY_BUILDINGS } from '../src/data/buildings';
-import { CITY_LEVELS, cityRadius, MAX_CONTRACTS } from '../src/data/progression';
+import { BUILD_TIME_FACTOR, BUILDINGS, CITY_BUILDINGS } from '../src/data/buildings';
+import {
+  CITY_HOUSING,
+  CITY_LEVELS,
+  CITY_SETTLERS,
+  cityRadius,
+  MAX_CONTRACTS,
+} from '../src/data/progression';
 import { regionById, REGIONS, sectorAt, WORLD_SIZE } from '../src/data/regions';
 import { DRILL_TOOLS, WALLS } from '../src/data/resources';
 import { TECHS } from '../src/data/techs';
 import { contractStatus, deliverContract, updateContracts } from '../src/sim/contracts';
 import { updateNetwork } from '../src/sim/economy';
 import { createBuilding } from '../src/sim/entities';
-import { canPlaceBuilding, createGame, stepGame } from '../src/sim/game';
+import { canPlaceBuilding, createGame, placeBuilding, stepGame } from '../src/sim/game';
 import {
   activeRegions,
   availableBuildings,
   buildingLock,
   buyTech,
+  isCouncilSeat,
   planetControl,
   updateProgress,
   visibleObjectives,
@@ -172,6 +179,33 @@ describe('progression', () => {
     const ids = TECHS.map((t) => t.id);
     for (const def of Object.values(BUILDINGS)) if (def.tech) expect(ids).toContain(def.tech);
     for (const tech of TECHS) if (tech.requires) expect(ids).toContain(tech.requires);
+  });
+});
+
+describe('CITY', () => {
+  it('apporte ses habitants et leurs logements, et abrite le siège du conseil', () => {
+    const state = newGame(1);
+    const before = state.city.population;
+    const place = state.settlement!;
+    expect(isCouncilSeat(state, place.x, place.y)).toBe(false);
+    reveal(state, place.x, place.y);
+    run(state, 2);
+    expect(state.city.population).toBe(before + CITY_SETTLERS);
+    expect(state.city.housing).toBeGreaterThanOrEqual(CITY_HOUSING);
+    expect(isCouncilSeat(state, place.x, place.y)).toBe(true);
+    expect(isCouncilSeat(state, place.x + 4, place.y)).toBe(false);
+  });
+});
+
+describe('construction', () => {
+  it('prend nettement plus de temps qu’avant', () => {
+    expect(BUILD_TIME_FACTOR).toBeGreaterThanOrEqual(3);
+    const state = newGame(1);
+    unlockEverything(state);
+    const hq = state.buildings[0];
+    expect(placeBuilding(state, 'depot', hq.x + 3, hq.y).ok).toBe(true);
+    run(state, BUILDINGS.depot.buildTime);
+    expect(state.buildings.find((b) => b.type === 'depot')?.built).toBeLessThan(1);
   });
 });
 

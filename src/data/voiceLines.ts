@@ -43,31 +43,35 @@ export const VOICE_LINES: Record<VoiceId, LineSet> = {
       ...say('drillerF', 'Bien reçu, chef.', 'J’arrive tout de suite.', 'Je m’en occupe.'),
     ],
   },
+  ackGuard: {
+    gap: 8,
+    lines: say(
+      'guard',
+      'Bien reçu, je me déplace.',
+      'Je prends position.',
+      'J’y vais tout de suite.',
+    ),
+  },
   drill: {
     gap: 20,
     lines: [
-      ...say(
-        'driller',
-        'Je commence à creuser.',
-        'Nous attaquons cette paroi.',
-        'Forage en cours.',
-      ),
-      ...say('drillerF', 'Je creuse ici.', 'Nous perçons cette roche.'),
+      ...say('driller', 'Je vais creuser ici.', 'Nous allons attaquer cette paroi.'),
+      ...say('drillerF', 'Je m’occupe de cette roche.', 'Nous allons percer ici.'),
     ],
   },
   find: {
     gap: 40,
     lines: [
-      ...say('driller', 'Filon dégagé, je ramène tout.', 'Nous avons trouvé un filon.'),
-      ...say('drillerF', 'Filon trouvé !', 'Il y a des ressources à ramasser ici.'),
+      ...say('driller', 'Je ramène tout au dépôt.', 'Nous avons trouvé quelque chose.'),
+      ...say('drillerF', 'Belle trouvaille !', 'Il y a des ressources à ramasser ici.'),
     ],
   },
   built: {
     gap: 15,
     lines: [
       ...say('driller', 'Le bâtiment est terminé.', 'Construction terminée.'),
-      ...say('drillerF', 'Le chantier est fini.', 'Encore un bâtiment de prêt.'),
-      ...say('engineer', 'Bâtiment prêt. Pensez à le relier au réseau.'),
+      ...say('drillerF', 'Le chantier est fini.', 'Un bâtiment de plus.'),
+      ...say('engineer', 'Le bâtiment est prêt.'),
     ],
   },
   raid: {
@@ -151,7 +155,7 @@ export const VOICE_LINES: Record<VoiceId, LineSet> = {
   contractDone: {
     gap: 10,
     lines: [
-      ...say('steward', 'Mission accomplie, la récompense est versée.', 'Mission terminée.'),
+      ...say('steward', 'Mission accomplie.', 'Mission terminée.'),
       ...say('drillerF', 'Mission réussie !'),
     ],
   },
@@ -165,7 +169,6 @@ export const VOICE_LINES: Record<VoiceId, LineSet> = {
   },
   levelUp: {
     gap: 0,
-    urgent: true,
     lines: [
       ...say('steward', 'La colonie grandit, Gouverneur.', 'La population augmente.'),
       ...say('engineer', 'La cité s’agrandit, nous pouvons bâtir plus loin.'),

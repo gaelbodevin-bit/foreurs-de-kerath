@@ -285,3 +285,6 @@ export const BUILD_MENUS: BuildMenu[] = [
 export const CITY_BUILDINGS: ReadonlySet<BuildingType> = new Set(
   BUILD_MENUS.filter((m) => m.id === 'city').flatMap((m) => m.groups.flatMap((g) => g.buildings)),
 );
+
+/** Every `buildTime` is multiplied by this: raising a colony is meant to take a while. */
+export const BUILD_TIME_FACTOR = 4;

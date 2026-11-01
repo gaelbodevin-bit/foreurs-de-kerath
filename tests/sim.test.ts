@@ -3,7 +3,7 @@ import { REGIONS } from '../src/data/regions';
 import { BUILDINGS } from '../src/data/buildings';
 import { STORY_EVENTS } from '../src/data/story';
 import { generateWorld } from '../src/sim/mapgen';
-import { idx, isWalkableKind } from '../src/sim/grid';
+import { idx, isWalkableKind, reveal } from '../src/sim/grid';
 import { findPath } from '../src/sim/pathfinding';
 import { spawnEnemy } from '../src/sim/entities';
 import {
@@ -236,13 +236,14 @@ describe('faim', () => {
     expect(state.stock.food).toBeLessThan(food);
   });
 
-  it('une fois la cité rejointe, la colonie tient plus de dix minutes avant le premier mort', () => {
+  it('en arrivant à CITY sans rien bâtir, la colonie a dix minutes avant le premier mort', () => {
     const state = newGame();
-    state.settlement!.reached = true;
-    const start = state.city.population;
-    run(state, 660);
+    reveal(state, state.settlement!.x, state.settlement!.y);
+    run(state, 2);
+    const population = state.city.population;
+    run(state, 600);
     expect(state.stock.food).toBeGreaterThan(0);
-    expect(state.city.population).toBeGreaterThanOrEqual(start);
+    expect(state.city.population).toBeGreaterThanOrEqual(population);
   });
 });
 

@@ -101,6 +101,20 @@ describe('menus de construction', () => {
 });
 
 describe('répliques', () => {
+  it('ne promettent rien que le jeu ne fasse pas à ce moment-là', () => {
+    const text = (id: keyof typeof VOICE_LINES) =>
+      VOICE_LINES[id].lines.map((l) => l.text).join(' ');
+    // Heard when the rock is marked, before anyone has got there.
+    expect(text('drill')).not.toMatch(/en cours|je commence/i);
+    // Not every mission pays, not every building needs the network, relic vaults aren't seams.
+    expect(text('contractDone')).not.toMatch(/récompense/i);
+    expect(text('built')).not.toMatch(/réseau/i);
+    expect(text('find')).not.toMatch(/filon/i);
+    // The rank goes up in the same second as the arrival at the city: it must give way.
+    expect(VOICE_LINES.levelUp.urgent).toBeFalsy();
+    expect(VOICE_LINES.reunited.urgent).toBe(true);
+  });
+
   it('chaque événement a plusieurs répliques, sans doublon', () => {
     const all = Object.values(VOICE_LINES).flatMap((set) => set.lines.map((l) => l.text));
     expect(new Set(all).size).toBe(all.length);

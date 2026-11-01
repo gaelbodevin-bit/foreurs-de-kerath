@@ -197,6 +197,7 @@ export type SoundId = 'drill' | 'collect' | 'build' | 'alert' | 'laser' | 'colla
 
 export type VoiceId =
   | 'ack'
+  | 'ackGuard'
   | 'drill'
   | 'find'
   | 'built'

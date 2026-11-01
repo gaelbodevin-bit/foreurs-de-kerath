@@ -268,7 +268,7 @@ export const REGIONS: RegionDef[] = [
 ];
 
 /** Tiles along one side of the planet map. */
-export const WORLD_SIZE = 90;
+export const WORLD_SIZE = 140;
 
 /**
  * Which sector a point belongs to: the nearest centre. `margin` is how far it is from the border

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS } from '../src/data/buildings';
+import { WORLD_SIZE } from '../src/data/regions';
 import { deliverContract, contractStatus } from '../src/sim/contracts';
 import { TECHS } from '../src/data/techs';
 import { activeRegions, availableBuildings, buyTech, planetControl } from '../src/sim/progress';
@@ -272,6 +273,6 @@ describe('partie complète (joueur automatique)', () => {
       `${state.outcome} t=${Math.round(state.time)} pop=${Math.floor(state.city.population)} rang=${state.cityLevel} contrôle=${planetControl(state)} % secteurs=${state.conquered.join(',')} techs=${state.techs.length} bât=${state.buildings.length} unités=${state.units.length} vu=${state.tiles.filter((t) => t.seen).length} raison=${state.outcomeReason}`,
     );
     expect(Number.isFinite(state.stock.credits)).toBe(true);
-    expect(state.w).toBe(90);
+    expect(state.w).toBe(WORLD_SIZE);
   }, 240_000);
 });

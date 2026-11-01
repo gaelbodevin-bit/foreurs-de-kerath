@@ -1,4 +1,5 @@
 import { BUILDINGS, type BuildingDef } from '../data/buildings';
+import { CITY_HOUSING } from '../data/progression';
 import { REGIONS } from '../data/regions';
 import { RESOURCES } from '../data/resources';
 import { POLICIES, TAX_LEVELS, UNITS } from '../data/units';
@@ -90,6 +91,7 @@ export function updateEconomy(state: GameState): void {
       city.housing += def.housing + (b.type === 'habitat' ? state.mods.housing : 0);
     }
   }
+  if (state.settlement?.reached) city.housing += CITY_HOUSING;
   const staff = city.jobs === 0 ? 1 : Math.min(1, Math.floor(city.population) / city.jobs);
 
   // Power comes first: every other building's output depends on it.
@@ -177,7 +179,7 @@ function runTraining(state: GameState, b: Building): void {
 }
 
 /** Seconds one person takes to eat one unit of food. */
-const FOOD_PER_MOUTH_SECONDS = 240;
+const FOOD_PER_MOUTH_SECONDS = 360;
 /** Warned at this stock: about four minutes' notice for a young colony. */
 const LOW_FOOD = 12;
 /** Seconds between two deaths, for as long as the colony goes hungry or breathless. */

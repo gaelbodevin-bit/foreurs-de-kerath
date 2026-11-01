@@ -1,5 +1,6 @@
 import {
   BUILD_MENUS,
+  BUILD_TIME_FACTOR,
   BUILDINGS,
   CITY_BUILDINGS,
   PATH_COST,
@@ -42,6 +43,7 @@ import {
   buildingLock,
   buyTech,
   hasReachedCity,
+  isCouncilSeat,
   objectiveProgress,
   techLock,
   visibleObjectives,
@@ -329,7 +331,7 @@ export class MissionScreen {
             h('span', { class: 'b-name' }, def.name),
             h('span', { class: 'b-cost' }, costLabel(def.cost)),
           );
-          button.title = def.desc;
+          button.title = `${def.desc} Construction : ${def.buildTime * BUILD_TIME_FACTOR} s.`;
           const lock = h('span', { class: 'b-lock' });
           button.append(lock);
           this.buildLocks.set(type, lock);
@@ -421,6 +423,15 @@ export class MissionScreen {
     if (id !== 'drill') this.audio.play(id, x, y);
     else if (machine || tool === 'hammer') this.audio.play('rattle', x, y);
     else if (tool === 'laser') this.audio.play('laser', x, y);
+  }
+
+  /** Whoever was given the order answers it: machines say nothing. */
+  private speakOrder(): void {
+    const types = this.state.units
+      .filter((u) => this.selectedUnits.includes(u.id))
+      .map((u) => u.type);
+    if (types.includes('garde')) this.speak('ackGuard');
+    else if (types.includes('foreur')) this.speak('ack');
   }
 
   private speak(id: VoiceId): void {
@@ -641,6 +652,10 @@ export class MissionScreen {
         return;
       }
     }
+    if (!moved && isCouncilSeat(state, drag.x1, drag.y1)) {
+      this.openModal('council');
+      return;
+    }
     this.selectedBuilding = null;
     this.selectedUnits = [];
     const count = designateArea(state, drag.x0, drag.y0, drag.x1, drag.y1);
@@ -676,7 +691,7 @@ export class MissionScreen {
     if (this.selectedUnits.length === 0) return;
     const tile = this.view.pickTile(e.clientX, e.clientY);
     if (!tile) return;
-    if (orderMove(this.state, this.selectedUnits, tile.x, tile.y)) this.speak('ack');
+    if (orderMove(this.state, this.selectedUnits, tile.x, tile.y)) this.speakOrder();
     else this.say('Destination inaccessible.');
   }
 
@@ -1049,11 +1064,13 @@ export class MissionScreen {
     const tile = hover ? state.tiles[hover.y * state.w + hover.x] : null;
     const hardness = tile?.seen ? (WALLS[tile.k]?.power ?? 0) : 0;
     const label =
-      tile?.seen && (tile.gas ?? 0) >= GAS_HARMFUL
-        ? `${TILE_NAMES[tile.k]} · gaz toxique`
-        : tile?.seen
-          ? `${TILE_NAMES[tile.k]}${hardness > 1 ? ` · ${DRILL_TOOLS[drillToolFor(hardness)].name.toLowerCase()}` : ''}`
-          : '';
+      hover && isCouncilSeat(state, hover.x, hover.y)
+        ? 'Siège du conseil'
+        : tile?.seen && (tile.gas ?? 0) >= GAS_HARMFUL
+          ? `${TILE_NAMES[tile.k]} · gaz toxique`
+          : tile?.seen
+            ? `${TILE_NAMES[tile.k]}${hardness > 1 ? ` · ${DRILL_TOOLS[drillToolFor(hardness)].name.toLowerCase()}` : ''}`
+            : '';
     const enemy = hover
       ? state.enemies.find(
           (e) =>

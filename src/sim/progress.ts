@@ -1,5 +1,5 @@
 import { BUILDINGS, CITY_BUILDINGS } from '../data/buildings';
-import { CITY_LEVELS } from '../data/progression';
+import { CITY_LEVELS, COUNCIL_SEAT_RADIUS } from '../data/progression';
 import { regionById, REGIONS, sectorAt, type Objective, type RegionDef } from '../data/regions';
 import { RESOURCES } from '../data/resources';
 import { techById, TECHS } from '../data/techs';
@@ -119,6 +119,12 @@ export function updateProgress(state: GameState): void {
 }
 
 export const hasReachedCity = (state: GameState): boolean => state.settlement?.reached ?? true;
+
+export function isCouncilSeat(state: GameState, x: number, y: number): boolean {
+  const place = state.settlement;
+  if (!place?.reached) return false;
+  return Math.hypot(x - place.x, y - place.y) <= COUNCIL_SEAT_RADIUS;
+}
 
 /** Why a building can't be placed yet, or null once it can. */
 export function buildingLock(state: GameState, type: BuildingType): string | null {

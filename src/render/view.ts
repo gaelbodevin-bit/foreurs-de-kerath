@@ -12,7 +12,7 @@ import type { BuildingType, GameState } from '../sim/types';
 import type { CharacterRig } from './assets';
 import { DecorView } from './decor';
 import { Dust, GasClouds, Smoke } from './particles';
-import { settlementFromModels } from './modelPrefabs';
+import { residentFromModels, settlementFromModels } from './modelPrefabs';
 import { makeBuilding, makeEnemy, makePickup, makeUnit } from './prefabs';
 import { TerrainView } from './terrain';
 
@@ -27,6 +27,25 @@ interface Tracked {
   /** Where the character's swing was at the previous frame. */
   swing?: number;
 }
+
+/** Someone going about their day in the city. Only decoration: the rules don't know about them. */
+interface Resident {
+  object: THREE.Group;
+  x: number;
+  z: number;
+  toX: number;
+  toZ: number;
+  wait: number;
+}
+
+const RESIDENT_COUNT = 10;
+const RESIDENT_SPEED = 0.8;
+/** The widest turn around the city a single walk can make, in radians. */
+const RESIDENT_TURN = 0.9;
+/** Between the steps of the council's seat and the edge of the city. */
+const RESIDENT_RINGS: readonly [number, number] = [2, 4.5];
+/** Beyond this from the camera, nobody would see them walk. */
+const RESIDENT_VIEW = 32;
 
 interface FxSprite {
   object: THREE.Object3D;
@@ -55,6 +74,20 @@ const PICK_SWING_SPEED = 0.6;
 
 const TARGET_FPS = 32;
 const SHADOW_MAP = 2048;
+
+/**
+ * Somewhere to walk to. From a given spot, only a little further round the city: a straight line
+ * across it would go right through the council's seat.
+ */
+function residentSpot(fromX?: number, fromZ?: number): [number, number] {
+  const angle =
+    fromX === undefined || fromZ === undefined
+      ? Math.random() * Math.PI * 2
+      : Math.atan2(fromZ, fromX) + (Math.random() * 2 - 1) * RESIDENT_TURN;
+  const [near, far] = RESIDENT_RINGS;
+  const radius = near + Math.random() * (far - near);
+  return [Math.cos(angle) * radius, Math.sin(angle) * radius];
+}
 
 /** Draws a mission. It only reads the game state and never changes the rules. */
 export class MissionView {
@@ -94,6 +127,7 @@ export class MissionView {
   private readonly lamp = new THREE.PointLight(0xfff0d0, 10, 18, 1.6);
   private readonly key = new THREE.DirectionalLight(0xffe9d6, 2.6);
   private readonly settlement: THREE.Group | null;
+  private readonly residents: Resident[] = [];
   private readonly decor: DecorView;
   private readonly composer: EffectComposer;
   private readonly bloom: UnrealBloomPass;
@@ -132,6 +166,14 @@ export class MissionView {
     if (this.settlement && state.settlement) {
       this.settlement.position.set(state.settlement.x + 0.5, 0, state.settlement.y + 0.5);
       this.scene.add(this.settlement);
+      for (let i = 0; i < RESIDENT_COUNT; i++) {
+        const object = residentFromModels(i);
+        if (!object) continue;
+        const [x, z] = residentSpot();
+        object.position.set(x, 0, z);
+        this.settlement.add(object);
+        this.residents.push({ object, x, z, toX: x, toZ: z, wait: Math.random() * 4 });
+      }
     }
     this.renderer = new THREE.WebGLRenderer({ canvas, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -411,6 +453,32 @@ export class MissionView {
     entry.bar.position.set(0, height, 0);
   }
 
+  private moveResidents(dt: number): void {
+    for (const r of this.residents) {
+      const rig = r.object.userData.rig as CharacterRig;
+      const dx = r.toX - r.x;
+      const dz = r.toZ - r.z;
+      const distance = Math.hypot(dx, dz);
+      if (r.wait > 0) {
+        r.wait -= dt;
+        rig.play('idle');
+        if (r.wait <= 0) [r.toX, r.toZ] = residentSpot(r.x, r.z);
+      } else {
+        const step = Math.min(distance, RESIDENT_SPEED * dt);
+        if (distance > 0) {
+          r.x += (dx / distance) * step;
+          r.z += (dz / distance) * step;
+          r.object.rotation.y = Math.atan2(dx, dz);
+        }
+        r.object.position.set(r.x, 0, r.z);
+        rig.play('walk');
+        // Arrived: a pause before heading off again.
+        if (distance - step < 0.05) r.wait = 1 + Math.random() * 5;
+      }
+      rig.update(dt);
+    }
+  }
+
   /** Stretches a laser unit's ray to the rock it is cutting, flickering, with sparks at the end. */
   private aimBeam(
     unit: THREE.Object3D,
@@ -479,6 +547,8 @@ export class MissionView {
       const { x, y } = state.settlement;
       this.settlement.visible = state.tiles[y * state.w + x].seen;
       (this.settlement.userData.beacon as THREE.Object3D).rotation.y = time * 0.9;
+      const near = Math.hypot(x - this.focus.x, y - this.focus.z) < RESIDENT_VIEW;
+      if (this.settlement.visible && near && this.stale < 0.3) this.moveResidents(dt);
     }
 
     const alpha = this.tickAlpha;

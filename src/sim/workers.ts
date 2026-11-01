@@ -1,4 +1,4 @@
-import { BUILDINGS, PATH_COST } from '../data/buildings';
+import { BUILD_TIME_FACTOR, BUILDINGS, PATH_COST } from '../data/buildings';
 import { WALLS } from '../data/resources';
 import { UNITS } from '../data/units';
 import { canAfford, hasRoomFor, addStock, pay } from './economy';
@@ -10,7 +10,7 @@ import type { Building, GameState, Job, JobKind, Pickup, ResourceId, Unit } from
 import { TICK_SECONDS } from './types';
 
 const CLEAR_TIME = 1.1;
-const PATH_TIME = 1.2;
+const PATH_TIME = 3;
 const HARVEST_TIME = 2.2;
 const FUNGUS_REGROW = 75;
 const REPAIR_RATE = 30;
@@ -326,7 +326,8 @@ function runBuild(state: GameState, unit: Unit, job: Job, b: Building, speed: nu
   unit.working = true;
   const dt = TICK_SECONDS;
   if (b.built < 1) {
-    b.built = Math.min(1, b.built + (dt * state.mods.buildSpeed) / def.buildTime);
+    const duration = def.buildTime * BUILD_TIME_FACTOR;
+    b.built = Math.min(1, b.built + (dt * state.mods.buildSpeed) / duration);
     if (b.built >= 1) {
       b.hp = def.hp;
       state.networkDirty = true;

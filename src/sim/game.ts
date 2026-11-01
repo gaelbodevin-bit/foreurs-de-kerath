@@ -1,6 +1,6 @@
 import { BUILDINGS, CITY_BUILDINGS } from '../data/buildings';
 import { REGIONS, sectorAt } from '../data/regions';
-import { cityRadius, FIRST_CONTRACT_AT } from '../data/progression';
+import { CITY_SETTLERS, cityRadius, FIRST_CONTRACT_AT } from '../data/progression';
 import { ADVISOR_IDS } from '../data/story';
 import { RESOURCES, TILE_NAMES, WALLS } from '../data/resources';
 import { UNITS } from '../data/units';
@@ -28,9 +28,8 @@ import type {
 import { baseModifiers, emptyStock, RESOURCE_IDS, TICK_SECONDS } from './types';
 import { addJob, dropCarried, removeJob, updateRepairs } from './workers';
 
-const SETTLEMENT_SURVIVORS = 8;
 /** Keeps the crew from building over the settlement's own structures. */
-const SETTLEMENT_CLEARANCE = 3.5;
+const SETTLEMENT_CLEARANCE = 5.5;
 const START_STOCK: Cost = { ore: 32, crystal: 6, stone: 20, food: 45, water: 8, credits: 80 };
 const START_POPULATION = 6;
 const START_FOREURS = 4;
@@ -169,7 +168,7 @@ function updateSettlement(state: GameState): void {
   const place = state.settlement;
   if (!place || place.reached || !tileAt(state, place.x, place.y)?.seen) return;
   place.reached = true;
-  state.city.population += SETTLEMENT_SURVIVORS;
+  state.city.population += CITY_SETTLERS;
   addStock(state, 'ore', 20);
   addStock(state, 'stone', 15);
   addStock(state, 'food', 25);
@@ -178,7 +177,7 @@ function updateSettlement(state: GameState): void {
   state.research += 5;
   state.story.flags.cityReached = true;
   foundCouncil(state);
-  log(state, `La cité est rejointe : ${SETTLEMENT_SURVIVORS} habitants arrivent.`, 'good');
+  log(state, `La cité est rejointe : ${CITY_SETTLERS} habitants s’ajoutent à la colonie.`, 'good');
   state.fx.push(
     { kind: 'sound', id: 'plot' },
     { kind: 'voice', id: 'reunited' },
