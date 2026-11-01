@@ -42,7 +42,7 @@ La partie est suspendue tant qu'une décision d'intrigue attend une réponse (`s
 | `sim/mapgen.ts`      | Génération de la carte unique, secteur par secteur              |
 | `sim/progress.ts`    | Secteurs, rang de la cité, déblocages et recherche              |
 | `sim/contracts.ts`   | Missions qui arrivent en continu                                |
-| `sim/council.ts`     | Conseil du gouverneur : sièges, candidats, traits, niveaux      |
+| `sim/council.ts`     | Conseil du gouverneur : sièges, candidats, traits               |
 | `sim/pathfinding.ts` | A\* pour les trajets, champ de distance pour choisir les tâches |
 | `sim/workers.ts`     | File de tâches et exécution : forage, transport, chantier       |
 | `sim/economy.ts`     | Réseau, production et cité                                      |
@@ -112,6 +112,7 @@ Les répliques (`data/voiceLines.ts`) sont des fichiers audio pré-générés, s
 `tools/voices` les fabrique avec Piper : l'outil ne fait pas partie du jeu, seuls les WAV sont livrés.
 Après avoir modifié une réplique, il faut les régénérer. `CREW` attribue à chaque personnage une voix,
 une vitesse de lecture, qui règle la hauteur, et un rythme.
+`render/radio.ts` les fait passer par une radio de chantier : bande étroite, légère saturation, souffle.
 `render/voice.ts` choisit qui parle et quand, et la simulation signale l'événement par un effet `voice`.
 
 ## Gaz

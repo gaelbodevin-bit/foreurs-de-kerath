@@ -48,8 +48,7 @@ Construisez de quoi loger, nourrir et faire respirer la colonie, puis un laborat
   et un bonus permanent une fois conquis. La roche entre eux demande de meilleurs outils.
 - **Une progression par la recherche** : de la pioche au marteau-piqueur puis au laser, du laboratoire
   à l'atelier de véhicules
-- **Un gouverneur et son conseil** : quatre sièges, des candidats à recruter, des traits qui montent
-  en niveau
+- **Un gouverneur et son conseil** : quatre sièges, et des candidats à recruter pour leurs traits
 - **Des salles de monstres** : endormis dans des cavernes scellées, avec un butin
 - **Des missions en continu** : commandes, chantiers, sauvetages, relevés, incursions et réfugiés
 - **12 ressources** : minerai, cristal, roche, glace, soufre, or, reliques, métal, eau, nourriture,

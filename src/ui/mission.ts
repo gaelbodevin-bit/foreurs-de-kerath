@@ -10,7 +10,7 @@ import {
   COUNCIL_TRAITS,
   COUNCIL_UPKEEP,
   GOVERNOR_TRAITS,
-  hireCost,
+  HIRE_COST,
   SEAT_IDS,
   SEATS,
 } from '../data/council';
@@ -1317,7 +1317,6 @@ export class MissionScreen {
       'div',
       { class: 'councillor' },
       h('b', {}, c.name),
-      h('em', {}, `Niveau ${c.level}`),
       h('span', {}, `${trait.name} : ${trait.desc}`),
       action,
     );
@@ -1325,8 +1324,8 @@ export class MissionScreen {
 
   private renderCouncil(): void {
     const { state } = this;
-    const wages = state.council.reduce((sum, c) => sum + c.level * COUNCIL_UPKEEP, 0);
-    const sig = `cou${state.council.map((c) => c.id + '.' + c.level).join()}|${state.candidates.map((c) => c.id).join()}|${Math.floor(state.stock.credits / 10)}`;
+    const wages = state.council.length * COUNCIL_UPKEEP;
+    const sig = `cou${state.council.map((c) => c.id).join()}|${state.candidates.map((c) => c.id).join()}|${Math.floor(state.stock.credits / 10)}`;
     this.patch(this.overlay, sig, () => {
       const governor = state.governorTrait ? GOVERNOR_TRAITS[state.governorTrait] : null;
       return [
@@ -1339,7 +1338,7 @@ export class MissionScreen {
             'p',
             { class: 'dim' },
             governor ? `Gouverneur ${governor.name.toLowerCase()} : ${governor.desc}. ` : '',
-            `Salaires : ${wages} ¤/min. Chaque conseiller gagne un niveau toutes les 5 minutes.`,
+            `Salaires : ${wages} ¤/min.`,
           ),
           ...SEAT_IDS.map((seat) => {
             const holder = state.council.find((c) => c.seat === seat);
@@ -1374,14 +1373,14 @@ export class MissionScreen {
                 'button',
                 {
                   class: 'chip accent',
-                  disabled: state.stock.credits < hireCost(c.level),
+                  disabled: state.stock.credits < HIRE_COST,
                   onclick: () => {
                     const result = recruitCandidate(state, c.id);
                     if (!result.ok) this.say(result.reason ?? 'Impossible.');
                     this.updateOverlay();
                   },
                 },
-                `${SEATS[c.seat].name} · ${hireCost(c.level)} ¤`,
+                `${SEATS[c.seat].name} · ${HIRE_COST} ¤`,
               ),
             ),
           ),

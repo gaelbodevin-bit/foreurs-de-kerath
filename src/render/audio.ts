@@ -1,5 +1,6 @@
 import { SOUND_FILES, type SoundKey } from './assetManifest';
 import { VOICE_FILES } from '../data/voiceLines';
+import { playOverRadio, type RadioLine } from './radio';
 
 interface SoundDef {
   /** Loudness once the recording plays. */
@@ -103,7 +104,8 @@ function readVolumes(): Record<VolumeId, number> {
     return { ...DEFAULT_VOLUMES };
   }
 }
-const VOICE_LEVEL = 0.32;
+/** Lower than it looks: the radio effect adds about as much loudness again. */
+const VOICE_LEVEL = 0.17;
 
 function readMuted(): boolean {
   try {
@@ -163,7 +165,7 @@ export class Audio {
   private readonly raw = new Map<string, ArrayBuffer>();
   private readonly buffers = new Map<string, AudioBuffer>();
   private ambience: Ambience | null = null;
-  private speaking: AudioBufferSourceNode | null = null;
+  private speaking: RadioLine | null = null;
   private speakingGain: GainNode | null = null;
   private wantAmbience = false;
   private decoding: Promise<void> | null = null;
@@ -345,38 +347,20 @@ export class Audio {
   }
 
   /**
-   * A recorded line, cutting off the one before. `rate` sets its pitch. Returns its length, or 0
-   * while sound is locked or the file didn't load: the subtitle still shows.
+   * A recorded line over the radio, cutting off the one before. `rate` sets its pitch. Returns its
+   * length, or 0 while sound is locked or the file didn't load: the subtitle still shows.
    */
   speak(path: string, rate: number): number {
-    const { ctx, dry, echo } = this;
+    const { ctx, master } = this;
     const buffer = this.buffers.get(path);
-    if (!ctx || !dry || !echo || !buffer || ctx.state !== 'running') return 0;
+    if (!ctx || !master || !buffer || ctx.state !== 'running') return 0;
     this.speaking?.stop();
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.playbackRate.value = rate;
-    // A touch of work radio and of the cave, so that the voice sits in the scene.
-    const low = ctx.createBiquadFilter();
-    low.type = 'highpass';
-    low.frequency.value = 150;
-    const high = ctx.createBiquadFilter();
-    high.type = 'lowpass';
-    high.frequency.value = 7000;
     const gain = ctx.createGain();
     gain.gain.value = VOICE_LEVEL * this.volumes.voice;
+    gain.connect(master);
     this.speakingGain = gain;
-    const send = ctx.createGain();
-    send.gain.value = 0.08;
-    source.connect(low).connect(high).connect(gain);
-    gain.connect(dry);
-    gain.connect(send).connect(echo);
-    source.onended = () => {
-      if (this.speaking === source) this.speaking = null;
-    };
-    source.start();
-    this.speaking = source;
-    return buffer.duration / rate;
+    this.speaking = playOverRadio(ctx, buffer, rate, gain);
+    return this.speaking.seconds;
   }
 
   /** Cave background for missions. It waits for the first gesture if there hasn't been one. */

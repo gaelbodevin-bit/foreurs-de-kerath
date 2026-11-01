@@ -1,6 +1,7 @@
+import { COUNCIL_TRAITS } from '../data/council';
 import { TECHS } from '../data/techs';
 import { foundCouncil } from '../sim/council';
-import type { GameState } from '../sim/types';
+import type { Councillor, GameState, Modifiers } from '../sim/types';
 
 /** The version moved when the game became a single continuous world: older saves don't load. */
 const KEY = 'foreurs-de-kerath/save/v2';
@@ -30,6 +31,14 @@ export function readSave(storage: SaveStorage): GameState | null {
     // Saves from when milestones existed: what was bought stays, what no longer exists goes.
     data.techs = data.techs.filter((id) => TECHS.some((t) => t.id === id));
     data.council ??= [];
+    for (const c of data.council as (Councillor & { level?: number; tenure?: number })[]) {
+      // Councillors used to level up: what those levels added to the modifiers has to come off.
+      for (const [key, value] of Object.entries(COUNCIL_TRAITS[c.trait].mods)) {
+        data.mods[key as keyof Modifiers] -= (value ?? 0) * ((c.level ?? 1) - 1);
+      }
+      delete c.level;
+      delete c.tenure;
+    }
     data.candidates ??= [];
     data.nextCandidatesAt ??= 0;
     data.governorTrait ??= null;

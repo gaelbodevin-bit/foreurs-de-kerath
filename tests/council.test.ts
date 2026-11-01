@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hireCost, SEAT_IDS } from '../src/data/council';
+import { HIRE_COST, SEAT_IDS } from '../src/data/council';
 import {
   recruitCandidate,
   dismissCouncillor,
@@ -7,6 +7,7 @@ import {
   updateCouncil,
 } from '../src/sim/council';
 import { sectorAt } from '../src/data/regions';
+import { readSave, writeSave, type SaveStorage } from '../src/campaign/save';
 import { generateWorld } from '../src/sim/mapgen';
 import { reveal } from '../src/sim/grid';
 import { answerEvent } from '../src/sim/storyEngine';
@@ -48,18 +49,16 @@ describe('gouverneur et conseil', () => {
     const before = { ...state.mods };
     const candidate = state.candidates.find((c) => c.seat === 'defense')!;
     candidate.trait = 'veteran';
-    candidate.level = 2;
     state.stock.credits = 500;
     expect(recruitCandidate(state, candidate.id).ok).toBe(true);
-    expect(state.mods.combatDamage).toBeCloseTo(before.combatDamage + 0.2);
-    expect(state.stock.credits).toBe(500 - hireCost(2));
+    expect(state.mods.combatDamage).toBeCloseTo(before.combatDamage + 0.1);
+    expect(state.stock.credits).toBe(500 - HIRE_COST);
     const orsa = state.council.find((c) => c.advisor === 'orsa')!;
     const rival = {
       ...candidate,
       id: 9001,
       seat: 'engineering' as const,
       trait: 'driller',
-      level: 1,
     };
     state.candidates.push(rival);
     expect(recruitCandidate(state, 9001).ok).toBe(true);
@@ -78,18 +77,37 @@ describe('gouverneur et conseil', () => {
     expect(state.council.length).toBe(size);
   });
 
-  it('renvoyer retire exactement le bonus, niveaux compris', () => {
+  it('un conseiller ne monte pas en puissance, et son renvoi retire tout son bonus', () => {
     const state = newGame(3);
+    const research = state.mods.research;
     foundCouncil(state);
     const soum = state.council.find((c) => c.advisor === 'soum')!;
+    const seated = state.mods.research;
+    expect(seated).toBeCloseTo(research + 0.15);
     state.stock.credits = 9999;
-    const research = state.mods.research;
-    soum.tenure = 1e6;
-    updateCouncil(state);
-    expect(soum.level).toBe(2);
-    expect(state.mods.research).toBeCloseTo(research + 0.15);
+    for (let i = 0; i < 20000; i++) updateCouncil(state);
+    expect(state.mods.research).toBeCloseTo(seated);
     dismissCouncillor(state, soum.id);
-    expect(state.mods.research).toBeCloseTo(research - 0.15);
+    expect(state.mods.research).toBeCloseTo(research);
+  });
+
+  it('une ancienne sauvegarde rend ce que les niveaux avaient ajouté', () => {
+    const storage = new Map<string, string>();
+    const memory: SaveStorage = {
+      getItem: (k) => storage.get(k) ?? null,
+      setItem: (k, v) => void storage.set(k, v),
+      removeItem: (k) => void storage.delete(k),
+    };
+    const state = newGame(3);
+    const research = state.mods.research;
+    foundCouncil(state);
+    const soum = state.council.find((c) => c.advisor === 'soum')!;
+    Object.assign(soum, { level: 3, tenure: 120 });
+    state.mods.research += 0.15 * 2;
+    writeSave(memory, state);
+    const loaded = readSave(memory)!;
+    expect(loaded.mods.research).toBeCloseTo(research + 0.15);
+    expect(loaded.council.find((c) => c.advisor === 'soum')).not.toHaveProperty('level');
   });
 
   it('les sièges restent au nombre de quatre', () => {

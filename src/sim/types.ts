@@ -91,9 +91,6 @@ export interface Councillor {
   seat: SeatId;
   /** Key into COUNCIL_TRAITS. */
   trait: string;
-  level: number;
-  /** Seconds in the seat since the last level. */
-  tenure: number;
   /** Set for the expedition's own advisors, who are part of the plot. */
   advisor?: AdvisorId;
 }
