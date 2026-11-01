@@ -41,8 +41,9 @@ rien : il élargit la zone constructible et agrandit le Noyau.
 
 ## La zone de la cité et les avant-postes
 
-L'onglet Cité du menu de construction s'ouvre en rejoignant CITY. Ses bâtiments ne se posent
-que dans un rayon autour du Noyau, qui grandit avec le rang.
+L'onglet Cité du menu de construction s'ouvre en rejoignant CITY. Ses bâtiments ne se posent que dans un
+rayon autour du Noyau ou de CITY, qui grandit avec le rang. CITY alimente le réseau comme le Noyau :
+ce qui la touche, directement ou par une voie, est sous tension.
 Ceux du menu Exploration se posent partout. L'avant-poste sert de dépôt et de source à un réseau
 électrique séparé, pour s'installer loin de la cité.
 

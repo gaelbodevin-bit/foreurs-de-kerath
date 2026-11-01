@@ -176,6 +176,7 @@ function updateSettlement(state: GameState): void {
   state.nextContractAt = state.time + FIRST_CONTRACT_AT;
   state.research += 5;
   state.story.flags.cityReached = true;
+  state.networkDirty = true;
   foundCouncil(state);
   log(state, `La cité est rejointe : ${CITY_SETTLERS} habitants s’ajoutent à la colonie.`, 'good');
   state.fx.push(
@@ -273,10 +274,13 @@ export function designateArea(
 }
 
 export function inCityZone(state: GameState, x: number, y: number): boolean {
+  const radius = cityRadius(state.cityLevel);
+  const place = state.settlement;
+  if (place?.reached && Math.hypot(x - place.x, y - place.y) <= radius) return true;
   const hq = state.buildings.find((b) => b.type === 'hq');
   if (!hq) return false;
   const half = BUILDINGS.hq.size / 2;
-  return Math.hypot(x - hq.x - half, y - hq.y - half) <= cityRadius(state.cityLevel);
+  return Math.hypot(x - hq.x - half, y - hq.y - half) <= radius;
 }
 
 export function canPlaceBuilding(
@@ -289,7 +293,8 @@ export function canPlaceBuilding(
   if (CITY_BUILDINGS.has(type) && !inCityZone(state, x + def.size / 2, y + def.size / 2)) {
     return {
       ok: false,
-      reason: 'Ce bâtiment ne se pose que dans la cité. Son rang élargit la zone.',
+      reason:
+        'Ce bâtiment ne se pose que près du Noyau ou de CITY. Le rang de la cité élargit ces zones.',
     };
   }
   for (let dy = 0; dy < def.size; dy++) {

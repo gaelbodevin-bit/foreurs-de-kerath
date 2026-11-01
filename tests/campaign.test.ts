@@ -25,7 +25,7 @@ import {
   updateProgress,
   visibleObjectives,
 } from '../src/sim/progress';
-import type { Contract } from '../src/sim/types';
+import type { Contract, GameState } from '../src/sim/types';
 import { reveal } from '../src/sim/grid';
 import { newGame, run, unlockEverything } from './helpers';
 
@@ -220,6 +220,52 @@ describe('objectifs affichés', () => {
 });
 
 describe('zone de la cité et avant-postes', () => {
+  /** A patch of open, known ground for a test to build on. */
+  function clearGround(state: GameState, x: number, y: number): void {
+    for (let dy = 0; dy < 2; dy++) {
+      for (let dx = 0; dx < 2; dx++) {
+        const tile = state.tiles[(y + dy) * state.w + x + dx];
+        tile.k = 'floor';
+        tile.seen = true;
+      }
+    }
+  }
+
+  it('la zone existe aussi autour de CITY, une fois atteinte', () => {
+    const state = newGame(1);
+    unlockEverything(state);
+    state.cityLevel = 0;
+    const place = state.settlement!;
+    const x = place.x + 7;
+    const y = place.y;
+    clearGround(state, x, y);
+    state.settlement!.reached = false;
+    expect(canPlaceBuilding(state, 'habitat', x, y).ok).toBe(false);
+    state.settlement!.reached = true;
+    expect(canPlaceBuilding(state, 'habitat', x, y).ok).toBe(true);
+    const far = place.x + cityRadius(0) + 3;
+    clearGround(state, far, y);
+    expect(canPlaceBuilding(state, 'habitat', far, y).ok).toBe(false);
+    expect(canPlaceBuilding(state, 'habitat', place.x + 1, y).ok).toBe(false);
+  });
+
+  it('CITY alimente le réseau, directement et par une voie', () => {
+    const state = newGame(1);
+    const place = state.settlement!;
+    const touching = createBuilding(state, 'habitat', place.x + 6, place.y, 1);
+    const farther = createBuilding(state, 'habitat', place.x + 10, place.y, 1);
+    state.tiles[place.y * state.w + place.x + 9].k = 'floor';
+    updateNetwork(state);
+    expect(touching.connected).toBe(false);
+    state.settlement!.reached = true;
+    updateNetwork(state);
+    expect(touching.connected).toBe(true);
+    expect(farther.connected).toBe(false);
+    for (const x of [place.x + 8, place.x + 9]) state.tiles[place.y * state.w + x].k = 'path';
+    updateNetwork(state);
+    expect(farther.connected).toBe(true);
+  });
+
   it('un bâtiment de cité refuse de sortir de la zone, l’exploration non', () => {
     const state = newGame(1);
     unlockEverything(state);

@@ -118,11 +118,14 @@ export class MissionView {
     new THREE.MeshBasicMaterial({
       color: 0x35e0c2,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.8,
       side: THREE.DoubleSide,
       depthWrite: false,
+      // Drawn over everything: most of the ring runs across rock that hasn't been dug yet.
+      depthTest: false,
     }),
   );
+  private readonly settlementZone = this.cityZone.clone();
   private readonly raycaster = new THREE.Raycaster();
   private readonly lamp = new THREE.PointLight(0xfff0d0, 10, 18, 1.6);
   private readonly key = new THREE.DirectionalLight(0xffe9d6, 2.6);
@@ -161,7 +164,11 @@ export class MissionView {
     this.scene.add(this.gas.object);
     this.cityZone.rotation.x = -Math.PI / 2;
     this.cityZone.visible = false;
-    this.scene.add(this.cityZone);
+    this.cityZone.renderOrder = 5;
+    this.settlementZone.rotation.x = -Math.PI / 2;
+    this.settlementZone.visible = false;
+    this.settlementZone.renderOrder = 5;
+    this.scene.add(this.cityZone, this.settlementZone);
     this.settlement = state.settlement ? settlementFromModels() : null;
     if (this.settlement && state.settlement) {
       this.settlement.position.set(state.settlement.x + 0.5, 0, state.settlement.y + 0.5);
@@ -361,13 +368,16 @@ export class MissionView {
 
   /** Outlines where city buildings may stand, while the player is holding one. */
   setCityZone(visible: boolean): void {
-    this.cityZone.visible = visible;
-    const hq = this.state.buildings.find((b) => b.type === 'hq');
-    if (!visible || !hq) return;
-    const half = BUILDINGS.hq.size / 2;
     const radius = cityRadius(this.state.cityLevel);
-    this.cityZone.position.set(hq.x + half, 0.08, hq.y + half);
+    const hq = this.state.buildings.find((b) => b.type === 'hq');
+    const half = BUILDINGS.hq.size / 2;
+    this.cityZone.visible = visible && hq !== undefined;
+    if (hq) this.cityZone.position.set(hq.x + half, 0.08, hq.y + half);
     this.cityZone.scale.set(radius, radius, 1);
+    const place = this.state.settlement;
+    this.settlementZone.visible = visible && place?.reached === true;
+    if (place) this.settlementZone.position.set(place.x + 0.5, 0.08, place.y + 0.5);
+    this.settlementZone.scale.set(radius, radius, 1);
   }
 
   /** The pickaxe blows landed since the last call: they are heard when they are seen. */

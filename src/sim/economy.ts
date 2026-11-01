@@ -1,5 +1,5 @@
 import { BUILDINGS, type BuildingDef } from '../data/buildings';
-import { CITY_HOUSING } from '../data/progression';
+import { CITY_GRID_RADIUS, CITY_HOUSING } from '../data/progression';
 import { REGIONS } from '../data/regions';
 import { RESOURCES } from '../data/resources';
 import { POLICIES, TAX_LEVELS, UNITS } from '../data/units';
@@ -31,7 +31,7 @@ export function pay(state: GameState, cost: Cost): void {
   for (const r of RESOURCE_IDS) state.stock[r] -= cost[r] ?? 0;
 }
 
-/** Recomputes which buildings hang off the HQ or an outpost, through paths and adjoining buildings. */
+/** Recomputes which buildings hang off the HQ, an outpost or CITY, through paths and adjoining buildings. */
 export function updateNetwork(state: GameState): void {
   state.networkDirty = false;
   const owner = new Map<number, Building>();
@@ -47,6 +47,15 @@ export function updateNetwork(state: GameState): void {
     (b) => b.type === 'hq' || (b.type === 'camp' && b.built >= 1),
   );
   const stack = roots.map((b) => idx(state, b.x, b.y));
+  const place = state.settlement;
+  if (place?.reached) {
+    for (let y = place.y - CITY_GRID_RADIUS; y <= place.y + CITY_GRID_RADIUS; y++) {
+      for (let x = place.x - CITY_GRID_RADIUS; x <= place.x + CITY_GRID_RADIUS; x++) {
+        if (x < 0 || y < 0 || x >= state.w || y >= state.h) continue;
+        if (Math.hypot(x - place.x, y - place.y) <= CITY_GRID_RADIUS) stack.push(idx(state, x, y));
+      }
+    }
+  }
   const seen = new Set(stack);
   while (stack.length > 0) {
     const cur = stack.pop() as number;

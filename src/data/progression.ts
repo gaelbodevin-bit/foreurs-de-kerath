@@ -20,3 +20,5 @@ export const CITY_SETTLERS = 12;
 export const CITY_HOUSING = 16;
 /** How close to the middle of the city a click reaches the council's seat. */
 export const COUNCIL_SEAT_RADIUS = 2;
+/** The city's own grid reaches this far from its middle: a building or road at its edge is on it. */
+export const CITY_GRID_RADIUS = 7;
