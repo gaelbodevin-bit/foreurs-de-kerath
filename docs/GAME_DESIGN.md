@@ -37,15 +37,14 @@ La roche entre les secteurs impose cet ordre : du dur autour du premier, qu'il f
 marteau-piqueur ou à la foreuse lourde, puis du basalte, réservé au laser.
 
 La population donne le rang de la cité (Campement, Bourg, Ville, Cité, Capitale), qui ne débloque
-rien : il élargit la zone constructible et agrandit le Noyau.
+rien : il agrandit le Noyau.
 
-## La zone de la cité et les avant-postes
+## La cité et les avant-postes
 
-L'onglet Cité du menu de construction s'ouvre en rejoignant CITY. Ses bâtiments ne se posent que dans un
-rayon autour du Noyau ou de CITY, qui grandit avec le rang. CITY alimente le réseau comme le Noyau :
-ce qui la touche, directement ou par une voie, est sous tension.
-Ceux du menu Exploration se posent partout. L'avant-poste sert de dépôt et de source à un réseau
-électrique séparé, pour s'installer loin de la cité.
+L'onglet Cité du menu de construction s'ouvre en rejoignant CITY. Tout se pose où l'on veut : c'est le
+courant qui décide de ce qui fonctionne. CITY alimente le réseau autour d'elle comme le Noyau.
+L'avant-poste sert de dépôt et de source à un réseau électrique séparé, pour s'installer loin de la
+cité.
 
 ## Le gouverneur et son conseil
 
@@ -67,7 +66,16 @@ Le sismographe (touche T) trace l'historique des magnitudes et le bilan par zone
 sismique annonce la prochaine secousse et sa magnitude. L'étai de soutènement protège 5 cases autour
 de lui. En rejoignant CITY, le gouverneur reçoit aussi 10 mineurs.
 
+## L'obscurité
+
+La caverne est noire. La lumière vient des bâtiments achevés (presque plus quand ils n'ont pas de
+courant), du sol technique, de CITY et de la roche qui brille : lave et cristal. Chaque foreur et
+chaque garde a sa lampe frontale, dirigée devant lui, et les machines ont leurs phares. Loin de tout
+cela, la roche se devine à peine, et un monstre aussi.
+
 ## Le sol technique
+
+Un glisser trace une ligne droite sur l'axe le plus long. Pour tourner, on repart de son extrémité.
 
 Il se trace et se retire à la main : un foreur vient le poser ou le démonter. Le retirer rend une
 roche par case et peut couper le réseau derrière lui.
@@ -98,9 +106,16 @@ Citoyens ─► Impôts ─► Crédits
 
 ## Le réseau
 
-Un bâtiment qui consomme de l'énergie doit être relié au Noyau de commande, par des voies ou par
-contact avec un autre bâtiment raccordé. Les voies accélèrent aussi les
-déplacements et arrêtent la lave : le tracé de la ville est une vraie décision.
+Un bâtiment qui consomme de l'énergie doit recevoir le courant, par le sol technique ou par contact
+avec un autre bâtiment raccordé. Le courant a une portée : 8 cases, plus 2 par unité d'énergie
+produite par sa source, soit 16 pour le Noyau et 36 pour une centrale à cristaux. Il perd une case de
+portée à chaque pas, et chaque centrale en marche atteinte le relance. Une centrale sans cristal ne
+relance rien.
+
+Au-delà, les dalles sont éteintes, sans lumière dans leur voie ni lampadaire allumé, et ce qui en
+dépend est à l'arrêt : c'est le signe qu'il faut produire plus. Orsa Veld le signale la première
+fois. Les voies accélèrent aussi les déplacements et arrêtent la lave : le tracé de la ville est une
+vraie décision.
 
 ## Le complot
 

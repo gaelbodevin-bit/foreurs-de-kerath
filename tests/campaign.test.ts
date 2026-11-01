@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { clearSave, readSave, writeSave, type SaveStorage } from '../src/campaign/save';
 import { BUILD_TIME_FACTOR, BUILDINGS, CITY_BUILDINGS } from '../src/data/buildings';
-import {
-  CITY_HOUSING,
-  CITY_LEVELS,
-  CITY_SETTLERS,
-  cityRadius,
-  MAX_CONTRACTS,
-} from '../src/data/progression';
+import { CITY_HOUSING, CITY_LEVELS, CITY_SETTLERS, MAX_CONTRACTS } from '../src/data/progression';
 import { regionById, REGIONS, sectorAt, WORLD_SIZE } from '../src/data/regions';
 import { DRILL_TOOLS, WALLS } from '../src/data/resources';
 import { TECHS } from '../src/data/techs';
@@ -25,7 +19,7 @@ import {
   updateProgress,
   visibleObjectives,
 } from '../src/sim/progress';
-import type { Contract, GameState } from '../src/sim/types';
+import type { Contract } from '../src/sim/types';
 import { reveal } from '../src/sim/grid';
 import { newGame, run, unlockEverything } from './helpers';
 
@@ -162,13 +156,11 @@ describe('progression', () => {
     expect(state.research).toBe(50);
   });
 
-  it('le rang de la cité ne redescend pas et élargit la zone', () => {
+  it('le rang de la cité ne redescend pas', () => {
     const state = newGame(1);
-    const before = cityRadius(state.cityLevel);
     state.city.population = CITY_LEVELS[2].population;
     updateProgress(state);
     expect(state.cityLevel).toBe(2);
-    expect(cityRadius(state.cityLevel)).toBeGreaterThan(before);
     state.city.population = 3;
     updateProgress(state);
     expect(state.cityLevel).toBe(2);
@@ -219,36 +211,7 @@ describe('objectifs affichés', () => {
   });
 });
 
-describe('zone de la cité et avant-postes', () => {
-  /** A patch of open, known ground for a test to build on. */
-  function clearGround(state: GameState, x: number, y: number): void {
-    for (let dy = 0; dy < 2; dy++) {
-      for (let dx = 0; dx < 2; dx++) {
-        const tile = state.tiles[(y + dy) * state.w + x + dx];
-        tile.k = 'floor';
-        tile.seen = true;
-      }
-    }
-  }
-
-  it('la zone existe aussi autour de CITY, une fois atteinte', () => {
-    const state = newGame(1);
-    unlockEverything(state);
-    state.cityLevel = 0;
-    const place = state.settlement!;
-    const x = place.x + 7;
-    const y = place.y;
-    clearGround(state, x, y);
-    state.settlement!.reached = false;
-    expect(canPlaceBuilding(state, 'habitat', x, y).ok).toBe(false);
-    state.settlement!.reached = true;
-    expect(canPlaceBuilding(state, 'habitat', x, y).ok).toBe(true);
-    const far = place.x + cityRadius(0) + 3;
-    clearGround(state, far, y);
-    expect(canPlaceBuilding(state, 'habitat', far, y).ok).toBe(false);
-    expect(canPlaceBuilding(state, 'habitat', place.x + 1, y).ok).toBe(false);
-  });
-
+describe('réseau de CITY et avant-postes', () => {
   it('CITY alimente le réseau, directement et par une voie', () => {
     const state = newGame(1);
     const place = state.settlement!;
@@ -266,26 +229,16 @@ describe('zone de la cité et avant-postes', () => {
     expect(farther.connected).toBe(true);
   });
 
-  it('un bâtiment de cité refuse de sortir de la zone, l’exploration non', () => {
+  it('un bâtiment de cité se pose où l’on veut, tant que CITY est rejointe', () => {
     const state = newGame(1);
     unlockEverything(state);
-    state.cityLevel = 0;
     const hq = state.buildings[0];
-    const x = hq.x + cityRadius(0) + 4;
-    const y = hq.y;
-    for (let dy = 0; dy < 2; dy++) {
-      for (let dx = 0; dx < 2; dx++) {
-        const tile = state.tiles[(y + dy) * state.w + x + dx];
-        tile.k = 'floor';
-        tile.seen = true;
-      }
-    }
+    const x = hq.x + 40;
+    const tile = state.tiles[hq.y * state.w + x];
+    tile.k = 'floor';
+    tile.seen = true;
     expect(CITY_BUILDINGS.has('habitat')).toBe(true);
-    expect(canPlaceBuilding(state, 'habitat', x, y).ok).toBe(false);
-    expect(canPlaceBuilding(state, 'depot', x, y).ok).toBe(true);
-    expect(canPlaceBuilding(state, 'camp', x, y).ok).toBe(true);
-    state.cityLevel = 3;
-    expect(canPlaceBuilding(state, 'habitat', x, y).ok).toBe(true);
+    expect(canPlaceBuilding(state, 'habitat', x, hq.y).ok).toBe(true);
   });
 
   it('un avant-poste alimente son propre réseau, loin du Noyau', () => {

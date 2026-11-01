@@ -45,6 +45,7 @@ export function readSave(storage: SaveStorage): GameState | null {
     data.nextCandidatesAt ??= 0;
     data.governorTrait ??= null;
     data.seismic ??= emptySeismic();
+    data.networkDirty = true;
     if (data.settlement?.reached) {
       foundCouncil(data);
       spawnCityMiners(data);

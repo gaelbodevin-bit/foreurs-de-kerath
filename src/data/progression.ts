@@ -12,9 +12,6 @@ export const FIRST_CONTRACT_AT = 75;
 export const CONTRACT_INTERVAL: readonly [number, number] = [35, 75];
 export const MAX_CONTRACTS = 4;
 
-/** How far from the headquarters city buildings can stand, in tiles: the city spreads as it ranks up. */
-export const cityRadius = (level: number): number => 10 + level * 4;
-
 /** The colonists waiting in the city, and the homes they already have there. */
 export const CITY_SETTLERS = 12;
 export const CITY_HOUSING = 16;
@@ -26,3 +23,11 @@ export const CITY_OXYGEN = 0.2;
 export const COUNCIL_SEAT_RADIUS = 2;
 /** The city's own grid reaches this far from its middle: a building or road at its edge is on it. */
 export const CITY_GRID_RADIUS = 7;
+
+/** How many tiles of road a source carries current over: what it produces pushes it further. */
+const GRID_BASE_REACH = 8;
+const GRID_REACH_PER_POWER = 2;
+export const gridReach = (output: number): number =>
+  Math.round(GRID_BASE_REACH + output * GRID_REACH_PER_POWER);
+/** From the edge of the city's own grid. */
+export const CITY_GRID_REACH = 16;

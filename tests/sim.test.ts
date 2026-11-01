@@ -13,6 +13,7 @@ import {
   placeBuilding,
   placePath,
   removePaths,
+  straightEnd,
   stepGame,
   trainUnit,
 } from '../src/sim/game';
@@ -215,6 +216,17 @@ describe('gravats et stock plein', () => {
     expect(
       state.pickups.filter((p) => p.res === 'stone' && Math.hypot(p.x - hq.x, p.y - hq.y) < 6),
     ).toEqual([]);
+  });
+});
+
+describe('tracer le sol technique', () => {
+  it('une voie suit l’axe le plus long, quel que soit l’angle du glisser', () => {
+    expect(straightEnd(10, 10, 20, 13)).toEqual({ x: 20, y: 10 });
+    expect(straightEnd(10, 10, 12, 2)).toEqual({ x: 10, y: 2 });
+    expect(straightEnd(10, 10, 4, 10)).toEqual({ x: 4, y: 10 });
+    expect(straightEnd(10, 10, 10, 10)).toEqual({ x: 10, y: 10 });
+    // Parfaitement en diagonale : à l'horizontale, pour que le résultat ne dépende pas d'un pixel.
+    expect(straightEnd(10, 10, 15, 15)).toEqual({ x: 15, y: 10 });
   });
 });
 

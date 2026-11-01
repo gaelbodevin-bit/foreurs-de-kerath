@@ -318,6 +318,7 @@ export class DecorView {
     let stones = 0;
     let spots = 0;
     let lamps = 0;
+    let lit = 0;
     for (let i = 0; i < state.tiles.length; i++) {
       const tile = state.tiles[i];
       if (!tile.seen || occupied.has(i)) continue;
@@ -328,9 +329,12 @@ export class DecorView {
         const px = x + 0.14;
         const pz = y + 0.14;
         poles.setMatrixAt(lamps, matrix.makeScale(1, 0.72, 1).setPosition(px, 0, pz));
-        heads.setMatrixAt(lamps, matrix.makeTranslation(px, 0.74, pz));
-        pools.setMatrixAt(lamps, matrix.makeScale(3, 1, 3).setPosition(px, 0.04, pz));
         lamps++;
+        // A lamp with no current is only a post.
+        if (!tile.powered) continue;
+        heads.setMatrixAt(lit, matrix.makeTranslation(px, 0.74, pz));
+        pools.setMatrixAt(lit, matrix.makeScale(3, 1, 3).setPosition(px, 0.04, pz));
+        lit++;
         continue;
       }
       if (tile.k !== 'floor') continue;
@@ -371,7 +375,8 @@ export class DecorView {
     }
     pebbles.count = stones;
     lichen.count = spots;
-    poles.count = heads.count = pools.count = lamps;
+    poles.count = lamps;
+    heads.count = pools.count = lit;
     for (const mesh of Object.values(this.ground)) mesh.instanceMatrix.needsUpdate = true;
     if (lichen.instanceColor) lichen.instanceColor.needsUpdate = true;
   }

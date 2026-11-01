@@ -6,11 +6,11 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { BUILDINGS } from '../data/buildings';
-import { cityRadius } from '../data/progression';
 import { drillToolFor, type DrillTool } from '../data/resources';
 import { ENEMIES, UNITS } from '../data/units';
 import type { BuildingType, GameState } from '../sim/types';
 import type { CharacterRig } from './assets';
+import { DarknessPass, MAX_HEAD_LAMPS, type HeadLamp } from './darkness';
 import { DecorView } from './decor';
 import { Dust, GasClouds, Smoke } from './particles';
 import { residentFromModels, settlementFromModels } from './modelPrefabs';
@@ -79,11 +79,17 @@ const GRADE = {
     }`,
 };
 
-const GHOST_OK = new THREE.MeshBasicMaterial({ color: 0x35e0c2, transparent: true, opacity: 0.35 });
+const GHOST_OK = new THREE.MeshBasicMaterial({
+  color: 0x35e0c2,
+  transparent: true,
+  opacity: 0.35,
+  depthTest: false,
+});
 const GHOST_BAD = new THREE.MeshBasicMaterial({
   color: 0xff4040,
   transparent: true,
   opacity: 0.35,
+  depthTest: false,
 });
 
 const barMaterial = (color: number) => new THREE.SpriteMaterial({ color, depthTest: false });
@@ -96,6 +102,13 @@ const BAR_BAD = barMaterial(0xff5050);
 const PICK_IMPACT = 0.5;
 /** That clip lasts 0.42 s: frantic at full speed, and no sound could keep up with it. */
 const PICK_SWING_SPEED = 0.6;
+
+/** How far a lamp on a helmet reaches, in tiles, and how far ahead of its wearer it is aimed. */
+const HEAD_LAMP_RADIUS = 3.6;
+const HEAD_LAMP_AHEAD = 0.7;
+const VEHICLE_LAMP_RADIUS = 4.6;
+
+const DRAG_BOX_HEIGHT = 1.7;
 
 const TARGET_FPS = 32;
 const SHADOW_MAP = 2048;
@@ -138,19 +151,6 @@ export class MissionView {
       depthTest: false,
     }),
   );
-  private readonly cityZone = new THREE.Mesh(
-    new THREE.RingGeometry(0.975, 1, 128),
-    new THREE.MeshBasicMaterial({
-      color: 0x35e0c2,
-      transparent: true,
-      opacity: 0.8,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      // Drawn over everything: most of the ring runs across rock that hasn't been dug yet.
-      depthTest: false,
-    }),
-  );
-  private readonly settlementZone = this.cityZone.clone();
   private readonly raycaster = new THREE.Raycaster();
   private readonly lamp = new THREE.PointLight(0xfff0d0, 10, 18, 1.6);
   private readonly key = new THREE.DirectionalLight(0xffe9d6, 2.6);
@@ -158,6 +158,8 @@ export class MissionView {
   private readonly residents: Resident[] = [];
   private readonly decor: DecorView;
   private readonly composer: EffectComposer;
+  private readonly darkness: DarknessPass;
+  private headLamps: (HeadLamp & { away: number })[] = [];
   private readonly bloom: UnrealBloomPass;
   private readonly environment: THREE.WebGLRenderTarget;
   private readonly smoke = new Smoke();
@@ -189,13 +191,6 @@ export class MissionView {
     readonly state: GameState,
   ) {
     this.scene.add(this.gas.object);
-    this.cityZone.rotation.x = -Math.PI / 2;
-    this.cityZone.visible = false;
-    this.cityZone.renderOrder = 5;
-    this.settlementZone.rotation.x = -Math.PI / 2;
-    this.settlementZone.visible = false;
-    this.settlementZone.renderOrder = 5;
-    this.scene.add(this.cityZone, this.settlementZone);
     this.settlement = state.settlement ? settlementFromModels() : null;
     if (this.settlement && state.settlement) {
       this.settlement.position.set(state.settlement.x + 0.5, 0, state.settlement.y + 0.5);
@@ -236,10 +231,17 @@ export class MissionView {
     this.composer = new EffectComposer(
       this.renderer,
       // Antialiased, in a format that keeps values above 1.0 for the bloom to find.
-      new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }),
+      new THREE.WebGLRenderTarget(1, 1, {
+        type: THREE.HalfFloatType,
+        samples: 4,
+        // The darkness needs to know how far each pixel is.
+        depthTexture: new THREE.DepthTexture(1, 1),
+      }),
     );
     this.composer.setPixelRatio(this.renderer.getPixelRatio());
     this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.darkness = new DarknessPass(state, this.camera);
+    this.composer.addPass(this.darkness);
     this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.4, 0.5, 1.5);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
@@ -250,18 +252,15 @@ export class MissionView {
     this.scene.add(
       this.terrain.group,
       this.decor.group,
-      this.marks,
       this.fxGroup,
-      this.selection,
       this.smoke.object,
       this.dust.object,
     );
 
     this.ghost.visible = false;
-    this.scene.add(this.ghost);
     this.dragBox.visible = false;
     this.dragBox.rotation.x = -Math.PI / 2;
-    this.scene.add(this.dragBox);
+    this.darkness.overlay.add(this.marks, this.selection, this.ghost, this.dragBox);
 
     const hq = state.buildings.find((b) => b.type === 'hq');
     this.focus.set(hq ? hq.x + 1 : state.w / 2, 0, hq ? hq.y + 1 : state.h / 2);
@@ -394,20 +393,6 @@ export class MissionView {
     this.ghost.material = valid ? GHOST_OK : GHOST_BAD;
   }
 
-  /** Outlines where city buildings may stand, while the player is holding one. */
-  setCityZone(visible: boolean): void {
-    const radius = cityRadius(this.state.cityLevel);
-    const hq = this.state.buildings.find((b) => b.type === 'hq');
-    const half = BUILDINGS.hq.size / 2;
-    this.cityZone.visible = visible && hq !== undefined;
-    if (hq) this.cityZone.position.set(hq.x + half, 0.08, hq.y + half);
-    this.cityZone.scale.set(radius, radius, 1);
-    const place = this.state.settlement;
-    this.settlementZone.visible = visible && place?.reached === true;
-    if (place) this.settlementZone.position.set(place.x + 0.5, 0.08, place.y + 0.5);
-    this.settlementZone.scale.set(radius, radius, 1);
-  }
-
   /** The pickaxe blows landed since the last call: they are heard when they are seen. */
   takeStrikes(): { x: number; y: number }[] {
     const strikes = this.strikes;
@@ -415,7 +400,11 @@ export class MissionView {
     return strikes;
   }
 
-  setDragBox(area: { x0: number; y0: number; x1: number; y1: number } | null): void {
+  /** Over the rock by default, where drilling is marked. A road is drawn on the ground it covers. */
+  setDragBox(
+    area: { x0: number; y0: number; x1: number; y1: number } | null,
+    height = DRAG_BOX_HEIGHT,
+  ): void {
     this.dragBox.visible = area !== null;
     if (!area) return;
     const minX = Math.min(area.x0, area.x1);
@@ -423,7 +412,7 @@ export class MissionView {
     const w = Math.abs(area.x1 - area.x0) + 1;
     const h = Math.abs(area.y1 - area.y0) + 1;
     this.dragBox.scale.set(w, h, 1);
-    this.dragBox.position.set(minX + w / 2, 1.7, minY + h / 2);
+    this.dragBox.position.set(minX + w / 2, height, minY + h / 2);
   }
 
   setSelection(tiles: { x: number; y: number; size: number }[]): void {
@@ -584,6 +573,7 @@ export class MissionView {
     this.gas.update(state, time, dt);
     this.nearestWalker = null;
     let walkerDistance = Infinity;
+    this.headLamps.length = 0;
 
     if (this.settlement && state.settlement) {
       const { x, y } = state.settlement;
@@ -622,6 +612,13 @@ export class MissionView {
           this.nearestWalker = { x, y };
         }
       }
+      const facing = entry.object.rotation.y;
+      this.headLamps.push({
+        x: x + Math.sin(facing) * HEAD_LAMP_AHEAD,
+        y: y + Math.cos(facing) * HEAD_LAMP_AHEAD,
+        radius: UNITS[u.type].citizens > 0 ? HEAD_LAMP_RADIUS : VEHICLE_LAMP_RADIUS,
+        away: Math.hypot(x - this.focus.x, y - this.focus.z),
+      });
       const active = u.working && this.stale < 0.3;
       const job = u.jobId === null ? undefined : state.jobs.find((j) => j.id === u.jobId);
       const target = active && job?.kind === 'drill' ? job : undefined;
@@ -876,6 +873,9 @@ export class MissionView {
     this.stale = changed ? 0 : this.stale + dt;
     this.decor.sync(this.terrain.sync());
     this.syncEntities(changed, time, dt);
+    // More helmets than the shader can take: the ones nearest the camera are those that show.
+    if (this.headLamps.length > MAX_HEAD_LAMPS) this.headLamps.sort((a, b) => a.away - b.away);
+    this.darkness.update(dt, this.headLamps);
     this.syncMarks();
     this.syncFx(dt);
     this.state.fx = this.state.fx.filter((f) => f.kind === 'sound' || f.kind === 'voice');
@@ -900,6 +900,7 @@ export class MissionView {
   dispose(): void {
     this.terrain.dispose();
     this.decor.dispose();
+    this.darkness.dispose();
     this.bloom.dispose();
     this.composer.dispose();
     this.environment.dispose();

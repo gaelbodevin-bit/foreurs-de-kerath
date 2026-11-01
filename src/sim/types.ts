@@ -52,6 +52,8 @@ export interface Tile {
   regrow: number;
   /** Toxic gas in the air here, from 0 to about 1. Missing means none. */
   gas?: number;
+  /** A road the current reaches. Without it, the slab stays dark and carries nothing. */
+  powered?: boolean;
   /** Floor of a monsters' lair: stained, so that the room reads as one at a glance. */
   lair?: boolean;
 }

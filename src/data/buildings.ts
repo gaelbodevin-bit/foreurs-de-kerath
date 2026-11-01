@@ -85,7 +85,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   },
   generator: {
     name: 'Centrale à cristaux',
-    desc: 'Brûle un cristal toutes les 45 s pour alimenter le réseau.',
+    desc: 'Brûle un cristal toutes les 45 s pour alimenter le réseau, et relance le courant plus loin le long du sol technique.',
     size: 2,
     cost: { ore: 18, stone: 6 },
     buildTime: 10,
@@ -263,7 +263,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   geothermal: {
     tech: 'grid',
     name: 'Centrale géothermique',
-    desc: 'Tire son énergie des profondeurs : sans cristal, sans personnel, mais coûteuse à forer.',
+    desc: 'Tire son énergie des profondeurs : sans cristal, sans personnel, mais coûteuse à forer. Relance aussi le courant le long du sol technique.',
     size: 2,
     cost: { metal: 14, crystal: 8, stone: 14 },
     buildTime: 16,

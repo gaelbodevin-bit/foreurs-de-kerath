@@ -68,10 +68,18 @@ export const STORY_EVENTS: StoryEvent[] = [
     choices: [{ label: 'En route, on creuse.', effects: [] }],
   },
   {
+    id: 'grid_short',
+    speaker: 'Orsa Veld',
+    title: 'Le courant ne porte pas plus loin',
+    text: "Regardez le sol technique : au-delà d'un certain point, les dalles sont éteintes. Le courant s'épuise en chemin, et ce qui est branché là-bas ne reçoit rien.\n\nIl nous faut produire plus. Une centrale à cristaux posée sur la partie encore allumée relancera le courant bien plus loin. Gardez-lui du cristal : à l'arrêt, elle ne porte plus rien.",
+    when: { flags: ['gridShort'] },
+    choices: [{ label: 'Compris, on produit plus.', effects: [] }],
+  },
+  {
     id: 'city_reached',
     speaker: 'Orsa Veld',
     title: 'Gouverneur de Kerath',
-    text: "La galerie est ouverte ! Les douze colons de CITY se joignent à nous, avec leurs logements, et dix de leurs mineurs passent sous vos ordres.\n\nIls vous reconnaissent comme gouverneur : la colonie est à vous, et le conseil aussi : il siège au centre de la ville (cliquez dessus, ou touche K). Krell, Soum et moi y siégeons, le siège de la Défense est libre, et vous pourrez recruter qui vous voudrez.\n\nLe menu de construction s'ouvre sur la cité : vous pouvez bâtir autour du Noyau comme autour de CITY, raccordée au réseau. Faites respirer, nourrissez et logez ces gens. Bâtissez vite un laboratoire : sa recherche (touche R) mène au marteau-piqueur, au laser et aux véhicules.\n\nQuel gouverneur serez-vous ?",
+    text: "La galerie est ouverte ! Les douze colons de CITY se joignent à nous, avec leurs logements, et dix de leurs mineurs passent sous vos ordres.\n\nIls vous reconnaissent comme gouverneur : la colonie est à vous, et le conseil aussi : il siège au centre de la ville (cliquez dessus, ou touche K). Krell, Soum et moi y siégeons, le siège de la Défense est libre, et vous pourrez recruter qui vous voudrez.\n\nLe menu de construction s'ouvre sur la cité : vous pouvez bâtir où vous voulez, et CITY alimente le réseau autour d'elle comme le Noyau. Faites respirer, nourrissez et logez ces gens. Bâtissez vite un laboratoire : sa recherche (touche R) mène au marteau-piqueur, au laser et aux véhicules.\n\nQuel gouverneur serez-vous ?",
     when: { regions: ['ash'], flags: ['cityReached'] },
     choices: [
       {

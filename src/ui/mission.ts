@@ -2,7 +2,6 @@ import {
   BUILD_MENUS,
   BUILD_TIME_FACTOR,
   BUILDINGS,
-  CITY_BUILDINGS,
   PATH_COST,
   PATH_REFUND,
   type BuildMenuId,
@@ -34,6 +33,7 @@ import {
   placePath,
   removePaths,
   setTaxLevel,
+  straightEnd,
   stepGame,
   togglePolicy,
   trainUnit,
@@ -342,7 +342,7 @@ export class MissionScreen {
       h('span', { class: 'b-cost' }, costLabel(PATH_COST)),
     );
     pathButton.title =
-      'Sol technique : relie les bâtiments au réseau. Glissez pour tracer. Les foreurs y marchent plus vite et la lave ne le ronge pas.';
+      'Sol technique : relie les bâtiments au réseau. Glissez pour tracer une ligne droite, puis repartez de son extrémité pour tourner. Le courant ne porte qu’à une certaine distance : au-delà, les dalles sont éteintes et il faut une centrale de plus. Les foreurs y marchent plus vite et la lave ne le ronge pas.';
     this.buildButtons.set('path', pathButton);
     this.removePathButton.title = `Glissez sur le sol technique : un foreur vient le démonter et récupère ${PATH_REFUND} roche par case.`;
 
@@ -549,7 +549,12 @@ export class MissionScreen {
         this.drag.y1 = tile.y;
         const isArea = this.tool.kind !== 'build';
         const moved = tile.x !== this.drag.x0 || tile.y !== this.drag.y0;
-        this.view.setDragBox(isArea && moved ? this.drag : null);
+        if (this.tool.kind === 'path') {
+          const end = straightEnd(this.drag.x0, this.drag.y0, tile.x, tile.y);
+          this.view.setDragBox({ x0: this.drag.x0, y0: this.drag.y0, x1: end.x, y1: end.y }, 0.06);
+        } else {
+          this.view.setDragBox(isArea && moved ? this.drag : null);
+        }
       }
     });
     canvas.addEventListener('pointerup', (e) => {
@@ -650,7 +655,8 @@ export class MissionScreen {
       return;
     }
     if (tool.kind === 'path') {
-      const n = placePath(state, drag.x0, drag.y0, drag.x1, drag.y1);
+      const end = straightEnd(drag.x0, drag.y0, drag.x1, drag.y1);
+      const n = placePath(state, drag.x0, drag.y0, end.x, end.y);
       if (n === 0) this.say('Une voie se pose sur un sol dégagé (déblayez les gravats d’abord).');
       return;
     }
@@ -768,7 +774,6 @@ export class MissionScreen {
 
   private updateGhost(): void {
     const { tool, hover } = this;
-    this.view.setCityZone(tool.kind === 'build' && CITY_BUILDINGS.has(tool.type));
     if (tool.kind === 'select' || !hover) {
       this.view.setGhost(null, 0, 0, false);
       return;
@@ -1036,7 +1041,7 @@ export class MissionScreen {
           : building.sabotaged > 0
             ? `Saboté (${Math.ceil(building.sabotaged)} s)`
             : needsGrid && !building.connected
-              ? 'Hors réseau : tracez une voie énergétique jusqu’au Noyau de commande.'
+              ? 'Hors de portée du réseau : reliez-le par le sol technique à une source, ou bâtissez une centrale plus près.'
               : `Rendement : ${Math.round(building.eff * 100)} %`;
       const sig = `b${building.id}${status}${Math.floor(building.hp)}${building.queue.length}${state.city.population}${Math.floor(state.stock.credits)}`;
       this.patch(
@@ -1155,7 +1160,7 @@ export class MissionScreen {
       tool.kind === 'removePath'
         ? 'Glissez sur le sol technique à retirer. Repassez pour annuler. Clic droit pour finir.'
         : tool.kind === 'path'
-          ? 'Glissez pour tracer la voie. Clic droit pour finir.'
+          ? 'Glissez pour tracer une voie droite, puis repartez de son extrémité pour tourner. Clic droit pour finir.'
           : tool.kind === 'build'
             ? `${BUILDINGS[tool.type].name} : cliquez pour poser, Maj pour enchaîner, clic droit pour annuler.`
             : this.paused
@@ -1182,7 +1187,9 @@ export class MissionScreen {
           : t.k === 'water'
             ? '#1f5f8f'
             : t.k === 'path'
-              ? '#35e0c2'
+              ? t.powered
+                ? '#35e0c2'
+                : '#5a5650'
               : wall || t.k === 'solid'
                 ? '#3a3640'
                 : '#6e6054';

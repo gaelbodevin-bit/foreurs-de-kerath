@@ -1,6 +1,6 @@
-import { BUILDINGS, CITY_BUILDINGS } from '../data/buildings';
+import { BUILDINGS } from '../data/buildings';
 import { REGIONS, sectorAt } from '../data/regions';
-import { CITY_MINERS, CITY_SETTLERS, cityRadius, FIRST_CONTRACT_AT } from '../data/progression';
+import { CITY_MINERS, CITY_SETTLERS, FIRST_CONTRACT_AT } from '../data/progression';
 import { ADVISOR_IDS } from '../data/story';
 import { RESOURCES, TILE_NAMES, WALLS } from '../data/resources';
 import { UNITS } from '../data/units';
@@ -154,6 +154,8 @@ export function stepGame(state: GameState): void {
   updateCombat(state);
 
   if (state.tick % 10 === 0) {
+    // A plant can run out of crystal at any time, and take its share of the grid's reach with it.
+    state.networkDirty = true;
     updateRepairs(state);
     updateHazards(state);
     updateSettlement(state);
@@ -303,16 +305,6 @@ export function designateArea(
   return unmarked.length;
 }
 
-export function inCityZone(state: GameState, x: number, y: number): boolean {
-  const radius = cityRadius(state.cityLevel);
-  const place = state.settlement;
-  if (place?.reached && Math.hypot(x - place.x, y - place.y) <= radius) return true;
-  const hq = state.buildings.find((b) => b.type === 'hq');
-  if (!hq) return false;
-  const half = BUILDINGS.hq.size / 2;
-  return Math.hypot(x - hq.x - half, y - hq.y - half) <= radius;
-}
-
 export function canPlaceBuilding(
   state: GameState,
   type: BuildingType,
@@ -320,13 +312,6 @@ export function canPlaceBuilding(
   y: number,
 ): CommandResult {
   const def = BUILDINGS[type];
-  if (CITY_BUILDINGS.has(type) && !inCityZone(state, x + def.size / 2, y + def.size / 2)) {
-    return {
-      ok: false,
-      reason:
-        'Ce bâtiment ne se pose que près du Noyau ou de CITY. Le rang de la cité élargit ces zones.',
-    };
-  }
   for (let dy = 0; dy < def.size; dy++) {
     for (let dx = 0; dx < def.size; dx++) {
       const t = tileAt(state, x + dx, y + dy);
@@ -372,6 +357,16 @@ export function placeBuilding(
     }
   }
   return { ok: true };
+}
+
+/** Where a road drawn from one tile towards another stops: on the longer axis, so it runs straight. */
+export function straightEnd(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): { x: number; y: number } {
+  return Math.abs(x1 - x0) >= Math.abs(y1 - y0) ? { x: x1, y: y0 } : { x: x0, y: y1 };
 }
 
 export function placePath(

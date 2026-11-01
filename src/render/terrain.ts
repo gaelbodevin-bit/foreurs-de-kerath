@@ -85,8 +85,8 @@ interface Layer {
 
 const newLayer = (): Layer => ({ positions: [], colors: [], uvs: [] });
 
-type LayerName = 'floor' | 'wall' | 'glow' | 'lava' | 'water' | 'path';
-const LAYERS: LayerName[] = ['floor', 'wall', 'glow', 'lava', 'water', 'path'];
+type LayerName = 'floor' | 'wall' | 'glow' | 'lava' | 'water' | 'path' | 'deadPath';
+const LAYERS: LayerName[] = ['floor', 'wall', 'glow', 'lava', 'water', 'path', 'deadPath'];
 
 function rockMaterial(kind: 'ground' | 'wall'): THREE.Material {
   return new THREE.MeshStandardMaterial({
@@ -248,6 +248,16 @@ export class TerrainView {
     roughness: 0.85,
     metalness: 0.1,
   });
+  /** The same slab with no current in it: no light in the lane, and duller. */
+  private readonly deadPathMaterial = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    map: this.pathMap,
+    color: 0x8a8782,
+    transparent: true,
+    depthWrite: false,
+    roughness: 0.95,
+    metalness: 0,
+  });
   private readonly boost = getTexture('wallColor') ? TEXTURED_BOOST : 1;
   private readonly chunks = new Map<number, Record<LayerName, THREE.Mesh>>();
   private readonly cols: number;
@@ -365,6 +375,7 @@ export class TerrainView {
       lava: newLayer(),
       water: newLayer(),
       path: newLayer(),
+      deadPath: newLayer(),
     };
     const lights = new Map<number, CornerLight>();
     const lightAt = (x: number, y: number) => {
@@ -458,7 +469,7 @@ export class TerrainView {
             (links(x + 1, y) ? 2 : 0) +
             (links(x, y + 1) ? 4 : 0) +
             (links(x - 1, y) ? 8 : 0);
-          this.addRoad(layers.path, x, y, mask, lightAt);
+          this.addRoad(tile.powered ? layers.path : layers.deadPath, x, y, mask, lightAt);
         }
       }
     }
@@ -472,12 +483,14 @@ export class TerrainView {
         lava: new THREE.Mesh(new THREE.BufferGeometry(), this.lavaMaterial),
         water: new THREE.Mesh(new THREE.BufferGeometry(), this.waterMaterial),
         path: new THREE.Mesh(new THREE.BufferGeometry(), this.pathMaterial),
+        deadPath: new THREE.Mesh(new THREE.BufferGeometry(), this.deadPathMaterial),
       };
       chunk.wall.castShadow = true;
       chunk.floor.receiveShadow = true;
       chunk.wall.receiveShadow = true;
       chunk.water.receiveShadow = true;
       chunk.path.receiveShadow = true;
+      chunk.deadPath.receiveShadow = true;
       this.chunks.set(key, chunk);
       for (const name of LAYERS) {
         this.group.add(chunk[name]);
@@ -565,6 +578,7 @@ export class TerrainView {
     this.lavaMaterial.dispose();
     this.waterMaterial.dispose();
     this.pathMaterial.dispose();
+    this.deadPathMaterial.dispose();
     this.pathMap.dispose();
     this.pathGlow.dispose();
     this.lavaMap.dispose();

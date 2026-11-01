@@ -1,5 +1,11 @@
 import { BUILDINGS, type BuildingDef } from '../data/buildings';
-import { CITY_GRID_RADIUS, CITY_HOUSING, CITY_OXYGEN } from '../data/progression';
+import {
+  CITY_GRID_RADIUS,
+  CITY_GRID_REACH,
+  CITY_HOUSING,
+  CITY_OXYGEN,
+  gridReach,
+} from '../data/progression';
 import { REGIONS } from '../data/regions';
 import { RESOURCES } from '../data/resources';
 import { POLICIES, TAX_LEVELS, UNITS } from '../data/units';
@@ -31,36 +37,76 @@ export function pay(state: GameState, cost: Cost): void {
   for (const r of RESOURCE_IDS) state.stock[r] -= cost[r] ?? 0;
 }
 
-/** Recomputes which buildings hang off the HQ, an outpost or CITY, through paths and adjoining buildings. */
+/** A plant only pushes the current further while it has something to burn. */
+function isRunningSource(state: GameState, b: Building): boolean {
+  const def = BUILDINGS[b.type];
+  if (!def.powerOutput || b.built < 1 || b.sabotaged > 0) return false;
+  return !def.burnTime || b.fuel > 0 || state.stock.crystal >= 1;
+}
+
+/**
+ * Works out how far the current gets. It leaves the HQ, the outposts and CITY with a reach, loses a
+ * tile of it at each step along roads and adjoining buildings, and every plant it reaches gives it
+ * a fresh start. Roads beyond that stay dark, and whatever hangs off them gets no power.
+ */
 export function updateNetwork(state: GameState): void {
   state.networkDirty = false;
   const owner = new Map<number, Building>();
+  const tilesOf = (b: Building): number[] => {
+    const size = BUILDINGS[b.type].size;
+    const tiles: number[] = [];
+    for (let dy = 0; dy < size; dy++) {
+      for (let dx = 0; dx < size; dx++) tiles.push(idx(state, b.x + dx, b.y + dy));
+    }
+    return tiles;
+  };
   for (const b of state.buildings) {
     b.connected = false;
     if (b.built < 1) continue;
-    const size = BUILDINGS[b.type].size;
-    for (let dy = 0; dy < size; dy++) {
-      for (let dx = 0; dx < size; dx++) owner.set(idx(state, b.x + dx, b.y + dy), b);
+    for (const i of tilesOf(b)) owner.set(i, b);
+  }
+
+  const remaining = new Int16Array(state.tiles.length).fill(-1);
+  // Strongest first, so that a tile is settled by the best current that can reach it.
+  const queues: number[][] = [];
+  let level = 0;
+  const feed = (i: number, reach: number) => {
+    if (reach <= remaining[i]) return;
+    remaining[i] = reach;
+    (queues[reach] ??= []).push(i);
+    if (reach > level) level = reach;
+  };
+  const output = (b: Building) => (BUILDINGS[b.type].powerOutput ?? 0) * state.mods.powerOutput;
+  for (const b of state.buildings) {
+    if (b.type === 'hq' || (b.type === 'camp' && b.built >= 1)) {
+      for (const i of tilesOf(b)) feed(i, gridReach(output(b)));
     }
   }
-  const roots = state.buildings.filter(
-    (b) => b.type === 'hq' || (b.type === 'camp' && b.built >= 1),
-  );
-  const stack = roots.map((b) => idx(state, b.x, b.y));
   const place = state.settlement;
   if (place?.reached) {
     for (let y = place.y - CITY_GRID_RADIUS; y <= place.y + CITY_GRID_RADIUS; y++) {
       for (let x = place.x - CITY_GRID_RADIUS; x <= place.x + CITY_GRID_RADIUS; x++) {
         if (x < 0 || y < 0 || x >= state.w || y >= state.h) continue;
-        if (Math.hypot(x - place.x, y - place.y) <= CITY_GRID_RADIUS) stack.push(idx(state, x, y));
+        if (Math.hypot(x - place.x, y - place.y) <= CITY_GRID_RADIUS) {
+          feed(idx(state, x, y), CITY_GRID_REACH);
+        }
       }
     }
   }
-  const seen = new Set(stack);
-  while (stack.length > 0) {
-    const cur = stack.pop() as number;
+  while (level >= 0) {
+    const cur = queues[level]?.pop();
+    if (cur === undefined) {
+      level--;
+      continue;
+    }
+    if (remaining[cur] !== level) continue;
     const building = owner.get(cur);
-    if (building) building.connected = true;
+    if (building) {
+      building.connected = true;
+      if (isRunningSource(state, building)) {
+        for (const i of tilesOf(building)) feed(i, gridReach(output(building)));
+      }
+    }
     const cx = cur % state.w;
     const cy = Math.floor(cur / state.w);
     for (const [dx, dy] of NEIGHBORS4) {
@@ -68,13 +114,37 @@ export function updateNetwork(state: GameState): void {
       const ny = cy + dy;
       if (nx < 0 || ny < 0 || nx >= state.w || ny >= state.h) continue;
       const ni = idx(state, nx, ny);
-      if (seen.has(ni)) continue;
-      if (state.tiles[ni].k === 'path' || owner.has(ni)) {
-        seen.add(ni);
-        stack.push(ni);
-      }
+      if (state.tiles[ni].k === 'path' || owner.has(ni)) feed(ni, remaining[cur] - 1);
     }
   }
+
+  // Slabs lighting up or going dark have to be redrawn.
+  let shortfall = false;
+  state.tiles.forEach((tile, i) => {
+    const powered = tile.k === 'path' && remaining[i] >= 0;
+    if ((tile.powered ?? false) !== powered) {
+      tile.powered = powered;
+      state.dirty.push(i);
+    }
+    if (tile.k !== 'path' || powered || shortfall) return;
+    // A stub laid far from anything isn't a shortage: this one has live road right next to it.
+    const x = i % state.w;
+    const y = Math.floor(i / state.w);
+    shortfall = NEIGHBORS4.some(([dx, dy]) => {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= state.w || ny >= state.h) return false;
+      return remaining[idx(state, nx, ny)] >= 0;
+    });
+  });
+  const flags = state.story.flags;
+  if (shortfall && !flags.gridShortNow) {
+    log(state, 'Le sol technique s’éteint : le courant ne porte pas plus loin.', 'warn');
+    state.fx.push({ kind: 'sound', id: 'alert' });
+  }
+  flags.gridShortNow = shortfall;
+  // What brings the advisor to the player, once.
+  if (shortfall) flags.gridShort = true;
 }
 
 const needsGrid = (def: BuildingDef): boolean =>
