@@ -44,6 +44,7 @@ import {
   placeBridge,
   placeBuilding,
   placePath,
+  roadEnd,
   removePaths,
   setCrewSkin,
   setRation,
@@ -392,7 +393,7 @@ export class MissionScreen {
       h('span', { class: 'b-cost' }, costLabel(PATH_COST)),
     );
     pathButton.title =
-      'Sol technique : relie les bâtiments au réseau. Glissez pour tracer une ligne droite, puis repartez de son extrémité pour tourner. Le courant ne porte qu’à une certaine distance : au-delà, les dalles sont éteintes et il faut une centrale de plus. Les foreurs y marchent plus vite et la lave ne le ronge pas.';
+      'Sol technique : relie les bâtiments au réseau. Glissez pour tracer une ligne droite, à l’horizontale, à la verticale ou en diagonale, puis repartez de son extrémité pour tourner. Le courant ne porte qu’à une certaine distance : au-delà, les dalles sont éteintes et il faut une centrale de plus. Les foreurs y marchent plus vite et la lave ne le ronge pas.';
     this.buildButtons.set('path', pathButton);
     const bridgeButton = h(
       'button',
@@ -612,7 +613,10 @@ export class MissionScreen {
         this.drag.y1 = tile.y;
         const isArea = this.tool.kind !== 'build';
         const moved = tile.x !== this.drag.x0 || tile.y !== this.drag.y0;
-        if (this.tool.kind === 'path' || this.tool.kind === 'bridge') {
+        if (this.tool.kind === 'path') {
+          const end = roadEnd(this.drag.x0, this.drag.y0, tile.x, tile.y);
+          this.view.setDragLine(this.drag.x0, this.drag.y0, end.x, end.y);
+        } else if (this.tool.kind === 'bridge') {
           const end = straightEnd(this.drag.x0, this.drag.y0, tile.x, tile.y);
           this.view.setDragBox({ x0: this.drag.x0, y0: this.drag.y0, x1: end.x, y1: end.y }, 0.06);
         } else {
@@ -736,8 +740,7 @@ export class MissionScreen {
       return;
     }
     if (tool.kind === 'path') {
-      const end = straightEnd(drag.x0, drag.y0, drag.x1, drag.y1);
-      const n = placePath(state, drag.x0, drag.y0, end.x, end.y);
+      const n = placePath(state, drag.x0, drag.y0, drag.x1, drag.y1);
       if (n === 0) this.say('Une voie se pose sur un sol dégagé (déblayez les gravats d’abord).');
       return;
     }
@@ -930,9 +933,14 @@ export class MissionScreen {
         r === 'credits' ||
         r === 'food',
     );
-    const sig = shown.map((r) => `${r}${Math.floor(stock[r])}`).join() + cap;
-    this.patch(this.resBar, sig, () =>
-      shown.map((r: ResourceId) => {
+    const research = Math.floor(this.state.research);
+    const showResearch = research >= 1 || hasReachedCity(this.state);
+    const sig =
+      shown.map((r) => `${r}${Math.floor(stock[r])}`).join() +
+      cap +
+      (showResearch ? `r${research}` : '');
+    this.patch(this.resBar, sig, () => [
+      ...shown.map((r: ResourceId) => {
         const def = RESOURCES[r];
         const full = !def.uncapped && stock[r] >= cap;
         return h(
@@ -945,7 +953,10 @@ export class MissionScreen {
           Math.floor(stock[r]),
         );
       }),
-    );
+      ...(showResearch
+        ? [h('span', { class: 'res', title: 'Points de recherche (R)' }, '🔬 ', research)]
+        : []),
+    ]);
   }
 
   private updateLevel(): void {
@@ -1213,7 +1224,7 @@ export class MissionScreen {
     const hardness = tile?.seen ? (WALLS[tile.k]?.power ?? 0) : 0;
     const label =
       hover && isCouncilSeat(state, hover.x, hover.y)
-        ? 'Siège du conseil'
+        ? 'Siège du conseil · entrepôt'
         : tile?.seen && (tile.gas ?? 0) >= GAS_HARMFUL
           ? `${TILE_NAMES[tile.k]} · gaz toxique`
           : tile?.seen
@@ -1253,7 +1264,7 @@ export class MissionScreen {
         : tool.kind === 'bridge'
           ? 'Glissez sur le vide, depuis le bord, pour tracer un pont droit. Clic droit pour finir.'
           : tool.kind === 'path'
-            ? 'Glissez pour tracer une voie droite, puis repartez de son extrémité pour tourner. Clic droit pour finir.'
+            ? 'Glissez pour tracer une voie droite, diagonales comprises, puis repartez de son extrémité pour tourner. Clic droit pour finir.'
             : tool.kind === 'build'
               ? `${BUILDINGS[tool.type].name} : cliquez pour poser, Maj pour enchaîner, clic droit pour annuler.`
               : this.paused

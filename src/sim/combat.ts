@@ -14,6 +14,12 @@ const MAX_RAID = 10;
 const PATROL_RADIUS = 4;
 /** Tried once a second while the guard has nothing else to do. */
 const PATROL_CHANCE = 0.3;
+/** How near an enemy has to come for a miner to down tools, in tiles. */
+const MINER_ALERT = 6;
+/** Ticks between two looks at the way to an enemy. */
+const MINER_REPATH = 5;
+/** Share of its health under which a miner stops looking for a fight, and goes back to work. */
+const MINER_NERVE = 0.4;
 
 /** Picks a seen wall touching the settled area, away from the HQ, and lets it burst open. */
 function findEmergePoint(state: GameState): { x: number; y: number } | null {
@@ -330,18 +336,79 @@ function updateGuard(state: GameState, unit: Unit): void {
   }
 }
 
-/** A miner under attack hits back with the tool in hand, while getting on with the job. */
-function minerDefence(state: GameState, unit: Unit): void {
+/** The nearest thing a miner would drop everything for. Lairs and sleepers can wait. */
+function nearestThreat(state: GameState, unit: Unit): Enemy | null {
+  let best: Enemy | null = null;
+  let bestD = MINER_ALERT;
+  for (const e of state.enemies) {
+    if (e.dormant || ENEMIES[e.type].structure || !canSeeEnemy(state, e)) continue;
+    const d = Math.hypot(e.x - unit.x, e.y - unit.y);
+    if (d <= bestD) {
+      best = e;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
+/**
+ * With an enemy near, a miner downs tools and goes for it. Returns whether that took up the tick:
+ * an enemy with no way through to it leaves the miner at work, and the player's orders come first.
+ */
+function minerDefence(state: GameState, unit: Unit): boolean {
   const melee = UNITS[unit.type].melee;
-  if (!melee) return;
+  if (!melee) return false;
   unit.cooldown = Math.max(0, unit.cooldown - TICK_SECONDS);
-  if (unit.cooldown > 0) return;
-  const target = nearestEnemy(state, unit.x, unit.y, melee.range);
-  if (!target) return;
-  unit.cooldown = melee.cooldown;
-  unit.targetId = target.id;
-  hurtEnemy(state, target, melee.damage * state.mods.drillPower);
-  state.fx.push({ kind: 'sound', id: 'hit', x: target.x, y: target.y });
+  const inReach = nearestEnemy(state, unit.x, unit.y, melee.range);
+  if (inReach && unit.cooldown <= 0) {
+    unit.cooldown = melee.cooldown;
+    unit.targetId = inReach.id;
+    hurtEnemy(state, inReach, melee.damage * state.mods.drillPower);
+    state.fx.push({ kind: 'sound', id: 'hit', x: inReach.x, y: inReach.y });
+  }
+  if (unit.order !== null) return false;
+  const shaken = unit.hp < UNITS[unit.type].hp * MINER_NERVE;
+  const threat = shaken ? null : nearestThreat(state, unit);
+  if (!threat) {
+    if (unit.chasing) {
+      unit.chasing = false;
+      unit.path = [];
+    }
+    return false;
+  }
+  const close = Math.hypot(threat.x - unit.x, threat.y - unit.y) <= melee.range;
+  if (!close && !unit.chasing && (state.tick + unit.id) % MINER_REPATH !== 0) return false;
+  if (close) {
+    unit.path = [];
+  } else if (
+    !unit.chasing ||
+    unit.path.length === 0 ||
+    (state.tick + unit.id) % MINER_REPATH === 0
+  ) {
+    const path = findPath(
+      state,
+      Math.floor(unit.x),
+      Math.floor(unit.y),
+      Math.floor(threat.x),
+      Math.floor(threat.y),
+    );
+    if (!path || path.length > MINER_ALERT * 2) {
+      if (unit.chasing) unit.path = [];
+      unit.chasing = false;
+      return false;
+    }
+    unit.path = path;
+  }
+  // Whatever was in hand stays where it falls, and someone comes back for it.
+  if (unit.jobId !== null) {
+    const path = unit.path;
+    releaseJob(state, unit);
+    unit.path = path;
+  }
+  unit.chasing = true;
+  unit.working = false;
+  moveAlongPath(state, unit, UNITS[unit.type].speed * state.mods.moveSpeed);
+  return true;
 }
 
 function updateTurrets(state: GameState): void {
@@ -367,8 +434,7 @@ export function updateCombat(state: GameState): void {
   for (const unit of [...state.units]) {
     if (UNITS[unit.type].attack) updateGuard(state, unit);
     else {
-      updateWorker(state, unit);
-      minerDefence(state, unit);
+      if (!minerDefence(state, unit)) updateWorker(state, unit);
     }
   }
   updateTurrets(state);

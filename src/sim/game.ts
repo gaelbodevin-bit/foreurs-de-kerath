@@ -404,7 +404,7 @@ export function placeBuilding(
   return { ok: true };
 }
 
-/** Where a road drawn from one tile towards another stops: on the longer axis, so it runs straight. */
+/** Where a bridge drawn from one tile towards another stops: on the longer axis, so it runs straight. */
 export function straightEnd(
   x0: number,
   y0: number,
@@ -414,6 +414,18 @@ export function straightEnd(
   return Math.abs(x1 - x0) >= Math.abs(y1 - y0) ? { x: x1, y: y0 } : { x: x0, y: y1 };
 }
 
+/** Where a road drawn towards a tile stops: along an axis or a diagonal, whichever is closest. */
+export function roadEnd(x0: number, y0: number, x1: number, y1: number): { x: number; y: number } {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const long = Math.max(Math.abs(dx), Math.abs(dy));
+  const short = Math.min(Math.abs(dx), Math.abs(dy));
+  // Past half-way between an axis and the diagonal, tan(22.5°).
+  if (short < long * 0.4142)
+    return Math.abs(dx) >= Math.abs(dy) ? { x: x1, y: y0 } : { x: x0, y: y1 };
+  return { x: x0 + Math.sign(dx) * long, y: y0 + Math.sign(dy) * long };
+}
+
 export function placePath(
   state: GameState,
   x0: number,
@@ -421,23 +433,23 @@ export function placePath(
   x1: number,
   y1: number,
 ): number {
-  const [minX, maxX] = x0 < x1 ? [x0, x1] : [x1, x0];
-  const [minY, maxY] = y0 < y1 ? [y0, y1] : [y1, y0];
+  const end = roadEnd(x0, y0, x1, y1);
+  const length = Math.max(Math.abs(end.x - x0), Math.abs(end.y - y0));
   let count = 0;
   const queued: number[] = [];
-  for (let y = minY; y <= maxY; y++) {
-    for (let x = minX; x <= maxX; x++) {
-      const t = tileAt(state, x, y);
-      if (!t || !t.seen || t.k !== 'floor') continue;
-      const job = state.jobs.find((j) => j.kind === 'path' && j.x === x && j.y === y);
-      if (job) {
-        queued.push(job.id);
-        continue;
-      }
-      if (state.buildings.some((b) => tileIsUnder(b.type, b.x, b.y, x, y))) continue;
-      addJob(state, 'path', x, y);
-      count++;
+  for (let n = 0; n <= length; n++) {
+    const x = x0 + (length === 0 ? 0 : Math.round(((end.x - x0) * n) / length));
+    const y = y0 + (length === 0 ? 0 : Math.round(((end.y - y0) * n) / length));
+    const t = tileAt(state, x, y);
+    if (!t || !t.seen || t.k !== 'floor') continue;
+    const job = state.jobs.find((j) => j.kind === 'path' && j.x === x && j.y === y);
+    if (job) {
+      queued.push(job.id);
+      continue;
     }
+    if (state.buildings.some((b) => tileIsUnder(b.type, b.x, b.y, x, y))) continue;
+    addJob(state, 'path', x, y);
+    count++;
   }
   // Everything was already queued: this drag is a cancellation, as it is for drilling.
   if (count === 0) for (const id of queued) removeJob(state, id);

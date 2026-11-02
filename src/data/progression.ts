@@ -15,6 +15,10 @@ export const MAX_CONTRACTS = 4;
 /** The colonists waiting in the city, and the homes they already have there. */
 export const CITY_SETTLERS = 12;
 export const CITY_HOUSING = 16;
+/** The council's seat takes deliveries like a depot, and holds as much as the HQ. */
+export const CITY_STORAGE = 150;
+/** How close to the middle of the city a load can be set down: the seat's steps are in the way. */
+export const CITY_STORE_REACH = 2.6;
 /** The city's own miners, who take the governor's orders as soon as the tunnel is through. */
 export const CITY_MINERS = 10;
 /** What the city's air plant adds, enough to keep that many more people breathing. */

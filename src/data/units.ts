@@ -15,14 +15,14 @@ export interface UnitDef {
   /** Items moved per trip. */
   carryLimit: number;
   attack?: { range: number; damage: number; cooldown: number };
-  /** Hits whatever comes within reach, without leaving the job. Damage grows with the crew's tools. */
+  /** Downs tools for any enemy that comes near and hits it. Damage grows with the crew's tools. */
   melee?: { range: number; damage: number; cooldown: number };
 }
 
 export const UNITS: Record<UnitType, UnitDef> = {
   foreur: {
     name: 'Foreur',
-    desc: 'Fore, déblaie, transporte et construit. Se défend de son outil au corps à corps.',
+    desc: 'Fore, déblaie, transporte et construit. Quand un ennemi approche, lâche tout et le frappe de son outil.',
     hp: 60,
     speed: 2.8,
     cost: { credits: 15 },
@@ -32,7 +32,7 @@ export const UNITS: Record<UnitType, UnitDef> = {
     drillSpeed: 1,
     jobs: ['build', 'drill', 'path', 'unpath', 'bridge', 'haul', 'harvest', 'clear'],
     carryLimit: 3,
-    melee: { range: 1.5, damage: 3, cooldown: 1 },
+    melee: { range: 1.5, damage: 6, cooldown: 1 },
   },
   garde: {
     name: 'Garde',

@@ -4,13 +4,14 @@ import {
   CITY_GRID_REACH,
   CITY_HOUSING,
   CITY_OXYGEN,
+  CITY_STORAGE,
   gridReach,
 } from '../data/progression';
 import { REGIONS } from '../data/regions';
 import { RESOURCES } from '../data/resources';
 import { CORPSE_FOOD, edictById } from '../data/edicts';
 import { POLICIES, RATIONS, TAX_LEVELS, UNITS } from '../data/units';
-import { carriesCurrent, idx, NEIGHBORS4 } from './grid';
+import { carriesCurrent, idx, NEIGHBORS8 } from './grid';
 import { log, spawnUnit } from './entities';
 import type { Building, Cost, GameState, ResourceId } from './types';
 import { RESOURCE_IDS, TICK_SECONDS } from './types';
@@ -18,7 +19,7 @@ import { RESOURCE_IDS, TICK_SECONDS } from './types';
 export const storageCapacity = (state: GameState): number =>
   state.buildings.reduce(
     (sum, b) => (b.built >= 1 ? sum + (BUILDINGS[b.type].storage ?? 0) : sum),
-    0,
+    state.settlement?.reached ? CITY_STORAGE : 0,
   );
 
 export function hasRoomFor(state: GameState, res: ResourceId, amount = 1): boolean {
@@ -110,11 +111,15 @@ export function updateNetwork(state: GameState): void {
     }
     const cx = cur % state.w;
     const cy = Math.floor(cur / state.w);
-    for (const [dx, dy] of NEIGHBORS4) {
+    for (const [dx, dy] of NEIGHBORS8) {
       const nx = cx + dx;
       const ny = cy + dy;
       if (nx < 0 || ny < 0 || nx >= state.w || ny >= state.h) continue;
       const ni = idx(state, nx, ny);
+      // Corner to corner, only a road goes on: a diagonal one has no other way of joining up.
+      if (dx !== 0 && dy !== 0) {
+        if (!carriesCurrent(state.tiles[cur].k) || !carriesCurrent(state.tiles[ni].k)) continue;
+      }
       if (carriesCurrent(state.tiles[ni].k) || owner.has(ni)) feed(ni, remaining[cur] - 1);
     }
   }
@@ -132,11 +137,13 @@ export function updateNetwork(state: GameState): void {
     // A stub laid far from anything isn't a shortage: this one has live road right next to it.
     const x = i % state.w;
     const y = Math.floor(i / state.w);
-    shortfall = NEIGHBORS4.some(([dx, dy]) => {
+    shortfall = NEIGHBORS8.some(([dx, dy]) => {
       const nx = x + dx;
       const ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= state.w || ny >= state.h) return false;
-      return remaining[idx(state, nx, ny)] >= 0;
+      const ni = idx(state, nx, ny);
+      if (dx !== 0 && dy !== 0 && !carriesCurrent(state.tiles[ni].k)) return false;
+      return remaining[ni] >= 0;
     });
   });
   const flags = state.story.flags;

@@ -520,6 +520,15 @@ const BUILDING_MODELS: Record<BuildingType, BuildingModel> = {
       { shape: 'box', color: 0xd9a441, x: 0, y: 0.09, z: -0.32, w: 0.7, h: 0.03, d: 0.03 },
     ],
   },
+  lamp: {
+    trim: AMBER,
+    parts: [],
+    accents: [{ color: AMBER, y: 0.84, size: 0.03 }],
+    details: [
+      { shape: 'cyl', color: DARK, y: 0.4, w: 0.05, h: 0.8, d: 0.05 },
+      { shape: 'dome', color: AMBER, glow: true, y: 0.8, w: 0.08, h: 0.08, d: 0.08 },
+    ],
+  },
   prop: {
     trim: 0xd9a441,
     parts: [],
@@ -1013,7 +1022,8 @@ export function buildingFromModels(type: BuildingType): THREE.Group | null {
   const root = new THREE.Group();
   root.position.set(center, 0, center);
   g.add(root);
-  root.add(foundation(BUILDINGS[type].size, spec.trim));
+  // A street lamp stands straight on the ground, as it does in the city.
+  if (type !== 'lamp') root.add(foundation(BUILDINGS[type].size, spec.trim));
   const spinning: THREE.Object3D[] = [];
   for (const detail of spec.details) {
     const mesh = makeDetail(detail);
@@ -1171,6 +1181,10 @@ function pickaxe(): THREE.Object3D {
   return tool;
 }
 
+/** How far the tool leans forward at rest, and how far its bit stands out of the body. */
+export const JACKHAMMER_TILT = 1;
+export const JACKHAMMER_BIT = -0.27;
+
 /** Held in one hand, working end down. */
 function jackhammer(): THREE.Object3D {
   const tool = new THREE.Group();
@@ -1188,9 +1202,10 @@ function jackhammer(): THREE.Object3D {
   bit.rotation.x = Math.PI;
   bit.position.y = -0.27;
   tool.add(body, handle, bit);
-  // Scaled to the crew's small hands, and tilted towards the rock in front.
-  tool.scale.setScalar(0.55);
-  tool.rotation.x = 0.6;
+  // Tilted towards the rock in front, and big enough to be seen from the camera's height.
+  tool.scale.setScalar(1.15);
+  tool.rotation.x = JACKHAMMER_TILT;
+  tool.userData.bit = bit;
   return tool;
 }
 
@@ -1251,7 +1266,9 @@ export function unitFromModels(
       if (tool === 'pick') {
         attach(made.body, 'arm-right', pickaxe(), [0, -0.27, 0.2]);
       } else if (tool === 'hammer') {
-        attach(made.body, 'arm-right', jackhammer(), [0, -0.12, 0.14]);
+        const held = jackhammer();
+        attach(made.body, 'arm-right', held, [0, -0.16, 0.3]);
+        made.group.userData.jackhammer = held;
       } else {
         attach(made.body, 'arm-right', laserDrill(), [0, -0.2, 0.12]);
         const beam = laserBeam();

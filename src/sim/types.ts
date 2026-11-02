@@ -95,6 +95,7 @@ export type BuildingType =
   | 'camp'
   | 'seismo'
   | 'prop'
+  | 'lamp'
   | 'canteen'
   | 'academy'
   | 'geothermal'
@@ -146,6 +147,8 @@ export interface Unit {
   /** Ticks before this unit looks for a job again. */
   thinkIn: number;
   working: boolean;
+  /** Has downed tools to go after an enemy. */
+  chasing?: boolean;
 }
 
 export interface Building {

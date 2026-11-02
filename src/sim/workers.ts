@@ -5,6 +5,7 @@ import {
   PATH_COST,
   PATH_REFUND,
 } from '../data/buildings';
+import { CITY_STORE_REACH } from '../data/progression';
 import { WALLS } from '../data/resources';
 import { UNITS } from '../data/units';
 import { canAfford, hasRoomFor, addStock, pay } from './economy';
@@ -143,9 +144,7 @@ function assignJob(state: GameState, unit: Unit): void {
   let bestTile = -1;
   let bestScore = Infinity;
   // Cut off from every store, picking something up would only mean putting it down again, for ever.
-  const canDeliver = state.buildings.some(
-    (b) => b.built >= 1 && BUILDINGS[b.type].storage && dist[idx(state, b.x, b.y)] >= 0,
-  );
+  const canDeliver = storeSpots(state).some((s) => dist[idx(state, s.tileX, s.tileY)] >= 0);
   for (const job of open) {
     if (job.kind === 'haul' && !canDeliver) continue;
     const access = bestAccess(state, job, dist);
@@ -397,15 +396,49 @@ function runBuild(state: GameState, unit: Unit, job: Job, b: Building, speed: nu
   }
 }
 
-function nearestStorage(state: GameState, unit: Unit): Building | null {
-  let best: Building | null = null;
-  let bestD = Infinity;
+interface StoreSpot {
+  x: number;
+  y: number;
+  tileX: number;
+  tileY: number;
+  /** How near a load has to be brought. */
+  reach: number;
+}
+
+/** Everywhere a load can be set down: the stores, and the council's seat once the city is reached. */
+function storeSpots(state: GameState): StoreSpot[] {
+  const spots: StoreSpot[] = [];
   for (const b of state.buildings) {
     if (b.built < 1 || !BUILDINGS[b.type].storage) continue;
     const c = buildingCenter(b);
-    const d = Math.hypot(c.x - unit.x, c.y - unit.y);
+    spots.push({
+      x: c.x,
+      y: c.y,
+      tileX: b.x,
+      tileY: b.y,
+      reach: BUILDINGS[b.type].size / 2 + 0.9,
+    });
+  }
+  const place = state.settlement;
+  if (place?.reached) {
+    spots.push({
+      x: place.x + 0.5,
+      y: place.y + 0.5,
+      tileX: place.x,
+      tileY: place.y,
+      reach: CITY_STORE_REACH,
+    });
+  }
+  return spots;
+}
+
+function nearestStorage(state: GameState, unit: Unit): StoreSpot | null {
+  let best: StoreSpot | null = null;
+  let bestD = Infinity;
+  for (const spot of storeSpots(state)) {
+    const d = Math.hypot(spot.x - unit.x, spot.y - unit.y);
     if (d < bestD) {
-      best = b;
+      best = spot;
       bestD = d;
     }
   }
@@ -449,8 +482,7 @@ function runHaul(state: GameState, unit: Unit, job: Job, speed: number): void {
   if (!res) return removeJob(state, job.id);
   const storage = nearestStorage(state, unit);
   if (!storage) return;
-  const center = buildingCenter(storage);
-  if (distTo(unit, center.x, center.y) <= BUILDINGS[storage.type].size / 2 + 0.9) {
+  if (distTo(unit, storage.x, storage.y) <= storage.reach) {
     addStock(state, res, unit.carryCount);
     unit.carry = null;
     unit.carryCount = 0;
@@ -459,7 +491,13 @@ function runHaul(state: GameState, unit: Unit, job: Job, speed: number): void {
     return;
   }
   if (unit.path.length === 0) {
-    const path = findPath(state, Math.floor(unit.x), Math.floor(unit.y), storage.x, storage.y);
+    const path = findPath(
+      state,
+      Math.floor(unit.x),
+      Math.floor(unit.y),
+      storage.tileX,
+      storage.tileY,
+    );
     if (!path) {
       releaseJob(state, unit);
       unit.thinkIn = 30;

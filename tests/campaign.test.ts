@@ -55,7 +55,8 @@ describe('monde unique', () => {
     expect(createGame(7).story.mole).toBe(createGame(7).story.mole);
     const moles = new Set(Array.from({ length: 40 }, (_, i) => createGame(i).story.mole));
     expect(moles.size).toBe(3);
-  });
+    // Forty whole maps: more than the default limit when every test file runs at once.
+  }, 20000);
 
   it('le contrôle de la planète monte quand un secteur tombe, sans changer de carte', () => {
     const state = newGame(1);

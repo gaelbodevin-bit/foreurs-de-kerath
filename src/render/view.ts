@@ -13,7 +13,12 @@ import type { CharacterRig } from './assets';
 import { DarknessPass, MAX_HEAD_LAMPS, type HeadLamp } from './darkness';
 import { DecorView } from './decor';
 import { Dust, GasClouds, Smoke } from './particles';
-import { residentFromModels, settlementFromModels } from './modelPrefabs';
+import {
+  JACKHAMMER_BIT,
+  JACKHAMMER_TILT,
+  residentFromModels,
+  settlementFromModels,
+} from './modelPrefabs';
 import { makeBuilding, makeEnemy, makePickup, makeUnit } from './prefabs';
 import { TerrainView } from './terrain';
 import { tremorRadius } from '../sim/seismic';
@@ -108,7 +113,10 @@ const HEAD_LAMP_RADIUS = 3.6;
 const HEAD_LAMP_AHEAD = 0.7;
 const VEHICLE_LAMP_RADIUS = 4.6;
 
+const MARK_OPACITY = 0.55;
+const MARK_WORKED_OPACITY = 0.08;
 const DRAG_BOX_HEIGHT = 1.7;
+const ROAD_DRAG_HEIGHT = 0.06;
 
 const TARGET_FPS = 32;
 const SHADOW_MAP = 2048;
@@ -410,6 +418,7 @@ export class MissionView {
     height = DRAG_BOX_HEIGHT,
   ): void {
     this.dragBox.visible = area !== null;
+    this.dragBox.rotation.z = 0;
     if (!area) return;
     const minX = Math.min(area.x0, area.x1);
     const minY = Math.min(area.y0, area.y1);
@@ -417,6 +426,16 @@ export class MissionView {
     const h = Math.abs(area.y1 - area.y0) + 1;
     this.dragBox.scale.set(w, h, 1);
     this.dragBox.position.set(minX + w / 2, height, minY + h / 2);
+  }
+
+  /** The road about to be laid, one tile wide, along an axis or a diagonal. */
+  setDragLine(x0: number, y0: number, x1: number, y1: number): void {
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    this.dragBox.visible = true;
+    this.dragBox.scale.set(Math.hypot(dx, dy) + 1, 1, 1);
+    this.dragBox.rotation.z = -Math.atan2(dy, dx);
+    this.dragBox.position.set((x0 + x1) / 2 + 0.5, ROAD_DRAG_HEIGHT, (y0 + y1) / 2 + 0.5);
   }
 
   setSelection(tiles: { x: number; y: number; size: number }[]): void {
@@ -685,10 +704,21 @@ export class MissionView {
         } else {
           entry.swing = undefined;
         }
-        // The hammer shakes whoever holds it.
-        if (target && tool === 'hammer') {
-          entry.object.position.x += Math.sin(time * 71 + u.id) * 0.012;
-          entry.object.position.z += Math.cos(time * 83 + u.id) * 0.012;
+        const hammering = target !== undefined && tool === 'hammer' && !moving;
+        const held = entry.object.userData.jackhammer as THREE.Object3D | undefined;
+        if (held) {
+          // The bit punches in and out, slowly enough for the eye and the frame rate to follow.
+          const blow = hammering ? Math.abs(Math.sin(time * 26 + u.id)) : 0;
+          (held.userData.bit as THREE.Object3D).position.y = JACKHAMMER_BIT - blow * 0.13;
+          held.rotation.x = JACKHAMMER_TILT + (hammering ? Math.sin(time * 37 + u.id) * 0.09 : 0);
+        }
+        // The hammer shakes whoever holds it, and chips fly off the rock.
+        if (hammering) {
+          entry.object.position.x += Math.sin(time * 71 + u.id) * 0.03;
+          entry.object.position.z += Math.cos(time * 83 + u.id) * 0.03;
+          if (Math.random() < dt * 14) {
+            this.smoke.emit(target.x + 0.5, 0.45, target.y + 0.5, 0.42, 0.8, 0.9);
+          }
         }
       } else {
         // Machines have no skeleton: they just rattle along.
@@ -757,7 +787,7 @@ export class MissionView {
         new THREE.PlaneGeometry(0.86, 0.86),
         new THREE.MeshBasicMaterial({
           transparent: true,
-          opacity: 0.55,
+          opacity: MARK_OPACITY,
           depthTest: false,
           side: THREE.DoubleSide,
         }),
@@ -772,7 +802,11 @@ export class MissionView {
       if (!job) return;
       const wall = job.kind === 'drill';
       mark.position.set(job.x + 0.5, wall ? 1.56 : 0.06, job.y + 0.5);
-      (mark.material as THREE.MeshBasicMaterial).color.setHex(
+      const material = mark.material as THREE.MeshBasicMaterial;
+      // The mark stands over the rock, in front of whoever works it: it must not hide them.
+      const worked = this.state.units.some((u) => u.id === job.unitId && u.working);
+      material.opacity = worked ? MARK_WORKED_OPACITY : MARK_OPACITY;
+      material.color.setHex(
         wall
           ? 0xffb347
           : job.kind === 'path'

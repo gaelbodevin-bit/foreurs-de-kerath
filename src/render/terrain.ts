@@ -14,6 +14,8 @@ const TEXTURE_TILES = 3;
 const TEXTURED_BOOST = 2.3;
 const LAVA_BRIGHTNESS = 3.4;
 const ROAD_HEIGHT = 0.025;
+/** The atlas cell with an arm east and an arm west. */
+const STRAIGHT_ROAD = 2 + 8;
 const DECK_HEIGHT = 0.06;
 const CHASM_DEPTH = 1.5;
 /** How little light is left at the bottom of a gorge. */
@@ -576,7 +578,16 @@ export class TerrainView {
             (links(x + 1, y) ? 2 : 0) +
             (links(x, y + 1) ? 4 : 0) +
             (links(x - 1, y) ? 8 : 0);
-          this.addRoad(tile.powered ? layers.path : layers.deadPath, x, y, mask, lightAt);
+          const layer = tile.powered ? layers.path : layers.deadPath;
+          this.addRoad(layer, x, y, mask, lightAt);
+          // Each diagonal belongs to the tile on its left. Two roads already joined by a corner
+          // tile need no shortcut across it.
+          for (const dy of [-1, 1]) {
+            if (y + dy < 0 || y + dy >= state.h || x + 1 >= state.w) continue;
+            if (state.tiles[(y + dy) * state.w + x + 1].k !== 'path') continue;
+            if (links(x + 1, y) || links(x, y + dy)) continue;
+            this.addDiagonalRoad(layer, x, y, dy, lightAt);
+          }
         }
       }
     }
@@ -601,6 +612,9 @@ export class TerrainView {
       chunk.water.receiveShadow = true;
       chunk.path.receiveShadow = true;
       chunk.deadPath.receiveShadow = true;
+      // Glows add up, slabs cover: in the other order, a lit road dims as the camera turns.
+      chunk.path.renderOrder = -1;
+      chunk.deadPath.renderOrder = -1;
       this.chunks.set(key, chunk);
       for (const name of LAYERS) {
         this.group.add(chunk[name]);
@@ -654,6 +668,42 @@ export class TerrainView {
       layer.positions.push(x + dx, ROAD_HEIGHT, y + dz);
       layer.uvs.push(u0 + dx / ROAD_ROWS, 1 - (row + dz) / ROAD_ROWS);
       const { shade } = lightAt(x + dx, y + dz);
+      layer.colors.push(shade, shade, shade);
+    }
+  }
+
+  /** The straight atlas cell, turned to run from the middle of a tile to that of its diagonal neighbour. */
+  private addDiagonalRoad(
+    layer: Layer,
+    x: number,
+    y: number,
+    dy: number,
+    lightAt: (x: number, y: number) => CornerLight,
+  ): void {
+    const half = Math.SQRT1_2 / 2;
+    const ax = x + 0.5;
+    const az = y + 0.5;
+    const bx = ax + 1;
+    const bz = az + dy;
+    // Across the direction of travel, half a cell each way.
+    const sx = -dy * half;
+    const sz = half;
+    const u0 = (STRAIGHT_ROAD % ROAD_ROWS) / ROAD_ROWS;
+    const row = Math.floor(STRAIGHT_ROAD / ROAD_ROWS);
+    const { shade } = lightAt(x + 1, y + (dy > 0 ? 1 : 0));
+    for (const [along, side] of [
+      [0, 0],
+      [0, 1],
+      [1, 1],
+      [0, 0],
+      [1, 1],
+      [1, 0],
+    ]) {
+      const cx = along ? bx : ax;
+      const cz = along ? bz : az;
+      const sign = side ? 1 : -1;
+      layer.positions.push(cx + sx * sign, ROAD_HEIGHT, cz + sz * sign);
+      layer.uvs.push(u0 + along / ROAD_ROWS, 1 - (row + side) / ROAD_ROWS);
       layer.colors.push(shade, shade, shade);
     }
   }

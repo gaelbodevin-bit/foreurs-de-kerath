@@ -7,6 +7,7 @@ const BUILDING_LIGHT = 7;
 const HQ_LIGHT = 11;
 const CITY_LIGHT = 11;
 const ROAD_LIGHT = 4;
+const LAMP_LIGHT = 6;
 /** A building with no power keeps only its emergency lights. */
 const UNPOWERED_SHARE = 0.55;
 const UNPOWERED_LEVEL = 0.6;
@@ -71,7 +72,7 @@ export function computeLightMap(state: GameState, levels: Float32Array): void {
     if (b.built < 1) continue;
     const def = BUILDINGS[b.type];
     const half = def.size / 2;
-    const radius = b.type === 'hq' ? HQ_LIGHT : BUILDING_LIGHT;
+    const radius = b.type === 'hq' ? HQ_LIGHT : b.type === 'lamp' ? LAMP_LIGHT : BUILDING_LIGHT;
     const dark = (def.power ?? 0) > 0 && b.eff <= 0;
     stamp(
       levels,

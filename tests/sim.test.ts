@@ -394,15 +394,15 @@ describe('combat', () => {
 
   it('un foreur ne frappe ni à distance, ni ce qu’il ne voit pas', () => {
     const { state, foreur } = loneMiner();
-    const far = spawnEnemy(state, 'golem', foreur.x + 5, foreur.y);
-    far.dormant = true;
+    const far = spawnEnemy(state, 'nest', foreur.x + 5, foreur.y);
     const hidden = spawnEnemy(state, 'golem', foreur.x + 0.5, foreur.y);
     hidden.dormant = true;
     state.tiles[idx(state, Math.floor(hidden.x), Math.floor(hidden.y))].seen = false;
     const hp = far.hp;
+    const hiddenHp = hidden.hp;
     run(state, 3);
     expect(far.hp).toBe(hp);
-    expect(hidden.hp).toBe(hp);
+    expect(hidden.hp).toBe(hiddenHp);
   });
 
   it('une tourelle sous tension abat un rongeur', () => {

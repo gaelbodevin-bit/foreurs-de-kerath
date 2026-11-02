@@ -52,7 +52,8 @@ const LICHEN_COLORS = [0x35e0c2, 0x7fd8ff, 0xb79cff].map((c) =>
   new THREE.Color(c).multiplyScalar(1.5),
 );
 /** One lamp every this many tiles of road. */
-const LAMP_SPACING = 4;
+/** Prime to every step of the pattern below, so that a road of any direction gets its lamps. */
+const LAMP_SPACING = 5;
 
 function instanced(
   geometry: THREE.BufferGeometry,
@@ -445,9 +446,13 @@ export class DecorView {
         continue;
       }
       if (tile.k === 'path') {
-        if ((x + y) % LAMP_SPACING !== 0 || lamps >= MAX_LAMPS) continue;
+        if ((x + 2 * y) % LAMP_SPACING !== 0 || lamps >= MAX_LAMPS) continue;
         const px = x + 0.14;
-        const pz = y + 0.14;
+        // Off the corner a road running that way would cross.
+        const crossed =
+          (x > 0 && y > 0 && state.tiles[i - state.w - 1].k === 'path') ||
+          state.tiles[i + state.w + 1]?.k === 'path';
+        const pz = crossed ? y + 0.86 : y + 0.14;
         poles.setMatrixAt(lamps, matrix.makeScale(1, 0.72, 1).setPosition(px, 0, pz));
         lamps++;
         // A lamp with no current is only a post.

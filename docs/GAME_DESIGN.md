@@ -145,7 +145,8 @@ ce que le Noyau a de commun avec les horaires de la cité.
 
 ## Le sol technique
 
-Un glisser trace une ligne droite sur l'axe le plus long. Pour tourner, on repart de son extrémité.
+Un glisser trace une ligne droite, à l'horizontale, à la verticale ou à 45°, selon la direction la
+plus proche. Pour tourner, on repart de son extrémité. Le courant suit les diagonales de dalle à dalle.
 
 Il se trace et se retire à la main : un foreur vient le poser ou le démonter. Le retirer rend une
 roche par case et peut couper le réseau derrière lui.
@@ -208,7 +209,8 @@ vraie décision.
 | Enfants du Noyau  | Saboteur              | Cœur du Dormeur | Vise l'infrastructure |
 
 Les foreurs rendent les coups au corps à corps, faiblement mais plus fort avec de meilleurs outils,
-sans quitter leur travail : les gardes et les tourelles restent la vraie défense.
+et, dès qu'un ennemi s'approche à moins de 6 cases, lâchent leur travail pour aller le frapper, sauf
+ordre contraire du joueur : les gardes et les tourelles restent la vraie défense.
 
 Les structures dorment tant qu'elles n'ont pas été découvertes : creuser vers elles, c'est aussi
 décider quand le combat commence.

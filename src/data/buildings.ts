@@ -256,6 +256,14 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     hp: 150,
     power: 1,
   },
+  lamp: {
+    name: 'Lampadaire',
+    desc: 'Le même que sur la place de CITY : il a sa propre pile et éclaire les alentours, sans réseau.',
+    size: 1,
+    cost: { ore: 2, stone: 1 },
+    buildTime: 2,
+    hp: 60,
+  },
   prop: {
     tech: 'stability',
     name: 'Étai de soutènement',
@@ -444,7 +452,7 @@ export const BUILD_MENUS: BuildMenu[] = [
         name: 'Réseau',
         buildings: ['generator', 'fuelplant', 'geothermal', 'gascap', 'depot', 'silo'],
       },
-      { name: 'Terrain', buildings: ['vent', 'seismo', 'prop', 'camp', 'derrick'] },
+      { name: 'Terrain', buildings: ['lamp', 'vent', 'seismo', 'prop', 'camp', 'derrick'] },
       { name: 'Véhicules', buildings: ['workshop'] },
       { name: 'Défense', buildings: ['turret', 'bigturret', 'barracks'] },
     ],
