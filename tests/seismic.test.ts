@@ -53,8 +53,7 @@ describe('secousses', () => {
     expect(first.sector).toBe('ash');
     expect(first.magnitude).toBeGreaterThanOrEqual(ash.seismic.magnitude[0]);
     expect(first.magnitude).toBeLessThanOrEqual(ash.seismic.magnitude[1]);
-    // Twenty minutes of play: more than the default limit when every test file runs at once.
-  }, 20000);
+  });
 
   it('une forte secousse fait tomber la roche au pied des murs, mais pas sur les routes', () => {
     const state = createGame(5);

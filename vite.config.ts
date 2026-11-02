@@ -13,5 +13,7 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     environment: 'node',
+    // Many tests play out whole minutes of the game, and CI machines are slower than a desktop.
+    testTimeout: 30_000,
   },
 });
