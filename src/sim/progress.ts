@@ -1,10 +1,11 @@
 import { BUILDINGS, CITY_BUILDINGS } from '../data/buildings';
 import { CITY_LEVELS, COUNCIL_SEAT_RADIUS } from '../data/progression';
 import { regionById, REGIONS, sectorAt, type Objective, type RegionDef } from '../data/regions';
+import { edictById } from '../data/edicts';
 import { RESOURCES } from '../data/resources';
 import { techById, TECHS } from '../data/techs';
 import { ENEMIES } from '../data/units';
-import { addStock } from './economy';
+import { addStock, canAfford, pay } from './economy';
 import { log } from './entities';
 import type { BuildingType, GameState, Modifiers, ResourceId } from './types';
 import { RESOURCE_IDS } from './types';
@@ -132,6 +133,7 @@ export function buildingLock(state: GameState, type: BuildingType): string | nul
   if (type === 'hq') return 'Indisponible';
   if (CITY_BUILDINGS.has(type) && !hasReachedCity(state)) return 'Rejoignez d’abord CITY';
   if (def.tech && !state.techs.includes(def.tech)) return `Recherche : ${techById(def.tech).name}`;
+  if (def.edict && !state.edicts.includes(def.edict)) return `Édit : ${edictById(def.edict).name}`;
   return null;
 }
 
@@ -165,6 +167,8 @@ function completeTech(state: GameState, id: string): void {
 export function buyTech(state: GameState, id: string): boolean {
   const tech = techById(id);
   if (techLock(state, id) !== null || state.research < tech.cost) return false;
+  if (tech.price && !canAfford(state, tech.price)) return false;
+  if (tech.price) pay(state, tech.price);
   state.research -= tech.cost;
   completeTech(state, id);
   return true;

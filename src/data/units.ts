@@ -30,7 +30,7 @@ export const UNITS: Record<UnitType, UnitDef> = {
     trainTime: 6,
     drillPower: 1,
     drillSpeed: 1,
-    jobs: ['build', 'drill', 'path', 'unpath', 'haul', 'harvest', 'clear'],
+    jobs: ['build', 'drill', 'path', 'unpath', 'bridge', 'haul', 'harvest', 'clear'],
     carryLimit: 3,
     melee: { range: 1.5, damage: 3, cooldown: 1 },
   },
@@ -73,6 +73,19 @@ export const UNITS: Record<UnitType, UnitDef> = {
     drillSpeed: 0,
     jobs: ['haul'],
     carryLimit: 6,
+  },
+  truck: {
+    name: 'Camion',
+    desc: 'Monté sur de vrais pneus : le plus rapide, et il charge le double d’une mule.',
+    hp: 180,
+    speed: 5,
+    cost: { metal: 12, tyres: 4 },
+    citizens: 0,
+    trainTime: 10,
+    drillPower: 0,
+    drillSpeed: 0,
+    jobs: ['haul'],
+    carryLimit: 12,
   },
 };
 
@@ -187,12 +200,6 @@ export interface PolicyDef {
 }
 
 export const POLICIES: Record<PolicyId, PolicyDef> = {
-  rationing: {
-    name: 'Rationnement',
-    desc: 'Consommation de nourriture réduite de 35 %.',
-    morale: -10,
-    upkeep: 0,
-  },
   curfew: {
     name: 'Couvre-feu',
     desc: 'Divise par deux la progression du complot.',
@@ -212,6 +219,13 @@ export const POLICIES: Record<PolicyId, PolicyDef> = {
     upkeep: 0,
   },
 };
+
+/** How much of a share everyone gets. */
+export const RATIONS: readonly { name: string; desc: string; eat: number; morale: number }[] = [
+  { name: 'Demi-rations', desc: 'On tient, et on le fait savoir.', eat: 0.6, morale: -12 },
+  { name: 'Normales', desc: 'Ce qui était prévu.', eat: 1, morale: 0 },
+  { name: 'Copieuses', desc: 'Un peu de joie, vite mangée.', eat: 1.4, morale: 6 },
+];
 
 export const TAX_LEVELS: readonly { name: string; rate: number; morale: number }[] = [
   { name: 'Aucun', rate: 0, morale: 6 },

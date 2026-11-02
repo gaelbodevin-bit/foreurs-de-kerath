@@ -358,9 +358,13 @@ export class MissionView {
     const hit = this.raycaster.intersectObjects(this.terrain.pickables, false)[0];
     if (!hit) return null;
     // Nudge into the surface, so that a click on a slope lands on the wall it belongs to.
-    const dir = this.raycaster.ray.direction;
-    const x = Math.floor(hit.point.x + dir.x * 0.05);
-    const y = Math.floor(hit.point.z + dir.z * 0.05);
+    const { direction: dir, origin } = this.raycaster.ray;
+    // Down in a gorge, what counts is where the ray crossed ground level: that's what is aimed at.
+    const sunk = hit.point.y < 0 ? -origin.y / dir.y : null;
+    const px = sunk === null ? hit.point.x : origin.x + dir.x * sunk;
+    const pz = sunk === null ? hit.point.z : origin.z + dir.z * sunk;
+    const x = Math.floor(px + dir.x * 0.05);
+    const y = Math.floor(pz + dir.z * 0.05);
     if (x < 0 || y < 0 || x >= this.state.w || y >= this.state.h) return null;
     return { x, y };
   }
@@ -571,6 +575,12 @@ export class MissionView {
       }
     }
     this.gas.update(state, time, dt);
+    for (const vent of this.decor.fumaroles) {
+      if (Math.hypot(vent.x - this.focus.x, vent.y - this.focus.z) > RESIDENT_VIEW * 2) continue;
+      if (this.stale < 0.3 && Math.random() < dt * 3) {
+        this.smoke.emit(vent.x + 0.5, 0.15, vent.y + 0.5, 0.45, 2.4, 0.5);
+      }
+    }
     this.nearestWalker = null;
     let walkerDistance = Infinity;
     this.headLamps.length = 0;
@@ -586,10 +596,12 @@ export class MissionView {
     const alpha = this.tickAlpha;
     const heldTool = drillToolFor(state.mods.drillPower);
     for (const u of state.units) {
-      // The tool is part of the key, so that a new tool swaps the model.
+      // The tool and the outfit are part of the key, so that a change swaps the model.
+      const skin =
+        u.skin ?? (u.type === 'foreur' || u.type === 'garde' ? state.crewSkins[u.type] : undefined);
       const entry = this.track(
-        `u${u.id}${heldTool}`,
-        () => makeUnit(u.type, heldTool),
+        `u${u.id}${heldTool}${skin ?? ''}`,
+        () => makeUnit(u.type, heldTool, skin),
         u.x,
         u.y,
         seen,
@@ -880,6 +892,7 @@ export class MissionView {
     this.syncFx(dt);
     this.state.fx = this.state.fx.filter((f) => f.kind === 'sound' || f.kind === 'voice');
     this.terrain.update(time);
+    this.decor.update(time);
     this.smoke.update(dt);
     this.dust.update(time, this.focus);
     this.shake *= Math.exp(-dt * 7);

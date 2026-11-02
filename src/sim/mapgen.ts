@@ -9,6 +9,15 @@ export interface MapParams {
   /** 0 (soft) to 1 (mostly hard rock). */
   hardness: number;
   seams: Partial<Record<'oreSeam' | 'crystalSeam' | 'iceSeam' | 'sulfurSeam' | 'goldSeam', number>>;
+  /** Gorges running across the sector: there is no way over but a bridge. */
+  chasms?: number;
+  lavaRivers?: number;
+  /** Large caves carpeted with glowing moss. */
+  mossCaves?: number;
+  /** Deposits a derrick can stand on. */
+  oilSeeps?: number;
+  fumaroles?: number;
+  tungstenVeins?: number;
   relics?: number;
   lavaPools?: number;
   waterPools?: number;
@@ -55,6 +64,119 @@ const BASALT_FROM_TIER = 2;
  * The whole planet as one map. Each sector has its own geology, and the rock between sectors is what
  * paces the game: the first borders need a jackhammer, the later ones a laser.
  */
+interface Circle {
+  x: number;
+  y: number;
+  r: number;
+}
+
+/**
+ * What makes each sector a place of its own: gorges, rivers of lava, caves of moss and the deposits
+ * that only exist there. Touches nothing already discovered, so that it can also run over a saved game.
+ */
+export function paintBiomes(
+  world: Pick<GeneratedMap, 'w' | 'h' | 'tiles'>,
+  seed: number,
+  options: { keepClear: Circle[] },
+): void {
+  const { w, h, tiles } = world;
+  const rng = new Rng(seed);
+  const at = (x: number, y: number) => tiles[y * w + x];
+  const inner = (x: number, y: number) => x > 1 && y > 1 && x < w - 2 && y < h - 2;
+  const free = (x: number, y: number) =>
+    inner(x, y) &&
+    !at(x, y).seen &&
+    at(x, y).k !== 'solid' &&
+    !options.keepClear.some((c) => Math.hypot(x - c.x, y - c.y) <= c.r);
+  const paint = (x: number, y: number, kind: TileKind) => {
+    const tile = at(x, y);
+    tile.k = kind;
+    tile.gas = 0;
+    tile.lair = false;
+  };
+
+  REGIONS.forEach((region, index) => {
+    const { map } = region;
+    const here = (x: number, y: number, margin = BORDER) => {
+      const sector = sectorAt(x, y, w, h);
+      return sector.index === index && sector.margin >= margin;
+    };
+    const spot = (margin: number): { x: number; y: number } | null => {
+      for (let tries = 0; tries < 300; tries++) {
+        const x = rng.int(2, w - 3);
+        const y = rng.int(2, h - 3);
+        if (here(x, y, margin) && free(x, y)) return { x, y };
+      }
+      return null;
+    };
+    /** From one side of the sector to the other, wandering as it goes. */
+    const ribbon = (kind: TileKind) => {
+      const cx = (region.planet.x / 100) * w;
+      const cy = (region.planet.y / 100) * h;
+      let heading = rng.next() * Math.PI * 2;
+      let x = cx - Math.cos(heading) * 40;
+      let y = cy - Math.sin(heading) * 40;
+      for (let step = 0; step < 90; step++) {
+        heading += (rng.next() - 0.5) * 0.7;
+        x += Math.cos(heading);
+        y += Math.sin(heading);
+        const half = kind === 'chasm' ? 1.2 + rng.next() * 0.9 : 0.8 + rng.next() * 0.6;
+        const reach = Math.ceil(half);
+        for (let ty = Math.round(y) - reach; ty <= Math.round(y) + reach; ty++) {
+          for (let tx = Math.round(x) - reach; tx <= Math.round(x) + reach; tx++) {
+            if (!inner(tx, ty) || Math.hypot(tx - x, ty - y) > half) continue;
+            if (here(tx, ty) && free(tx, ty)) paint(tx, ty, kind);
+          }
+        }
+      }
+    };
+    /** A pocket in the rock with something in it, sealed until someone digs that far. */
+    const room = (r: number): { x: number; y: number } | null => {
+      const c = spot(r + BORDER + 2);
+      if (!c) return null;
+      for (let y = c.y - r; y <= c.y + r; y++) {
+        for (let x = c.x - r; x <= c.x + r; x++) {
+          if (Math.hypot(x - c.x, y - c.y) <= r && here(x, y) && free(x, y)) paint(x, y, 'floor');
+        }
+      }
+      return c;
+    };
+
+    for (let i = 0; i < (map.chasms ?? 0); i++) ribbon('chasm');
+    for (let i = 0; i < (map.lavaRivers ?? 0); i++) ribbon('lava');
+    for (let i = 0; i < (map.mossCaves ?? 0); i++) {
+      const c = room(rng.int(4, 6));
+      if (!c) continue;
+      for (let y = c.y - 6; y <= c.y + 6; y++) {
+        for (let x = c.x - 6; x <= c.x + 6; x++) {
+          if (inner(x, y) && at(x, y).k === 'floor' && free(x, y) && rng.next() < 0.55) {
+            at(x, y).k = 'moss';
+          }
+        }
+      }
+    }
+    const deposit = (count: number | undefined, kind: TileKind) => {
+      for (let i = 0; i < (count ?? 0); i++) {
+        const c = room(2);
+        if (!c) continue;
+        at(c.x, c.y).k = kind;
+        const [dx, dy] = rng.pick(NEIGHBORS4);
+        if (rng.next() < 0.6) at(c.x + dx, c.y + dy).k = kind;
+      }
+    };
+    deposit(map.oilSeeps, 'oilSeep');
+    deposit(map.fumaroles, 'fumarole');
+    for (let i = 0; i < (map.tungstenVeins ?? 0); i++) {
+      let c = spot(BORDER);
+      for (let n = 0; c && n < rng.int(3, 5); n++) {
+        if (free(c.x, c.y) && isWallKind(at(c.x, c.y).k)) at(c.x, c.y).k = 'tungstenSeam';
+        const [dx, dy] = rng.pick(NEIGHBORS4);
+        c = { x: c.x + dx, y: c.y + dy };
+      }
+    }
+  });
+}
+
 export function generateWorld(seed: number): GeneratedMap {
   const rng = new Rng(seed);
   const w = WORLD_SIZE;
@@ -227,6 +349,17 @@ export function generateWorld(seed: number): GeneratedMap {
     }
   });
 
+  paintBiomes({ w, h, tiles }, seed ^ 0x2b1d, {
+    keepClear: [
+      { x: start.x, y: start.y, r: START_RADIUS + 8 },
+      // Either side CITY may end up on: neither the city nor the way to it can be cut off.
+      { x: start.x + SETTLEMENT_OFFSET, y: start.y + SETTLEMENT_OFFSET, r: SETTLEMENT_RADIUS + 5 },
+      { x: start.x - SETTLEMENT_OFFSET, y: start.y + SETTLEMENT_OFFSET, r: SETTLEMENT_RADIUS + 5 },
+      ...structures.map((s) => ({ x: s.x, y: s.y, r: 5 })),
+      ...lairs.map((l) => ({ x: l.x, y: l.y, r: 5 })),
+    ],
+  });
+
   // Last among the terrain, so that no cavern or vein leaves a gap in the wall.
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
@@ -283,7 +416,7 @@ export function generateWorld(seed: number): GeneratedMap {
         [signX, 0],
       ]) {
         const t = at(start.x + signX * d + ox, start.y + signY * d + oy);
-        if ((WALLS[t.k]?.power ?? 0) > 1) t.k = 'loose';
+        if ((WALLS[t.k]?.power ?? 0) > 1 || t.k === 'chasm' || t.k === 'lava') t.k = 'loose';
       }
     }
   }

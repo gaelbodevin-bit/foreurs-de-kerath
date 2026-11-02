@@ -1,4 +1,5 @@
 import {
+  BRIDGE_COST,
   BUILD_MENUS,
   BUILD_TIME_FACTOR,
   BUILDINGS,
@@ -14,25 +15,40 @@ import {
   SEAT_IDS,
   SEATS,
 } from '../data/council';
+import { EDICT_BRANCHES, EDICTS, type EdictBranch } from '../data/edicts';
 import { CITY_LEVELS } from '../data/progression';
+import { SKINS, skinLock, type SkinDef } from '../data/skins';
 import { TECHS } from '../data/techs';
 import { DRILL_TOOLS, drillToolFor, RESOURCES, TILE_NAMES, WALLS } from '../data/resources';
 import { ADVISORS } from '../data/story';
-import { ENEMIES, INVESTIGATION_COST, POLICIES, TAX_LEVELS, UNITS } from '../data/units';
+import { ENEMIES, INVESTIGATION_COST, POLICIES, RATIONS, TAX_LEVELS, UNITS } from '../data/units';
 import { audio, MAX_VOLUME, type VolumeId } from '../render/audio';
 import { MissionView } from '../render/view';
 import { voice } from '../render/voice';
-import { canAfford, storageCapacity } from '../sim/economy';
+import {
+  appetitePerSecond,
+  canAfford,
+  foodMinutesLeft,
+  hasRoomFor,
+  outputPerMinute,
+  storageCapacity,
+} from '../sim/economy';
+import { canSignAny, edictLock, edictWait, signEdict } from '../sim/edicts';
+import { isBridgeable } from '../sim/grid';
 import { GAS_HARMFUL } from '../sim/gas';
 import {
   canPlaceBuilding,
   demolish,
   designateArea,
   orderMove,
+  placeBridge,
   placeBuilding,
   placePath,
   removePaths,
+  setCrewSkin,
+  setRation,
   setTaxLevel,
+  setUnitSkin,
   straightEnd,
   stepGame,
   togglePolicy,
@@ -59,6 +75,7 @@ import type {
   PolicyId,
   ResourceId,
   SoundId,
+  TileKind,
   VoiceId,
 } from '../sim/types';
 import { RESOURCE_IDS, TICK_SECONDS } from '../sim/types';
@@ -74,11 +91,27 @@ const MAX_TREMOR_BARS = 30;
 /** The top of the seismograph's scale. */
 const MAX_MAGNITUDE = 8;
 
-type Modal = 'city' | 'council' | 'dossier' | 'research' | 'planet' | 'seismic';
-const GOVERNOR_MODALS: ReadonlySet<Modal> = new Set<Modal>(['city', 'research', 'council']);
+type Modal =
+  | 'city'
+  | 'council'
+  | 'dossier'
+  | 'research'
+  | 'planet'
+  | 'seismic'
+  | 'production'
+  | 'edicts'
+  | 'skins';
+const GOVERNOR_MODALS: ReadonlySet<Modal> = new Set<Modal>([
+  'city',
+  'research',
+  'council',
+  'production',
+  'edicts',
+]);
 type Tool =
   | { kind: 'select' }
   | { kind: 'path' }
+  | { kind: 'bridge' }
   | { kind: 'removePath' }
   | { kind: 'build'; type: BuildingType };
 
@@ -89,6 +122,16 @@ function costLabel(cost: Cost): DocumentFragment {
   }
   return label;
 }
+
+/** The colours of what isn't rock on the minimap. */
+const MINIMAP_TILES: Partial<Record<TileKind, string>> = {
+  lava: '#ff5a1f',
+  water: '#1f5f8f',
+  chasm: '#000000',
+  moss: '#2fd9c8',
+  oilSeep: '#6a4a8a',
+  fumarole: '#c9c43a',
+};
 
 const shadeHex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
@@ -154,7 +197,10 @@ export class MissionScreen {
   );
   private readonly overlay = h('div', { class: 'overlay' });
   private readonly minimap = h('canvas', { class: 'minimap', width: 180, height: 180 });
-  private readonly buildButtons = new Map<BuildingType | 'path', HTMLButtonElement>();
+  private readonly buildButtons = new Map<BuildingType | 'path' | 'bridge', HTMLButtonElement>();
+  /** The edict the next click signs: there is no taking it back, so it takes two. */
+  private confirmingEdict: string | null = null;
+  private readonly edictChip: HTMLButtonElement;
   private readonly buildLocks = new Map<BuildingType, HTMLElement>();
   private readonly removePathButton = h(
     'button',
@@ -184,6 +230,7 @@ export class MissionScreen {
     private readonly state: GameState,
     private readonly callbacks: MissionCallbacks,
   ) {
+    this.edictChip = this.governorChip('edicts', 'Édits (L)');
     const canvas = h('canvas', { class: 'game-canvas' });
     this.root = h('div', { class: 'mission' }, canvas);
     host.append(this.root);
@@ -255,9 +302,12 @@ export class MissionScreen {
         'div',
         { class: 'top-actions' },
         this.governorChip('city', 'Cité (C)'),
+        this.governorChip('production', 'Production (N)'),
+        this.edictChip,
         this.governorChip('research', 'Recherche (R)'),
         this.governorChip('council', 'Conseil (K)'),
         this.seismicChip,
+        h('button', { class: 'chip accent', onclick: () => this.openModal('skins') }, 'Tenues (U)'),
         h(
           'button',
           { class: 'chip accent', onclick: () => this.openModal('planet') },
@@ -344,6 +394,19 @@ export class MissionScreen {
     pathButton.title =
       'Sol technique : relie les bâtiments au réseau. Glissez pour tracer une ligne droite, puis repartez de son extrémité pour tourner. Le courant ne porte qu’à une certaine distance : au-delà, les dalles sont éteintes et il faut une centrale de plus. Les foreurs y marchent plus vite et la lave ne le ronge pas.';
     this.buildButtons.set('path', pathButton);
+    const bridgeButton = h(
+      'button',
+      {
+        class: 'build-btn',
+        onclick: () =>
+          this.setTool(this.tool.kind === 'bridge' ? { kind: 'select' } : { kind: 'bridge' }),
+      },
+      h('span', { class: 'b-name' }, 'Pont'),
+      h('span', { class: 'b-cost' }, costLabel(BRIDGE_COST)),
+    );
+    bridgeButton.title =
+      'Pont : franchit un gouffre, l’eau ou la lave. Glissez sur le vide (touche B) : un foreur pose les travées depuis le bord, une à une. Le pont porte le courant, et laisse aussi passer ce qui vit de l’autre côté.';
+    this.buildButtons.set('bridge', bridgeButton);
     this.removePathButton.title = `Glissez sur le sol technique : un foreur vient le démonter et récupère ${PATH_REFUND} roche par case.`;
 
     const pages = new Map<BuildMenuId, HTMLElement>();
@@ -354,7 +417,7 @@ export class MissionScreen {
     };
     for (const menu of BUILD_MENUS) {
       const page = h('div', { class: 'build-page' });
-      if (menu.id === 'explore') page.append(pathButton, this.removePathButton);
+      if (menu.id === 'explore') page.append(pathButton, this.removePathButton, bridgeButton);
       for (const group of menu.groups) {
         page.append(h('h4', {}, group.name));
         for (const type of group.buildings) {
@@ -549,7 +612,7 @@ export class MissionScreen {
         this.drag.y1 = tile.y;
         const isArea = this.tool.kind !== 'build';
         const moved = tile.x !== this.drag.x0 || tile.y !== this.drag.y0;
-        if (this.tool.kind === 'path') {
+        if (this.tool.kind === 'path' || this.tool.kind === 'bridge') {
           const end = straightEnd(this.drag.x0, this.drag.y0, tile.x, tile.y);
           this.view.setDragBox({ x0: this.drag.x0, y0: this.drag.y0, x1: end.x, y1: end.y }, 0.06);
         } else {
@@ -612,8 +675,20 @@ export class MissionScreen {
       case 'KeyT':
         this.openModal(this.modal === 'seismic' ? null : 'seismic');
         break;
+      case 'KeyN':
+        this.openModal(this.modal === 'production' ? null : 'production');
+        break;
+      case 'KeyL':
+        this.openModal(this.modal === 'edicts' ? null : 'edicts');
+        break;
+      case 'KeyU':
+        this.openModal(this.modal === 'skins' ? null : 'skins');
+        break;
       case 'KeyP':
         this.setTool({ kind: 'path' });
+        break;
+      case 'KeyB':
+        this.setTool({ kind: 'bridge' });
         break;
       case 'Digit1':
         this.setSpeed(1);
@@ -652,6 +727,12 @@ export class MissionScreen {
     if (tool.kind === 'removePath') {
       const n = removePaths(state, drag.x0, drag.y0, drag.x1, drag.y1);
       if (n === 0) this.say('Il n’y a pas de sol technique à retirer ici.');
+      return;
+    }
+    if (tool.kind === 'bridge') {
+      const end = straightEnd(drag.x0, drag.y0, drag.x1, drag.y1);
+      const n = placeBridge(state, drag.x0, drag.y0, end.x, end.y);
+      if (n === 0) this.say('Un pont se pose au-dessus d’un gouffre, de l’eau ou de la lave.');
       return;
     }
     if (tool.kind === 'path') {
@@ -788,6 +869,11 @@ export class MissionScreen {
       this.view.setGhost('path', hover.x, hover.y, t.seen && t.k === 'floor');
       return;
     }
+    if (tool.kind === 'bridge') {
+      const t = this.state.tiles[hover.y * this.state.w + hover.x];
+      this.view.setGhost('path', hover.x, hover.y, t.seen && isBridgeable(t.k));
+      return;
+    }
     const valid =
       canPlaceBuilding(this.state, tool.type, hover.x, hover.y).ok &&
       canAfford(this.state, BUILDINGS[tool.type].cost);
@@ -815,6 +901,7 @@ export class MissionScreen {
     this.updateMinimap();
     this.updateOverlay();
     const lastTremor = this.state.seismic.history.at(-1);
+    this.edictChip.classList.toggle('ready', canSignAny(this.state));
     this.seismicChip.textContent = lastTremor
       ? `Sismique · M ${formatMagnitude(lastTremor.magnitude)} (T)`
       : 'Sismique (T)';
@@ -922,14 +1009,15 @@ export class MissionScreen {
     this.menuTabs.hidden = !governed;
     for (const chip of this.governorChips) chip.hidden = !governed;
     for (const [key, button] of this.buildButtons) {
-      const cost = key === 'path' ? PATH_COST : BUILDINGS[key].cost;
+      const cost =
+        key === 'path' ? PATH_COST : key === 'bridge' ? BRIDGE_COST : BUILDINGS[key].cost;
       button.classList.toggle('poor', !canAfford(this.state, cost));
       const active =
-        key === 'path'
-          ? this.tool.kind === 'path'
+        key === 'path' || key === 'bridge'
+          ? this.tool.kind === key
           : this.tool.kind === 'build' && this.tool.type === key;
       button.classList.toggle('on', active);
-      if (key === 'path') continue;
+      if (key === 'path' || key === 'bridge') continue;
       const lock = buildingLock(this.state, key);
       button.disabled = lock !== null;
       button.classList.toggle('locked', lock !== null);
@@ -1104,7 +1192,7 @@ export class MissionScreen {
     }
     if (this.selectedUnits.length > 0) {
       const units = state.units.filter((u) => this.selectedUnits.includes(u.id));
-      const sig = `u${units.map((u) => `${u.id}:${Math.floor(u.hp)}:${u.jobId}`).join()}`;
+      const sig = `u${units.map((u) => `${u.id}:${Math.floor(u.hp)}:${u.jobId}:${u.skin}`).join()}`;
       this.patch(this.selection, sig, () => {
         const first = units[0];
         const def = UNITS[first.type];
@@ -1113,6 +1201,9 @@ export class MissionScreen {
           h('p', { class: 'dim' }, def.desc),
           h('p', {}, `Santé : ${Math.floor(first.hp)} / ${def.hp}`),
           h('p', { class: 'dim' }, 'Clic droit pour déplacer.'),
+          ...(first.type === 'foreur' || first.type === 'garde'
+            ? [this.unitSkinRow(units.map((u) => u.id))]
+            : []),
         ];
       });
       return;
@@ -1159,13 +1250,15 @@ export class MissionScreen {
     const text =
       tool.kind === 'removePath'
         ? 'Glissez sur le sol technique à retirer. Repassez pour annuler. Clic droit pour finir.'
-        : tool.kind === 'path'
-          ? 'Glissez pour tracer une voie droite, puis repartez de son extrémité pour tourner. Clic droit pour finir.'
-          : tool.kind === 'build'
-            ? `${BUILDINGS[tool.type].name} : cliquez pour poser, Maj pour enchaîner, clic droit pour annuler.`
-            : this.paused
-              ? '⏸ Pause. Espace pour reprendre.'
-              : 'Glissez sur la roche pour forer · Clic droit : déplacer · ZQSD/WASD et molette : caméra · A/E ou Q/E : rotation';
+        : tool.kind === 'bridge'
+          ? 'Glissez sur le vide, depuis le bord, pour tracer un pont droit. Clic droit pour finir.'
+          : tool.kind === 'path'
+            ? 'Glissez pour tracer une voie droite, puis repartez de son extrémité pour tourner. Clic droit pour finir.'
+            : tool.kind === 'build'
+              ? `${BUILDINGS[tool.type].name} : cliquez pour poser, Maj pour enchaîner, clic droit pour annuler.`
+              : this.paused
+                ? '⏸ Pause. Espace pour reprendre.'
+                : 'Glissez sur la roche pour forer · Clic droit : déplacer · ZQSD/WASD et molette : caméra · A/E ou Q/E : rotation';
     if (this.hint.textContent !== text) this.hint.textContent = text;
   }
 
@@ -1180,19 +1273,14 @@ export class MissionScreen {
     state.tiles.forEach((t, i) => {
       if (!t.seen) return;
       const wall = WALLS[t.k];
+      const road = t.k === 'path' || t.k === 'bridge';
       ctx.fillStyle = wall?.yield
         ? shadeHex(RESOURCES[wall.yield.res].color)
-        : t.k === 'lava'
-          ? '#ff5a1f'
-          : t.k === 'water'
-            ? '#1f5f8f'
-            : t.k === 'path'
-              ? t.powered
-                ? '#35e0c2'
-                : '#5a5650'
-              : wall || t.k === 'solid'
-                ? '#3a3640'
-                : '#6e6054';
+        : road
+          ? t.powered
+            ? '#35e0c2'
+            : '#5a5650'
+          : (MINIMAP_TILES[t.k] ?? (wall || t.k === 'solid' ? '#3a3640' : '#6e6054'));
       if ((t.gas ?? 0) >= GAS_HARMFUL) ctx.fillStyle = '#a5b83a';
       ctx.fillRect((i % state.w) * sx, Math.floor(i / state.w) * sy, Math.ceil(sx), Math.ceil(sy));
     });
@@ -1268,6 +1356,9 @@ export class MissionScreen {
     else if (this.modal === 'council') this.renderCouncil();
     else if (this.modal === 'planet') this.renderPlanet();
     else if (this.modal === 'seismic') this.renderSeismic();
+    else if (this.modal === 'production') this.renderProduction();
+    else if (this.modal === 'edicts') this.renderEdicts();
+    else if (this.modal === 'skins') this.renderSkins();
     else this.renderDossier();
   }
 
@@ -1301,6 +1392,7 @@ export class MissionScreen {
                   clear(this.overlay);
                   this.overlay.classList.remove('show');
                   this.hudTimer = 0;
+                  if (choice.opens) this.openModal(choice.opens);
                 },
               },
               choice.label,
@@ -1486,7 +1578,10 @@ export class MissionScreen {
               'button',
               {
                 class: state.techs.includes(tech.id) ? 'tech owned' : 'tech',
-                disabled: lock !== null || state.research < tech.cost,
+                disabled:
+                  lock !== null ||
+                  state.research < tech.cost ||
+                  (tech.price !== undefined && !canAfford(state, tech.price)),
                 onclick: () => {
                   buyTech(state, tech.id);
                   this.hudTimer = 0;
@@ -1495,12 +1590,303 @@ export class MissionScreen {
               },
               h('b', {}, tech.name),
               h('span', {}, tech.desc),
-              h('em', {}, lock ?? `${tech.cost} 🔬`),
+              h(
+                'em',
+                {},
+                lock ?? `${tech.cost} 🔬`,
+                !lock && tech.price ? ' + ' : null,
+                !lock && tech.price ? costLabel(tech.price) : null,
+              ),
             );
           }),
         ),
       ),
     ]);
+  }
+
+  /** What's wrong with the food chain, in the steward's order: the first line is what to fix first. */
+  private foodAdvice(): string[] {
+    const { state } = this;
+    const built = (type: BuildingType) =>
+      state.buildings.filter((b) => b.type === type && b.built >= 1);
+    const advice: string[] = [];
+    const growers = [...built('farm'), ...built('algae')];
+    if (growers.length === 0 && built('vivarium').length === 0) {
+      advice.push('Aucune serre : rien ne remplace ce qui se mange. Onglet Cité, groupe Vivres.');
+    }
+    if (growers.length > 0 && state.stock.water < 1) {
+      advice.push(
+        built('melter').length === 0
+          ? 'Les serres n’ont pas d’eau : bâtissez un fondoir.'
+          : 'Les serres n’ont pas d’eau : le fondoir manque de glace, forez-en.',
+      );
+    }
+    if (growers.some((b) => b.eff <= 0)) {
+      advice.push('Une serre est à l’arrêt : vérifiez qu’elle est reliée au réseau.');
+    }
+    if (appetitePerSecond(state) * 60 > outputPerMinute(state, 'food') && growers.length > 0) {
+      advice.push(
+        'On mange plus qu’on ne produit : il faut une serre de plus, ou réduire les parts.',
+      );
+    }
+    return advice;
+  }
+
+  /** The colony's books: what comes in, what goes out, and which chain is stuck on what. */
+  private renderProduction(): void {
+    const { state } = this;
+    const eaten = appetitePerSecond(state) * 60;
+    const grown = outputPerMinute(state, 'food');
+    const left = foodMinutesLeft(state);
+    const types = [...new Set(state.buildings.map((b) => b.type))].filter(
+      (t) => BUILDINGS[t].recipe,
+    );
+    const rows = types.map((type) => {
+      const def = BUILDINGS[type];
+      const recipe = def.recipe as NonNullable<typeof def.recipe>;
+      const all = state.buildings.filter((b) => b.type === type && b.built >= 1);
+      const lacking = RESOURCE_IDS.filter((r) => state.stock[r] < (recipe.inputs[r] ?? 0));
+      const full = RESOURCE_IDS.filter(
+        (r) => recipe.outputs[r] && !hasRoomFor(state, r, recipe.outputs[r]),
+      );
+      const running = all.filter((b) => b.eff > 0).length;
+      const status =
+        all.length === 0
+          ? 'En chantier'
+          : lacking.length > 0
+            ? `Manque : ${lacking.map((r) => RESOURCES[r].name.toLowerCase()).join(', ')}`
+            : full.length > 0
+              ? 'Entrepôts pleins'
+              : running === 0
+                ? 'À l’arrêt : réseau ou personnel'
+                : 'En marche';
+      return { type, def, recipe, count: all.length, status, ok: status === 'En marche' };
+    });
+    const sig = `pro${state.city.ration}${Math.round(eaten * 10)}${Math.round(grown)}${Math.floor(state.stock.food)}${rows.map((r) => r.status + r.count).join()}`;
+    this.patch(this.overlay, sig, () => [
+      h(
+        'div',
+        { class: 'dialog wide' },
+        this.closeButton(),
+        h('h2', {}, 'Production'),
+        h('h3', {}, 'Vivres'),
+        h(
+          'div',
+          { class: 'stats' },
+          h('div', {}, h('b', {}, Math.floor(state.stock.food)), 'en réserve'),
+          h('div', {}, h('b', {}, eaten.toFixed(1)), 'mangés / min'),
+          h('div', {}, h('b', {}, grown.toFixed(1)), 'produits / min'),
+          h('div', {}, h('b', {}, left === Infinity ? '∞' : left.toFixed(1)), 'minutes de réserve'),
+        ),
+        h(
+          'div',
+          { class: 'segmented' },
+          ...RATIONS.map((ration, i) =>
+            h(
+              'button',
+              {
+                class: state.city.ration === i ? 'chip on' : 'chip',
+                title: `${ration.desc} On mange ${Math.round(ration.eat * 100)} % d’une part, moral ${ration.morale >= 0 ? '+' : ''}${ration.morale}.`,
+                onclick: () => {
+                  setRation(state, i as 0 | 1 | 2);
+                  this.updateOverlay();
+                },
+              },
+              ration.name,
+            ),
+          ),
+        ),
+        h('ul', { class: 'food-advice' }, ...this.foodAdvice().map((line) => h('li', {}, line))),
+        h('h3', {}, 'Chaînes'),
+        rows.length === 0
+          ? h('p', { class: 'dim' }, 'Rien ne tourne encore : aucune usine n’est bâtie.')
+          : h(
+              'table',
+              { class: 'prod-table' },
+              h(
+                'thead',
+                {},
+                h('tr', {}, ...['Usine', 'Nb', 'Recette', 'État'].map((name) => h('th', {}, name))),
+              ),
+              h(
+                'tbody',
+                {},
+                ...rows.map((r) =>
+                  h(
+                    'tr',
+                    {},
+                    h('td', {}, r.def.name),
+                    h('td', {}, String(r.count)),
+                    h(
+                      'td',
+                      {},
+                      costLabel(r.recipe.inputs),
+                      ' → ',
+                      costLabel(r.recipe.outputs),
+                      ` (${r.recipe.cycle} s)`,
+                    ),
+                    h('td', { class: r.ok ? '' : 'bad-text' }, r.status),
+                  ),
+                ),
+              ),
+            ),
+      ),
+    ]);
+  }
+
+  /** The law book: nothing here comes back, and each signature closes something else. */
+  private renderEdicts(): void {
+    const { state } = this;
+    const wait = edictWait(state);
+    const sig = `edi${state.edicts.join()}${wait}${this.confirmingEdict}${Math.floor(state.stock.credits / 10)}`;
+    this.patch(this.overlay, sig, () => [
+      h(
+        'div',
+        { class: 'dialog wide' },
+        this.closeButton(),
+        h('h2', {}, 'Registre des édits'),
+        h(
+          'p',
+          { class: wait > 0 ? 'dim' : '' },
+          wait > 0
+            ? `La colonie encaisse le dernier édit : prochaine signature dans ${wait} s.`
+            : 'Un édit peut être signé. Aucun ne s’abroge.',
+        ),
+        h(
+          'div',
+          { class: 'edict-columns' },
+          ...(Object.keys(EDICT_BRANCHES) as EdictBranch[]).map((branch) =>
+            h(
+              'div',
+              {},
+              h('h3', {}, EDICT_BRANCHES[branch].name),
+              h('p', { class: 'dim' }, EDICT_BRANCHES[branch].desc),
+              ...EDICTS.filter((e) => e.branch === branch).map((edict) => {
+                const signed = state.edicts.includes(edict.id);
+                const lock = edictLock(state, edict.id);
+                const confirming = this.confirmingEdict === edict.id;
+                return h(
+                  'button',
+                  {
+                    class: signed
+                      ? 'edict signed'
+                      : lock
+                        ? 'edict closed'
+                        : confirming
+                          ? 'edict confirm'
+                          : 'edict',
+                    disabled: lock !== null || wait > 0,
+                    onclick: () => {
+                      if (confirming) {
+                        if (signEdict(state, edict.id)) this.confirmingEdict = null;
+                        else this.say('Les réserves ne suffisent pas pour cet édit.');
+                      } else {
+                        this.confirmingEdict = edict.id;
+                      }
+                      this.hudTimer = 0;
+                      this.updateOverlay();
+                    },
+                  },
+                  h('b', {}, edict.name),
+                  h('i', {}, edict.text),
+                  h('span', {}, edict.effect),
+                  h(
+                    'em',
+                    {},
+                    signed
+                      ? 'Signé'
+                      : confirming
+                        ? 'Cliquez encore pour signer, pour toujours.'
+                        : (lock ?? ''),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ),
+      ),
+    ]);
+  }
+
+  private skinSwatches(skin: SkinDef): HTMLElement {
+    const colors = [skin.suit ?? 0xd9762b, skin.hat, skin.lamp];
+    const row = h('div', { class: 'swatches' });
+    for (const color of colors) {
+      const dot = h('i', {});
+      dot.style.background = shadeHex(color);
+      row.append(dot);
+    }
+    return row;
+  }
+
+  /** What the crew wears. Some of it has to be earned. */
+  private renderSkins(): void {
+    const { state } = this;
+    const locks = SKINS.map((s) => skinLock(state, s.id));
+    const sig = `ski${state.crewSkins.foreur}${state.crewSkins.garde}${locks.join()}`;
+    const section = (type: 'foreur' | 'garde', title: string) => [
+      h('h3', {}, title),
+      h(
+        'div',
+        { class: 'skins' },
+        ...SKINS.map((skin, i) =>
+          h(
+            'button',
+            {
+              class: state.crewSkins[type] === skin.id ? 'skin on' : 'skin',
+              disabled: locks[i] !== null,
+              title: skin.desc,
+              onclick: () => {
+                setCrewSkin(state, type, skin.id);
+                this.updateOverlay();
+              },
+            },
+            this.skinSwatches(skin),
+            h('b', {}, skin.name),
+            h('span', {}, locks[i] ?? skin.desc),
+          ),
+        ),
+      ),
+    ];
+    this.patch(this.overlay, sig, () => [
+      h(
+        'div',
+        { class: 'dialog wide' },
+        this.closeButton(),
+        h('h2', {}, 'Tenues'),
+        h(
+          'p',
+          { class: 'dim' },
+          'Pour habiller une seule personne, cliquez sur elle en jeu et choisissez sa tenue dans le panneau de sélection.',
+        ),
+        ...section('foreur', 'Foreurs'),
+        ...section('garde', 'Gardes'),
+      ),
+    ]);
+  }
+
+  /** For the units selected: their own outfit, whatever the rest of the crew wears. */
+  private unitSkinRow(unitIds: number[]): HTMLElement {
+    const { state } = this;
+    const worn = state.units.find((u) => u.id === unitIds[0])?.skin;
+    return h(
+      'div',
+      { class: 'skin-row' },
+      ...SKINS.filter((s) => skinLock(state, s.id) === null).map((skin) =>
+        h(
+          'button',
+          {
+            class: worn === skin.id ? 'on' : '',
+            title: skin.name,
+            onclick: () => {
+              for (const id of unitIds) setUnitSkin(state, id, skin.id);
+              this.hudTimer = 0;
+            },
+          },
+          this.skinSwatches(skin),
+        ),
+      ),
+    );
   }
 
   /** One bar per tremor, oldest on the left, then where the ground moves and how hard. */

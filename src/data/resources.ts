@@ -15,11 +15,15 @@ export const RESOURCES: Record<ResourceId, ResourceDef> = {
   ice: { name: 'Glace', color: 0x9fd8ff, group: 'raw' },
   sulfur: { name: 'Soufre', color: 0xe6d13c, group: 'raw' },
   gold: { name: 'Or', color: 0xffc23d, group: 'raw' },
+  tungsten: { name: 'Tungstène', color: 0x7d8fb0, group: 'raw' },
+  oil: { name: 'Pétrole', color: 0x6a4a8a, group: 'raw' },
   relic: { name: 'Relique', color: 0xc77dff, group: 'raw', uncapped: true },
   metal: { name: 'Métal', color: 0xaab6c4, group: 'refined' },
   water: { name: 'Eau', color: 0x4ea8f0, group: 'refined' },
   food: { name: 'Nourriture', color: 0x9ccc5a, group: 'refined' },
   alloy: { name: 'Alliage', color: 0xff7d54, group: 'refined' },
+  rubber: { name: 'Caoutchouc', color: 0xc9b48a, group: 'refined' },
+  tyres: { name: 'Pneus', color: 0x8a8f98, group: 'refined' },
   credits: { name: 'Crédits', color: 0xf5f0a8, group: 'money', uncapped: true },
 };
 
@@ -57,6 +61,7 @@ export const WALLS: Partial<Record<TileKind, WallDef>> = {
   iceSeam: { drillTime: 5, power: 1, yield: { res: 'ice', min: 4, max: 7 } },
   sulfurSeam: { drillTime: 9, power: 1, yield: { res: 'sulfur', min: 3, max: 5 } },
   goldSeam: { drillTime: 11, power: 2, yield: { res: 'gold', min: 2, max: 4 } },
+  tungstenSeam: { drillTime: 16, power: 3, yield: { res: 'tungsten', min: 2, max: 4 } },
   relicVault: { drillTime: 16, power: 1, yield: { res: 'relic', min: 1, max: 1 } },
 };
 
@@ -65,6 +70,11 @@ export const TILE_NAMES: Record<TileKind, string> = {
   rubble: 'Gravats',
   path: 'Voie énergétique',
   fungus: 'Champignons sauvages',
+  moss: 'Mousse luminescente',
+  oilSeep: 'Suintement de pétrole',
+  fumarole: 'Fumerolle',
+  bridge: 'Pont',
+  chasm: 'Gouffre',
   lava: 'Lave',
   water: 'Eau souterraine',
   dirt: 'Terre meuble',
@@ -77,5 +87,6 @@ export const TILE_NAMES: Record<TileKind, string> = {
   iceSeam: 'Poche de glace',
   sulfurSeam: 'Veine de soufre',
   goldSeam: "Filon d'or",
+  tungstenSeam: 'Filon de tungstène',
   relicVault: 'Caveau scellé',
 };

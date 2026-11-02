@@ -11,10 +11,29 @@ const FLOW = 0.12;
 const FADE_BELOW = 0.03;
 export const VENT_RADIUS = 6;
 const VENT_RATE = 0.2;
+/** A fumarole blows for a few seconds out of this many. */
+const FUMAROLE_PERIOD = 40;
+const FUMAROLE_BLOW = 5;
+const FUMAROLE_GAS = 0.9;
+
+/** Once it has been found, a fumarole goes on breathing, until a capture is built over it. */
+function blowFumaroles(state: GameState): void {
+  if (Math.floor(state.time) % FUMAROLE_PERIOD >= FUMAROLE_BLOW) return;
+  const capped = new Set(
+    state.buildings
+      .filter((b) => BUILDINGS[b.type].on === 'fumarole' && b.built >= 1)
+      .map((b) => b.y * state.w + b.x),
+  );
+  state.tiles.forEach((tile, i) => {
+    if (tile.k !== 'fumarole' || !tile.seen || capped.has(i)) return;
+    tile.gas = Math.max(tile.gas ?? 0, FUMAROLE_GAS);
+  });
+}
 
 /** Runs once a second. Gas stays sealed in its cavern until someone digs a way out for it. */
 export function updateGas(state: GameState): void {
   const { tiles, w, h } = state;
+  blowFumaroles(state);
   if (!tiles.some((t) => t.gas)) return;
 
   const change = new Float32Array(tiles.length);

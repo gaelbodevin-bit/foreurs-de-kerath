@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { BUILDINGS } from '../data/buildings';
+import { REGIONS, sectorAt } from '../data/regions';
 import { RESOURCES } from '../data/resources';
-import { isWallKind } from '../sim/grid';
+import { carriesCurrent, isWalkableKind, isWallKind } from '../sim/grid';
 import type { GameState, Tile, TileKind } from '../sim/types';
 import { getTexture } from './assets';
 
@@ -13,6 +14,10 @@ const TEXTURE_TILES = 3;
 const TEXTURED_BOOST = 2.3;
 const LAVA_BRIGHTNESS = 3.4;
 const ROAD_HEIGHT = 0.025;
+const DECK_HEIGHT = 0.06;
+const CHASM_DEPTH = 1.5;
+/** How little light is left at the bottom of a gorge. */
+const CHASM_FLOOR_SHADE = 0.12;
 
 const hex = (c: number) => new THREE.Color(c);
 const BASE: Record<TileKind, THREE.Color> = {
@@ -22,6 +27,12 @@ const BASE: Record<TileKind, THREE.Color> = {
   path: hex(0x5a4a3e),
   // Damp, dark ground: the mushrooms themselves stand on it, see `decor.ts`.
   fungus: hex(0x4d4436),
+  moss: hex(0x3a5450),
+  oilSeep: hex(0x2a2038),
+  fumarole: hex(0x7d7a3a),
+  // Bridges are drawn over whatever they span, see `groundOf`.
+  bridge: hex(0x2a2630),
+  chasm: hex(0x2a2630),
   lava: hex(0xff5a1f),
   water: hex(0x1f5f8f),
   dirt: hex(0x6e5b4c),
@@ -34,6 +45,7 @@ const BASE: Record<TileKind, THREE.Color> = {
   iceSeam: hex(RESOURCES.ice.color),
   sulfurSeam: hex(RESOURCES.sulfur.color),
   goldSeam: hex(RESOURCES.gold.color),
+  tungstenSeam: hex(RESOURCES.tungsten.color),
   relicVault: hex(RESOURCES.relic.color),
 };
 const UNSEEN = hex(0x0b0a0e);
@@ -47,7 +59,35 @@ const GLOWING = new Set<TileKind>([
   'iceSeam',
   'goldSeam',
   'sulfurSeam',
+  'tungstenSeam',
 ]);
+/** Moss doesn't glow the way a seam does, but its light spills on the rock around it all the same. */
+const MOSS_SPILL = hex(0x2fd9c8);
+
+/** Each sector's rock has its own cast, so that one can tell where one is at a glance. */
+const BIOME_TINT: Record<string, THREE.Color> = {
+  ash: new THREE.Color(1, 1, 1),
+  lumen: new THREE.Color(0.66, 0.92, 1.08),
+  abyss: new THREE.Color(0.58, 0.62, 0.76),
+  glass: new THREE.Color(0.82, 0.9, 1.18),
+  ice: new THREE.Color(0.92, 1.08, 1.3),
+  sulfur: new THREE.Color(1.24, 1.08, 0.66),
+  vantor: new THREE.Color(0.9, 0.9, 0.94),
+  magma: new THREE.Color(1.24, 0.68, 0.56),
+  core: new THREE.Color(1.02, 0.56, 0.74),
+};
+const groundOf = (tile: Tile): TileKind => (tile.k === 'bridge' ? (tile.under ?? 'chasm') : tile.k);
+
+/** Which way a span runs: along what it can be walked onto from. */
+export function bridgeRunsAlongX(state: GameState, x: number, y: number): boolean {
+  const walkable = (tx: number, ty: number) => {
+    if (tx < 0 || ty < 0 || tx >= state.w || ty >= state.h) return false;
+    return isWalkableKind(state.tiles[ty * state.w + tx].k);
+  };
+  const alongX = walkable(x - 1, y) || walkable(x + 1, y);
+  const alongY = walkable(x, y - 1) || walkable(x, y + 1);
+  return alongX || !alongY;
+}
 
 /** Stable per-tile variation, so that rock doesn't look like flat colour. */
 const grain = (i: number) => {
@@ -85,8 +125,8 @@ interface Layer {
 
 const newLayer = (): Layer => ({ positions: [], colors: [], uvs: [] });
 
-type LayerName = 'floor' | 'wall' | 'glow' | 'lava' | 'water' | 'path' | 'deadPath';
-const LAYERS: LayerName[] = ['floor', 'wall', 'glow', 'lava', 'water', 'path', 'deadPath'];
+type LayerName = 'floor' | 'wall' | 'glow' | 'lava' | 'water' | 'path' | 'deadPath' | 'deck';
+const LAYERS: LayerName[] = ['floor', 'wall', 'glow', 'lava', 'water', 'path', 'deadPath', 'deck'];
 
 function rockMaterial(kind: 'ground' | 'wall'): THREE.Material {
   return new THREE.MeshStandardMaterial({
@@ -202,6 +242,30 @@ function roadAtlas(glow: boolean): THREE.Texture {
   return texture;
 }
 
+/** Worn planks on steel beams, running across the U axis. */
+function deckTexture(): THREE.Texture {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+  ctx.fillStyle = '#2a2622';
+  ctx.fillRect(0, 0, size, size);
+  const planks = 5;
+  for (let i = 0; i < planks; i++) {
+    const shade = 92 + Math.floor(Math.random() * 40);
+    ctx.fillStyle = `rgb(${shade},${Math.floor(shade * 0.72)},${Math.floor(shade * 0.48)})`;
+    ctx.fillRect(4 + (i * size) / planks, 12, size / planks - 7, size - 24);
+  }
+  ctx.fillStyle = '#6d7680';
+  ctx.fillRect(0, 0, size, 11);
+  ctx.fillRect(0, size - 11, size, 11);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
 /** A separate copy of a texture, whose offset can scroll on its own. */
 function scrolling(texture: THREE.Texture | null): THREE.Texture | null {
   if (!texture) return null;
@@ -258,7 +322,16 @@ export class TerrainView {
     roughness: 0.95,
     metalness: 0,
   });
+  private readonly deckMap = deckTexture();
+  private readonly deckMaterial = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    map: this.deckMap,
+    roughness: 0.9,
+    metalness: 0.1,
+  });
   private readonly boost = getTexture('wallColor') ? TEXTURED_BOOST : 1;
+  /** The sector each tile lies in: worked out once, it never changes. */
+  private readonly sectors: Uint8Array;
   private readonly chunks = new Map<number, Record<LayerName, THREE.Mesh>>();
   private readonly cols: number;
   private readonly rows: number;
@@ -266,6 +339,10 @@ export class TerrainView {
   readonly pickables: THREE.Object3D[] = [];
 
   constructor(private readonly state: GameState) {
+    this.sectors = new Uint8Array(state.tiles.length);
+    for (let i = 0; i < state.tiles.length; i++) {
+      this.sectors[i] = sectorAt(i % state.w, Math.floor(i / state.w), state.w, state.h).index;
+    }
     this.cols = Math.ceil(state.w / CHUNK);
     this.rows = Math.ceil(state.h / CHUNK);
     for (let cy = 0; cy < this.rows; cy++) {
@@ -290,7 +367,26 @@ export class TerrainView {
     return true;
   }
 
+  /** A corner sinks when every tile around it is known to be void. */
+  private sunk(x: number, y: number): boolean {
+    const { state } = this;
+    for (const [dx, dy] of [
+      [-1, -1],
+      [0, -1],
+      [-1, 0],
+      [0, 0],
+    ]) {
+      const tx = x + dx;
+      const ty = y + dy;
+      if (tx < 0 || ty < 0 || tx >= state.w || ty >= state.h) return false;
+      const tile = state.tiles[ty * state.w + tx];
+      if (!tile.seen || groundOf(tile) !== 'chasm') return false;
+    }
+    return true;
+  }
+
   private cornerHeight(x: number, y: number): number {
+    if (this.sunk(x, y)) return -CHASM_DEPTH;
     if (!this.tall(x, y)) return 0;
     // A slight wobble keeps long walls from looking machined.
     return WALL_HEIGHT + (grain(x * 311 + y * 73) - 0.5) * 0.5;
@@ -313,11 +409,16 @@ export class TerrainView {
       return;
     }
     // Well above 1.0 where the molten rock shows through the crust, for the bloom to catch.
-    if (tile.k === 'lava') {
+    const ground = groundOf(tile);
+    if (ground === 'lava') {
       target.setScalar(LAVA_BRIGHTNESS);
       return;
     }
-    target.copy(BASE[tile.k]);
+    target.copy(BASE[ground]);
+    // Seams keep their colour wherever they are, and water and oil have their own.
+    if (!GLOWING.has(ground) && ground !== 'water' && ground !== 'oilSeep') {
+      target.multiply(BIOME_TINT[REGIONS[this.sectors[i]].id]);
+    }
     if (tile.lair) target.multiply(LAIR_STAIN);
     const g = 0.86 + grain(i) * 0.28;
     target.multiplyScalar((tile.k === 'rubble' ? g * (0.8 + tile.rubble * 0.1) : g) * this.boost);
@@ -346,10 +447,10 @@ export class TerrainView {
       for (let tx = x - 3; tx < x + 3; tx++) {
         if (tx < 0 || ty < 0 || tx >= state.w || ty >= state.h) continue;
         const tile = state.tiles[ty * state.w + tx];
-        if (!tile.seen || !GLOWING.has(tile.k)) continue;
+        if (!tile.seen || (!GLOWING.has(tile.k) && tile.k !== 'moss')) continue;
         const d = (tx + 0.5 - x) ** 2 + (ty + 0.5 - y) ** 2;
         const weight = 0.09 / (0.6 + d);
-        const color = BASE[tile.k];
+        const color = tile.k === 'moss' ? MOSS_SPILL : BASE[tile.k];
         r += color.r * weight;
         g += color.g * weight;
         b += color.b * weight;
@@ -376,6 +477,7 @@ export class TerrainView {
       water: newLayer(),
       path: newLayer(),
       deadPath: newLayer(),
+      deck: newLayer(),
     };
     const lights = new Map<number, CornerLight>();
     const lightAt = (x: number, y: number) => {
@@ -398,7 +500,7 @@ export class TerrainView {
     const links = (x: number, y: number) => {
       if (x < 0 || y < 0 || x >= state.w || y >= state.h) return false;
       const i = y * state.w + x;
-      return state.tiles[i].k === 'path' || occupied.has(i);
+      return carriesCurrent(state.tiles[i].k) || occupied.has(i);
     };
     const x1 = Math.min(state.w, (cx + 1) * CHUNK);
     const y1 = Math.min(state.h, (cy + 1) * CHUNK);
@@ -411,16 +513,17 @@ export class TerrainView {
         const b = this.cornerHeight(x + 1, y);
         const c = this.cornerHeight(x, y + 1);
         const d = this.cornerHeight(x + 1, y + 1);
-        const glowing = tile.seen && GLOWING.has(tile.k);
+        const ground = groundOf(tile);
+        const glowing = tile.seen && GLOWING.has(ground);
         const name: LayerName = !tile.seen
           ? 'wall'
-          : tile.k === 'lava'
+          : ground === 'lava'
             ? 'lava'
-            : tile.k === 'water'
+            : ground === 'water' || ground === 'oilSeep'
               ? 'water'
               : glowing
                 ? 'glow'
-                : isWallKind(tile.k)
+                : isWallKind(ground)
                   ? 'wall'
                   : 'floor';
         const layer = layers[name];
@@ -456,12 +559,16 @@ export class TerrainView {
             layer.colors.push(color.r * shade, color.g * shade, color.b * shade);
           } else {
             const light = lightAt(vx, vz);
+            const depth = vy < 0 ? CHASM_FLOOR_SHADE : 1;
             layer.colors.push(
-              color.r * scale * light.shade + light.r,
-              color.g * scale * light.shade + light.g,
-              color.b * scale * light.shade + light.b,
+              (color.r * scale * light.shade + light.r) * depth,
+              (color.g * scale * light.shade + light.g) * depth,
+              (color.b * scale * light.shade + light.b) * depth,
             );
           }
+        }
+        if (tile.seen && tile.k === 'bridge') {
+          this.addDeck(layers.deck, x, y, bridgeRunsAlongX(state, x, y), lightAt);
         }
         if (tile.seen && tile.k === 'path') {
           const mask =
@@ -484,7 +591,10 @@ export class TerrainView {
         water: new THREE.Mesh(new THREE.BufferGeometry(), this.waterMaterial),
         path: new THREE.Mesh(new THREE.BufferGeometry(), this.pathMaterial),
         deadPath: new THREE.Mesh(new THREE.BufferGeometry(), this.deadPathMaterial),
+        deck: new THREE.Mesh(new THREE.BufferGeometry(), this.deckMaterial),
       };
+      chunk.deck.castShadow = true;
+      chunk.deck.receiveShadow = true;
       chunk.wall.castShadow = true;
       chunk.floor.receiveShadow = true;
       chunk.wall.receiveShadow = true;
@@ -498,6 +608,29 @@ export class TerrainView {
       }
     }
     for (const name of LAYERS) this.assign(chunk[name], layers[name]);
+  }
+
+  /** The planks of one span, across its direction of travel. */
+  private addDeck(
+    layer: Layer,
+    x: number,
+    y: number,
+    alongX: boolean,
+    lightAt: (x: number, y: number) => CornerLight,
+  ): void {
+    for (const [dx, dz] of [
+      [0, 0],
+      [0, 1],
+      [1, 1],
+      [0, 0],
+      [1, 1],
+      [1, 0],
+    ]) {
+      layer.positions.push(x + dx, DECK_HEIGHT, y + dz);
+      layer.uvs.push(alongX ? dx : dz, alongX ? dz : dx);
+      const shade = Math.max(0.7, lightAt(x + dx, y + dz).shade);
+      layer.colors.push(shade, shade, shade);
+    }
   }
 
   /** A flat quad just above the ground, showing the atlas cell for this combination of links. */
@@ -579,6 +712,8 @@ export class TerrainView {
     this.waterMaterial.dispose();
     this.pathMaterial.dispose();
     this.deadPathMaterial.dispose();
+    this.deckMaterial.dispose();
+    this.deckMap.dispose();
     this.pathMap.dispose();
     this.pathGlow.dispose();
     this.lavaMap.dispose();

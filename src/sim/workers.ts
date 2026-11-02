@@ -1,9 +1,15 @@
-import { BUILD_TIME_FACTOR, BUILDINGS, PATH_COST, PATH_REFUND } from '../data/buildings';
+import {
+  BRIDGE_COST,
+  BUILD_TIME_FACTOR,
+  BUILDINGS,
+  PATH_COST,
+  PATH_REFUND,
+} from '../data/buildings';
 import { WALLS } from '../data/resources';
 import { UNITS } from '../data/units';
 import { canAfford, hasRoomFor, addStock, pay } from './economy';
 import { buildingCenter, log, newId, spawnPickup } from './entities';
-import { idx, isWalkableKind, NEIGHBORS4, reveal, setTile, tileCenter } from './grid';
+import { idx, isBridgeable, isWalkableKind, NEIGHBORS4, reveal, setTile, tileCenter } from './grid';
 import { distanceField, findPath } from './pathfinding';
 import { rand } from './rng';
 import type { Building, GameState, Job, JobKind, Pickup, ResourceId, Unit } from './types';
@@ -11,8 +17,11 @@ import { TICK_SECONDS } from './types';
 
 const CLEAR_TIME = 1.1;
 const PATH_TIME = 3;
+const BRIDGE_TIME = 5;
 const HARVEST_TIME = 2.2;
 const FUNGUS_REGROW = 75;
+const FUNGUS_FOOD = 3;
+const MOSS_FOOD = 2;
 const REPAIR_RATE = 30;
 
 const JOB_PRIORITY: Record<JobKind, number> = {
@@ -20,6 +29,7 @@ const JOB_PRIORITY: Record<JobKind, number> = {
   haul: 2,
   path: 3,
   unpath: 3,
+  bridge: 3,
   clear: 3,
   drill: 4,
   harvest: 6,
@@ -86,7 +96,8 @@ function bestAccess(
   job: Job,
   dist: Int32Array,
 ): { tile: number; steps: number } | null {
-  if (job.kind === 'drill') {
+  // Neither a wall nor a void can be stood on: the work is done from the edge.
+  if (job.kind === 'drill' || job.kind === 'bridge') {
     let best: { tile: number; steps: number } | null = null;
     for (const [dx, dy] of NEIGHBORS4) {
       const nx = job.x + dx;
@@ -111,6 +122,8 @@ function jobIsOpen(state: GameState, unit: Unit, job: Job): boolean {
     }
     case 'path':
       return canAfford(state, PATH_COST);
+    case 'bridge':
+      return canAfford(state, BRIDGE_COST);
     case 'haul': {
       const pickup = state.pickups.find((p) => p.id === job.refId);
       return pickup !== undefined && hasRoomFor(state, pickup.res);
@@ -129,7 +142,12 @@ function assignJob(state: GameState, unit: Unit): void {
   let best: Job | null = null;
   let bestTile = -1;
   let bestScore = Infinity;
+  // Cut off from every store, picking something up would only mean putting it down again, for ever.
+  const canDeliver = state.buildings.some(
+    (b) => b.built >= 1 && BUILDINGS[b.type].storage && dist[idx(state, b.x, b.y)] >= 0,
+  );
   for (const job of open) {
+    if (job.kind === 'haul' && !canDeliver) continue;
     const access = bestAccess(state, job, dist);
     if (!access) continue;
     let score = access.steps + JOB_PRIORITY[job.kind] * 4;
@@ -302,8 +320,29 @@ function runJob(state: GameState, unit: Unit, job: Job, speed: number): void {
       }
       return;
     }
+    case 'bridge': {
+      if (!isBridgeable(tile.k)) return removeJob(state, job.id);
+      if (!approach(state, unit, job, 1.25, speed)) return;
+      unit.working = true;
+      tile.work += dt;
+      if (tile.work >= BRIDGE_TIME) {
+        tile.work = 0;
+        if (!canAfford(state, BRIDGE_COST)) {
+          releaseJob(state, unit);
+          return;
+        }
+        pay(state, BRIDGE_COST);
+        tile.under = tile.k;
+        setTile(state, job.x, job.y, 'bridge');
+        reveal(state, job.x, job.y);
+        state.networkDirty = true;
+        state.fx.push({ kind: 'sound', id: 'build', x: job.x, y: job.y });
+        removeJob(state, job.id);
+      }
+      return;
+    }
     case 'harvest': {
-      if (tile.k !== 'fungus') return removeJob(state, job.id);
+      if (tile.k !== 'fungus' && tile.k !== 'moss') return removeJob(state, job.id);
       if (!approach(state, unit, job, 1, speed)) return;
       unit.working = true;
       tile.work += dt;
@@ -311,7 +350,8 @@ function runJob(state: GameState, unit: Unit, job: Job, speed: number): void {
         tile.work = 0;
         tile.regrow = FUNGUS_REGROW;
         state.dirty.push(idx(state, job.x, job.y));
-        for (let i = 0; i < 3; i++) dropAround(state, 'food', job.x, job.y);
+        const yieldOf = tile.k === 'moss' ? MOSS_FOOD : FUNGUS_FOOD;
+        for (let i = 0; i < yieldOf; i++) dropAround(state, 'food', job.x, job.y);
         removeJob(state, job.id);
       }
       return;

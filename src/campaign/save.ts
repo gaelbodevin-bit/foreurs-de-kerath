@@ -1,9 +1,13 @@
 import { COUNCIL_TRAITS } from '../data/council';
+import { REGIONS } from '../data/regions';
+import { DEFAULT_SKIN } from '../data/skins';
 import { TECHS } from '../data/techs';
 import { foundCouncil } from '../sim/council';
 import { spawnCityMiners } from '../sim/game';
+import { paintBiomes } from '../sim/mapgen';
 import { emptySeismic } from '../sim/seismic';
-import type { Councillor, GameState, Modifiers } from '../sim/types';
+import type { Councillor, GameState, Modifiers, PolicyId } from '../sim/types';
+import { RESOURCE_IDS } from '../sim/types';
 
 /** The version moved when the game became a single continuous world: older saves don't load. */
 const KEY = 'foreurs-de-kerath/save/v2';
@@ -45,6 +49,7 @@ export function readSave(storage: SaveStorage): GameState | null {
     data.nextCandidatesAt ??= 0;
     data.governorTrait ??= null;
     data.seismic ??= emptySeismic();
+    migrateBiomes(data);
     data.networkDirty = true;
     if (data.settlement?.reached) {
       foundCouncil(data);
@@ -53,6 +58,35 @@ export function readSave(storage: SaveStorage): GameState | null {
     return data;
   } catch {
     return null;
+  }
+}
+
+/** Saves from before the biomes, edicts and rations: what lies undiscovered gets its new geology. */
+function migrateBiomes(data: GameState): void {
+  for (const res of RESOURCE_IDS) data.stock[res] ??= 0;
+  data.mods.appetite ??= 1;
+  data.edicts ??= [];
+  data.nextEdictAt ??= 0;
+  data.crewSkins ??= { foreur: DEFAULT_SKIN, garde: DEFAULT_SKIN };
+  const policies = data.city.policies as Record<PolicyId | 'rationing', boolean>;
+  data.city.ration ??= policies.rationing ? 0 : 1;
+  delete (policies as Partial<typeof policies>).rationing;
+  if (data.settlement?.reached) data.settlement.reachedAt ??= 0;
+  if (data.story.flags.biomes) return;
+  data.story.flags.biomes = true;
+  paintBiomes(data, data.rng, {
+    keepClear: [
+      ...data.buildings.map((b) => ({ x: b.x, y: b.y, r: 8 })),
+      ...data.enemies.map((e) => ({ x: Math.floor(e.x), y: Math.floor(e.y), r: 4 })),
+      ...(data.settlement ? [{ x: data.settlement.x, y: data.settlement.y, r: 10 }] : []),
+    ],
+  });
+  // The new sectors open on a conquered neighbour, as they would have at the time.
+  for (const region of REGIONS) {
+    if (data.sectorStart[region.id] !== undefined) continue;
+    if (region.requires.some((r) => data.conquered.includes(r))) {
+      data.sectorStart[region.id] = data.time;
+    }
   }
 }
 

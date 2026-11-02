@@ -9,6 +9,8 @@ export interface TechDef {
   requires?: string;
   mods?: Partial<Modifiers>;
   stock?: Cost;
+  /** Materials it uses up, on top of the points. */
+  price?: Cost;
 }
 
 export const TECHS: TechDef[] = [
@@ -129,6 +131,51 @@ export const TECHS: TechDef[] = [
     name: 'Instruction publique',
     desc: 'Débloque l’académie.',
     cost: 7,
+  },
+  {
+    id: 'petrochem',
+    name: 'Pétrochimie',
+    desc: 'Débloque le derrick et la centrale au fioul.',
+    cost: 8,
+    requires: 'refining',
+  },
+  {
+    id: 'vulcanization',
+    name: 'Vulcanisation',
+    desc: 'Débloque l’usine de caoutchouc et l’atelier de pneus.',
+    cost: 9,
+    requires: 'petrochem',
+  },
+  {
+    id: 'allterrain',
+    name: 'Train tout-terrain',
+    desc: 'Consomme 6 pneus. Tous les déplacements gagnent 15 %.',
+    cost: 8,
+    requires: 'vulcanization',
+    price: { tyres: 6 },
+    mods: { moveSpeed: 0.15 },
+  },
+  {
+    id: 'tungstenbits',
+    name: 'Forets au tungstène',
+    desc: 'Consomme 10 tungstène. Forage 50 % plus rapide. Débloque la tourelle à obus.',
+    cost: 14,
+    requires: 'drills3',
+    price: { tungsten: 10 },
+    mods: { drillSpeed: 0.5 },
+  },
+  {
+    id: 'gascapture',
+    name: 'Captage des gaz',
+    desc: 'Débloque le captage, à poser sur une fumerolle.',
+    cost: 6,
+    requires: 'grid',
+  },
+  {
+    id: 'hydroponics',
+    name: 'Hydroponie',
+    desc: 'Débloque la cuve à algues.',
+    cost: 5,
   },
   {
     id: 'stability',

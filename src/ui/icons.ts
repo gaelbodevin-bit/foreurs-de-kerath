@@ -31,6 +31,13 @@ const ART: Record<ResourceId, string> = {
     <path ${SHINE} d="M8.200 10.200h7.600l.9 3.300H7.300z"/>
     <path ${SHADE} d="M3.600 18h16.800l.6 1.700c.2.700-.3 1.300-1 1.300H4c-.7 0-1.200-.6-1-1.300z"/>
     <path fill="#fff4c4" d="M19 2.500l.9 2.100 2.100.9-2.100.9-.9 2.100-.9-2.100-2.100-.9 2.100-.9z"/>`,
+  tungsten: `<path fill="currentColor" d="M3 15.500 8.500 6h9l3.500 6-5 9H6.500z"/>
+    <path ${SHADE} d="M3 15.500 15.500 13l.5 8H6.500z"/>
+    <path ${SHINE} d="M8.500 6h9l-2 4.500H7z"/>`,
+  oil: `<path fill="currentColor" d="M6 7.500h12c.6 0 1 .4 1 1v11c0 1.100-.9 2-2 2H7c-1.100 0-2-.9-2-2v-11c0-.6.4-1 1-1z"/>
+    <rect x="5" y="3.500" width="14" height="3" rx="1" fill="currentColor"/>
+    <path ${SHADE} d="M5 12h14v2.500H5z"/>
+    <path fill="#17121f" d="M12 9.500c1.500 2.100 2.800 3.700 2.800 5.300a2.800 2.800 0 0 1-5.600 0c0-1.600 1.300-3.200 2.800-5.300z"/>`,
   relic: `<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.400"/>
     <path fill="currentColor" d="M12 6c.3 0 .5.100.7.300l5 5c.4.400.4 1 0 1.400l-5 5c-.4.400-1 .4-1.400 0l-5-5c-.4-.4-.4-1 0-1.400l5-5c.2-.2.400-.3.700-.3z"/>
     <circle cx="12" cy="12" r="2.200" fill="#fff"/><circle cx="12" cy="12" r="1" fill="#3b1b63"/>`,
@@ -47,6 +54,12 @@ const ART: Record<ResourceId, string> = {
   alloy: `<path fill="currentColor" fill-rule="evenodd" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 3.200 19.700 7.600v8.800L12 20.800 4.300 16.400V7.600zM12 8.500a3.500 3.500 0 1 0 0 7 3.500 3.500 0 0 0 0-7z"/>
     <path ${SHINE} d="M12 2.500 5 6.500l3.800 2.300A4.500 4.500 0 0 1 12 7.500z"/>
     <path ${SHADE} d="M19.300 16.800 15.500 14.600a4.500 4.500 0 0 1-3.500 1.900v5z"/>`,
+  rubber: `<rect x="3" y="8" width="18" height="10" rx="2.500" fill="currentColor"/>
+    <path ${SHADE} d="M3 14h18v1.500A2.500 2.500 0 0 1 18.500 18h-13A2.500 2.500 0 0 1 3 15.500z"/>
+    <path ${SHINE} d="M6 9.500h8v1.500H6z"/>`,
+  tyres: `<circle cx="12" cy="12" r="9.500" fill="#2a2a30"/>
+    <circle cx="12" cy="12" r="9.500" fill="none" stroke="currentColor" stroke-width="1.400" stroke-dasharray="2.500 1.700"/>
+    <circle cx="12" cy="12" r="4.500" fill="currentColor"/><circle cx="12" cy="12" r="1.600" fill="#2a2a30"/>`,
   credits: `<circle cx="12" cy="12" r="9.500" fill="currentColor"/>
     <circle cx="12" cy="12" r="7" fill="none" stroke="#000" stroke-opacity=".3" stroke-width="1.300"/>
     <path fill="none" stroke="#000" stroke-opacity=".55" stroke-width="2" stroke-linecap="round" d="M14.800 9.500a3.500 3.500 0 1 0 0 5M12 6.500v11"/>`,

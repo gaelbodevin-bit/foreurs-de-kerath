@@ -31,6 +31,10 @@ function triggerMet(state: GameState, event: StoryEvent): boolean {
   } else if (w.minTime !== undefined && state.time < w.minTime) {
     return false;
   }
+  if (w.sinceCity !== undefined) {
+    const at = state.settlement?.reachedAt;
+    if (at === undefined || state.time - at < w.sinceCity) return false;
+  }
   if (w.flags && !w.flags.every((f) => s.flags[f])) return false;
   if (w.noFlags && w.noFlags.some((f) => s.flags[f])) return false;
   if (w.minClues !== undefined && s.clues.length < w.minClues) return false;
@@ -143,6 +147,9 @@ function applyEffect(state: GameState, effect: Effect): void {
       break;
     case 'accuse':
       accuse(state, effect.advisor);
+      break;
+    case 'ration':
+      state.city.ration = effect.level;
       break;
   }
 }

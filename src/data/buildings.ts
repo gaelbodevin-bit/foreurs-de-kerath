@@ -1,4 +1,4 @@
-import type { BuildingType, Cost, UnitType } from '../sim/types';
+import type { BuildingType, Cost, ResourceId, TileKind, UnitType } from '../sim/types';
 
 export interface Recipe {
   inputs: Cost;
@@ -36,6 +36,12 @@ export interface BuildingDef {
   shoring?: number;
   /** Share of the colony's food it saves. */
   appetite?: number;
+  /** What a power plant burns. Crystal, unless it says otherwise. */
+  fuel?: ResourceId;
+  /** The deposit it has to stand on. Anything else goes on bare floor. */
+  on?: TileKind;
+  /** The edict that allows it. */
+  edict?: string;
 }
 
 export const BUILDINGS: Record<BuildingType, BuildingDef> = {
@@ -231,14 +237,14 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   workshop: {
     tech: 'vehicles',
     name: 'Atelier de véhicules',
-    desc: 'Assemble la foreuse lourde (roche dure, or) et la mule de transport.',
+    desc: 'Assemble la foreuse lourde (roche dure, or), la mule de transport et, avec des pneus, le camion.',
     size: 2,
     cost: { ore: 20, crystal: 5, stone: 8 },
     buildTime: 12,
     hp: 320,
     power: 3,
     jobs: 2,
-    trains: ['heavy', 'hauler'],
+    trains: ['heavy', 'hauler', 'truck'],
   },
   seismo: {
     tech: 'seismology',
@@ -305,6 +311,103 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     morale: 3,
     research: 1 / 60,
   },
+  derrick: {
+    tech: 'petrochem',
+    name: 'Derrick',
+    desc: 'Pompe le pétrole. Ne se pose que sur un suintement, et doit être relié au réseau.',
+    size: 1,
+    cost: { metal: 8, stone: 6 },
+    buildTime: 9,
+    hp: 200,
+    power: 2,
+    jobs: 1,
+    on: 'oilSeep',
+    recipe: { inputs: {}, outputs: { oil: 1 }, cycle: 8 },
+  },
+  gascap: {
+    tech: 'gascapture',
+    name: 'Captage de gaz',
+    desc: 'Coiffe une fumerolle : plus d’émanations, et de l’énergie sans combustible.',
+    size: 1,
+    cost: { metal: 6, ore: 8 },
+    buildTime: 8,
+    hp: 180,
+    powerOutput: 9,
+    on: 'fumarole',
+  },
+  fuelplant: {
+    tech: 'petrochem',
+    name: 'Centrale au fioul',
+    desc: 'Brûle un baril de pétrole toutes les 30 s. Bien plus puissante que la centrale à cristaux, et elle porte le courant plus loin.',
+    size: 2,
+    cost: { metal: 14, stone: 10 },
+    buildTime: 12,
+    hp: 300,
+    powerOutput: 26,
+    burnTime: 30,
+    fuel: 'oil',
+    jobs: 2,
+  },
+  rubberworks: {
+    tech: 'vulcanization',
+    name: 'Usine de caoutchouc',
+    desc: 'Vulcanise le pétrole au soufre.',
+    size: 2,
+    cost: { metal: 12, crystal: 4, stone: 8 },
+    buildTime: 12,
+    hp: 260,
+    power: 3,
+    jobs: 2,
+    recipe: { inputs: { oil: 2, sulfur: 1 }, outputs: { rubber: 2 }, cycle: 12 },
+  },
+  tyreshop: {
+    tech: 'vulcanization',
+    name: 'Atelier de pneus',
+    desc: 'Monte les pneus dont les camions ont besoin. Le tout-terrain sort d’ici.',
+    size: 2,
+    cost: { metal: 10, stone: 8 },
+    buildTime: 10,
+    hp: 240,
+    power: 2,
+    jobs: 2,
+    recipe: { inputs: { rubber: 2, metal: 1 }, outputs: { tyres: 1 }, cycle: 14 },
+  },
+  algae: {
+    tech: 'hydroponics',
+    name: 'Cuve à algues',
+    desc: 'Plus productive que la serre, mais gourmande en énergie.',
+    size: 2,
+    cost: { metal: 8, crystal: 3, stone: 4 },
+    buildTime: 9,
+    hp: 170,
+    power: 4,
+    jobs: 1,
+    recipe: { inputs: { water: 1 }, outputs: { food: 5 }, cycle: 12 },
+  },
+  vivarium: {
+    edict: 'larvae',
+    name: 'Vivier à larves',
+    desc: 'De la viande sans eau ni soin. Personne n’aime y travailler, ni savoir ce qu’il mange.',
+    size: 1,
+    cost: { ore: 10, stone: 6 },
+    buildTime: 6,
+    hp: 140,
+    power: 1,
+    jobs: 1,
+    morale: -3,
+    recipe: { inputs: {}, outputs: { food: 2 }, cycle: 12 },
+  },
+  bigturret: {
+    tech: 'tungstenbits',
+    name: 'Tourelle à obus',
+    desc: 'Des obus à pointe de tungstène : portée et dégâts largement supérieurs.',
+    size: 1,
+    cost: { metal: 10, tungsten: 6, crystal: 3 },
+    buildTime: 10,
+    hp: 420,
+    power: 4,
+    turret: { range: 9.5, damage: 30, cooldown: 1.5 },
+  },
   turret: {
     name: 'Tourelle laser',
     desc: 'Tire automatiquement sur les ennemis, tant qu’elle est sous tension.',
@@ -320,6 +423,8 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
 export const PATH_COST: Cost = { stone: 2, ore: 1 };
 /** What taking a stretch of road up gives back: half of the stone, and none of the ore. */
 export const PATH_REFUND = 1;
+/** Per tile: a bridge is laid from the edge, one span after the other. */
+export const BRIDGE_COST: Cost = { stone: 3, ore: 2 };
 
 export type BuildMenuId = 'explore' | 'city';
 
@@ -335,10 +440,13 @@ export const BUILD_MENUS: BuildMenu[] = [
     id: 'explore',
     name: 'Exploration',
     groups: [
-      { name: 'Réseau', buildings: ['generator', 'geothermal', 'depot', 'silo'] },
-      { name: 'Terrain', buildings: ['vent', 'seismo', 'prop', 'camp'] },
+      {
+        name: 'Réseau',
+        buildings: ['generator', 'fuelplant', 'geothermal', 'gascap', 'depot', 'silo'],
+      },
+      { name: 'Terrain', buildings: ['vent', 'seismo', 'prop', 'camp', 'derrick'] },
       { name: 'Véhicules', buildings: ['workshop'] },
-      { name: 'Défense', buildings: ['turret', 'barracks'] },
+      { name: 'Défense', buildings: ['turret', 'bigturret', 'barracks'] },
     ],
   },
   {
@@ -346,7 +454,8 @@ export const BUILD_MENUS: BuildMenu[] = [
     name: 'Cité',
     groups: [
       { name: 'Vie', buildings: ['habitat', 'oxygen', 'plaza', 'canteen', 'clinic'] },
-      { name: 'Production', buildings: ['melter', 'farm', 'refinery', 'foundry'] },
+      { name: 'Vivres', buildings: ['melter', 'farm', 'algae', 'vivarium'] },
+      { name: 'Industrie', buildings: ['refinery', 'foundry', 'rubberworks', 'tyreshop'] },
       { name: 'Administration', buildings: ['market', 'lab', 'academy', 'security'] },
     ],
   },

@@ -85,8 +85,8 @@ function makeWorker(suit: number, helmet: number, weapon: boolean): THREE.Group 
   return g;
 }
 
-export function makeUnit(type: UnitType, tool: DrillTool = 'pick'): THREE.Group {
-  const modelled = unitFromModels(type, tool);
+export function makeUnit(type: UnitType, tool: DrillTool = 'pick', skin?: string): THREE.Group {
+  const modelled = unitFromModels(type, tool, skin);
   if (modelled) return modelled;
   switch (type) {
     case 'foreur':
@@ -106,10 +106,11 @@ export function makeUnit(type: UnitType, tool: DrillTool = 'pick'): THREE.Group 
       g.add(bit);
       return g;
     }
-    case 'hauler': {
+    case 'hauler':
+    case 'truck': {
       const g = new THREE.Group();
       g.add(
-        box(lambert(0x4f9d69), 0.36, 0.14, 0.5, 0, 0.17),
+        box(lambert(type === 'truck' ? 0xc9673f : 0x4f9d69), 0.36, 0.14, 0.5, 0, 0.17),
         box(lambert(STEEL), 0.32, 0.12, 0.2, 0, 0.3, -0.1),
         box(glow(TEAL), 0.26, 0.05, 0.03, 0, 0.2, 0.26),
       );

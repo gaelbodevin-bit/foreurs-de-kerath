@@ -1,4 +1,5 @@
 import { BUILDINGS } from '../data/buildings';
+import { carriesCurrent } from '../sim/grid';
 import type { GameState, TileKind } from '../sim/types';
 
 /** How far each kind of light carries, in tiles. Beyond it, only the darkness of the cave is left. */
@@ -14,6 +15,11 @@ const SHINING: Partial<Record<TileKind, { radius: number; level: number }>> = {
   lava: { radius: 4.5, level: 0.85 },
   crystalSeam: { radius: 2.4, level: 0.45 },
   relicVault: { radius: 2.4, level: 0.45 },
+  tungstenSeam: { radius: 1.8, level: 0.3 },
+  moss: { radius: 3.4, level: 0.62 },
+  fumarole: { radius: 2, level: 0.35 },
+  // Not a light: just enough for the edge of a gorge to be made out before someone walks up to it.
+  chasm: { radius: 1.7, level: 0.24 },
 };
 
 /** Full light up to here, as a share of the radius, then it fades out. */
@@ -54,7 +60,7 @@ export function computeLightMap(state: GameState, levels: Float32Array): void {
     if (!tile.seen) return;
     const x = (i % w) + 0.5;
     const y = Math.floor(i / w) + 0.5;
-    if (tile.k === 'path') {
+    if (carriesCurrent(tile.k)) {
       if (tile.powered) stamp(levels, w, h, x, y, ROAD_LIGHT);
       return;
     }

@@ -10,11 +10,15 @@ export const RESOURCE_IDS = [
   'ice',
   'sulfur',
   'gold',
+  'tungsten',
+  'oil',
   'relic',
   'metal',
   'water',
   'food',
   'alloy',
+  'rubber',
+  'tyres',
   'credits',
 ] as const;
 export type ResourceId = (typeof RESOURCE_IDS)[number];
@@ -26,6 +30,11 @@ export type TileKind =
   | 'rubble'
   | 'path'
   | 'fungus'
+  | 'moss'
+  | 'oilSeep'
+  | 'fumarole'
+  | 'bridge'
+  | 'chasm'
   | 'lava'
   | 'water'
   | 'dirt'
@@ -38,6 +47,7 @@ export type TileKind =
   | 'iceSeam'
   | 'sulfurSeam'
   | 'goldSeam'
+  | 'tungstenSeam'
   | 'relicVault';
 
 export interface Tile {
@@ -54,11 +64,13 @@ export interface Tile {
   gas?: number;
   /** A road the current reaches. Without it, the slab stays dark and carries nothing. */
   powered?: boolean;
+  /** What a bridge spans. */
+  under?: TileKind;
   /** Floor of a monsters' lair: stained, so that the room reads as one at a glance. */
   lair?: boolean;
 }
 
-export type UnitType = 'foreur' | 'garde' | 'heavy' | 'hauler';
+export type UnitType = 'foreur' | 'garde' | 'heavy' | 'hauler' | 'truck';
 export type EnemyType =
   'rongeur' | 'golem' | 'larve' | 'saboteur' | 'drone' | 'nest' | 'outpost' | 'heart';
 export type BuildingType =
@@ -86,7 +98,15 @@ export type BuildingType =
   | 'canteen'
   | 'academy'
   | 'geothermal'
-  | 'silo';
+  | 'silo'
+  | 'derrick'
+  | 'gascap'
+  | 'fuelplant'
+  | 'rubberworks'
+  | 'tyreshop'
+  | 'algae'
+  | 'vivarium'
+  | 'bigturret';
 
 export type AdvisorId = 'orsa' | 'krell' | 'soum';
 export type SeatId = 'engineering' | 'logistics' | 'science' | 'defense';
@@ -102,7 +122,7 @@ export interface Councillor {
   /** Set for the expedition's own advisors, who are part of the plot. */
   advisor?: AdvisorId;
 }
-export type PolicyId = 'rationing' | 'curfew' | 'propaganda' | 'overtime';
+export type PolicyId = 'curfew' | 'propaganda' | 'overtime';
 
 export interface Unit {
   id: number;
@@ -121,6 +141,8 @@ export interface Unit {
   targetId: number | null;
   /** Where a guard stands watch, and patrols around. Set the first time it needs one. */
   post?: { x: number; y: number };
+  /** Key into SKINS, when this one doesn't wear what the rest of the crew does. */
+  skin?: string;
   /** Ticks before this unit looks for a job again. */
   thinkIn: number;
   working: boolean;
@@ -172,7 +194,8 @@ export interface Pickup {
   claimedBy: number | null;
 }
 
-export type JobKind = 'build' | 'drill' | 'path' | 'unpath' | 'haul' | 'harvest' | 'clear';
+export type JobKind =
+  'build' | 'drill' | 'path' | 'unpath' | 'bridge' | 'haul' | 'harvest' | 'clear';
 
 export interface Job {
   id: number;
@@ -237,6 +260,7 @@ export interface Modifiers {
   taxes: number;
   conspiracyGain: number;
   hazard: number;
+  appetite: number;
 }
 
 export interface CityState {
@@ -246,6 +270,8 @@ export interface CityState {
   moraleShock: number;
   oxygen: number;
   taxLevel: 0 | 1 | 2 | 3;
+  /** Index into RATIONS. */
+  ration: 0 | 1 | 2;
   policies: Record<PolicyId, boolean>;
   conspiracy: number;
   growthT: number;
@@ -284,6 +310,8 @@ export interface Settlement {
   x: number;
   y: number;
   reached: boolean;
+  /** When the tunnel got through. */
+  reachedAt?: number;
 }
 
 /** A tremor that happened: what the seismograph keeps track of. */
@@ -363,6 +391,11 @@ export interface GameState {
   /** Points waiting to be spent. */
   research: number;
   techs: string[];
+  /** Signed for good, in order. */
+  edicts: string[];
+  nextEdictAt: number;
+  /** What the crew wears, unless a unit has its own. */
+  crewSkins: { foreur: string; garde: string };
   /** Index into CITY_LEVELS. It never goes back down, even if the population does. */
   cityLevel: number;
   conquered: string[];
@@ -401,6 +434,7 @@ export const baseModifiers = (): Modifiers => ({
   taxes: 1,
   conspiracyGain: 1,
   hazard: 1,
+  appetite: 1,
 });
 
 export const emptyStock = (): Stock => Object.fromEntries(RESOURCE_IDS.map((r) => [r, 0])) as Stock;

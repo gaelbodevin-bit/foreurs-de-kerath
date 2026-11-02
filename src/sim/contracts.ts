@@ -41,12 +41,25 @@ type Draft = Omit<Contract, 'id' | 'expiresAt'> & { seconds: number };
 
 function deliverDraft(state: GameState): Draft | null {
   const pool = (
-    ['ore', 'stone', 'crystal', 'ice', 'food', 'water', 'metal', 'alloy'] as const
+    [
+      'ore',
+      'stone',
+      'crystal',
+      'ice',
+      'food',
+      'water',
+      'metal',
+      'alloy',
+      'oil',
+      'rubber',
+      'tyres',
+      'tungsten',
+    ] as const
   ).filter((r) => state.stock[r] >= 3);
   if (pool.length === 0) return null;
   const res = randPick(state, [...pool]);
   const scale = 1 + state.cityLevel * 0.6;
-  const rare = res === 'metal' || res === 'alloy' || res === 'crystal';
+  const rare = !['ore', 'stone', 'ice', 'food', 'water'].includes(res);
   const amount = Math.round(randInt(state, rare ? 4 : 8, rare ? 8 : 18) * scale);
   return {
     kind: 'deliver',

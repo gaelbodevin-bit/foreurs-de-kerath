@@ -191,6 +191,9 @@ function botTurn(state: GameState): void {
     placePath(state, hq.x - 4, hq.y - 4, hq.x + 5, hq.y + 5);
   }
 
+  // Food before anything else, as the steward keeps saying.
+  state.city.ration = state.stock.food < 15 ? 0 : 1;
+
   // Units.
   if (state.units.filter((u) => u.type === 'foreur').length < 8) trainUnit(state, hq.id, 'foreur');
   const barracks = state.buildings.find((b) => b.type === 'barracks' && b.built >= 1);

@@ -8,8 +8,9 @@ import {
 } from '../data/progression';
 import { REGIONS } from '../data/regions';
 import { RESOURCES } from '../data/resources';
-import { POLICIES, TAX_LEVELS, UNITS } from '../data/units';
-import { idx, NEIGHBORS4 } from './grid';
+import { CORPSE_FOOD, edictById } from '../data/edicts';
+import { POLICIES, RATIONS, TAX_LEVELS, UNITS } from '../data/units';
+import { carriesCurrent, idx, NEIGHBORS4 } from './grid';
 import { log, spawnUnit } from './entities';
 import type { Building, Cost, GameState, ResourceId } from './types';
 import { RESOURCE_IDS, TICK_SECONDS } from './types';
@@ -41,7 +42,7 @@ export function pay(state: GameState, cost: Cost): void {
 function isRunningSource(state: GameState, b: Building): boolean {
   const def = BUILDINGS[b.type];
   if (!def.powerOutput || b.built < 1 || b.sabotaged > 0) return false;
-  return !def.burnTime || b.fuel > 0 || state.stock.crystal >= 1;
+  return !def.burnTime || b.fuel > 0 || state.stock[def.fuel ?? 'crystal'] >= 1;
 }
 
 /**
@@ -114,19 +115,20 @@ export function updateNetwork(state: GameState): void {
       const ny = cy + dy;
       if (nx < 0 || ny < 0 || nx >= state.w || ny >= state.h) continue;
       const ni = idx(state, nx, ny);
-      if (state.tiles[ni].k === 'path' || owner.has(ni)) feed(ni, remaining[cur] - 1);
+      if (carriesCurrent(state.tiles[ni].k) || owner.has(ni)) feed(ni, remaining[cur] - 1);
     }
   }
 
   // Slabs lighting up or going dark have to be redrawn.
   let shortfall = false;
   state.tiles.forEach((tile, i) => {
-    const powered = tile.k === 'path' && remaining[i] >= 0;
+    const road = carriesCurrent(tile.k);
+    const powered = road && remaining[i] >= 0;
     if ((tile.powered ?? false) !== powered) {
       tile.powered = powered;
       state.dirty.push(i);
     }
-    if (tile.k !== 'path' || powered || shortfall) return;
+    if (!road || powered || shortfall) return;
     // A stub laid far from anything isn't a shortage: this one has live road right next to it.
     const x = i % state.w;
     const y = Math.floor(i / state.w);
@@ -180,8 +182,9 @@ export function updateEconomy(state: GameState): void {
     const def = BUILDINGS[b.type];
     if (!canRun(b, def)) continue;
     if (def.burnTime) {
-      if (b.fuel <= 0 && state.stock.crystal >= 1) {
-        state.stock.crystal -= 1;
+      const fuel = def.fuel ?? 'crystal';
+      if (b.fuel <= 0 && state.stock[fuel] >= 1) {
+        state.stock[fuel] -= 1;
         b.fuel = def.burnTime;
       }
       if (b.fuel > 0) {
@@ -200,7 +203,6 @@ export function updateEconomy(state: GameState): void {
   const overtime = city.policies.overtime ? 1.25 : 1;
 
   let oxygenFlow = state.settlement?.reached ? CITY_OXYGEN : 0;
-  let appetiteCut = 0;
   let securityPressure = 0;
   let moraleBonus = 0;
   let taxBonus = 0;
@@ -221,7 +223,6 @@ export function updateEconomy(state: GameState): void {
     oxygenFlow += (def.oxygen ?? 0) * b.eff;
     securityPressure += (def.conspiracy ?? 0) * b.eff;
     moraleBonus += (def.morale ?? 0) * b.eff;
-    appetiteCut += (def.appetite ?? 0) * b.eff;
     taxBonus += (def.taxBonus ?? 0) * b.eff;
 
     if (def.research) state.research += def.research * b.eff * state.mods.research * dt;
@@ -229,7 +230,7 @@ export function updateEconomy(state: GameState): void {
     if (b.queue.length > 0) runTraining(state, b);
   }
 
-  updateCity(state, { oxygenFlow, securityPressure, moraleBonus, taxBonus, appetiteCut });
+  updateCity(state, { oxygenFlow, securityPressure, moraleBonus, taxBonus });
 }
 
 function runRecipe(state: GameState, b: Building, def: BuildingDef, boost: number): void {
@@ -260,11 +261,13 @@ function runTraining(state: GameState, b: Building): void {
 }
 
 /** Seconds one person takes to eat one unit of food. */
-const FOOD_PER_MOUTH_SECONDS = 360;
+const FOOD_PER_MOUTH_SECONDS = 180;
 /** However many canteens: people still have to eat. */
 const MAX_APPETITE_CUT = 0.5;
-/** Warned at this stock: about four minutes' notice for a young colony. */
+/** Warned at this stock: about a minute's notice for a young colony. */
 const LOW_FOOD = 12;
+/** The steward comes knocking when the stores would run out in this many minutes. */
+const FOOD_ALARM_MINUTES = 3;
 /** Seconds between two deaths, for as long as the colony goes hungry or breathless. */
 const DEATH_EVERY = 60;
 
@@ -273,7 +276,46 @@ interface CityInputs {
   securityPressure: number;
   moraleBonus: number;
   taxBonus: number;
-  appetiteCut: number;
+}
+
+/** Food eaten per second by the whole colony, once it has a city to feed. */
+export function appetitePerSecond(state: GameState): number {
+  if (!(state.settlement?.reached ?? false)) return 0;
+  const workers = state.units.filter((u) => UNITS[u.type].citizens > 0).length;
+  const cut = state.buildings.reduce(
+    (sum, b) => sum + (BUILDINGS[b.type].appetite ?? 0) * b.eff,
+    0,
+  );
+  return (
+    ((state.city.population + workers) / FOOD_PER_MOUTH_SECONDS) *
+    RATIONS[state.city.ration].eat *
+    state.mods.appetite *
+    (1 - Math.min(MAX_APPETITE_CUT, cut))
+  );
+}
+
+/** How much of a resource comes out per minute, with the buildings working right now. */
+export function outputPerMinute(state: GameState, res: ResourceId): number {
+  const boost = (state.city.policies.overtime ? 1.25 : 1) * state.mods.production;
+  return state.buildings.reduce((sum, b) => {
+    const recipe = BUILDINGS[b.type].recipe;
+    if (!recipe?.outputs[res] || b.built < 1 || !canAfford(state, recipe.inputs)) return sum;
+    return sum + ((recipe.outputs[res] ?? 0) / recipe.cycle) * 60 * b.eff * boost;
+  }, 0);
+}
+
+/** Minutes the stores last at this rate. Infinite when more comes in than goes out. */
+export function foodMinutesLeft(state: GameState): number {
+  const net = appetitePerSecond(state) * 60 - outputPerMinute(state, 'food');
+  return net <= 0 ? Infinity : state.stock.food / net;
+}
+
+/** Once a second: what brings the steward to the governor's door. */
+export function updateFoodWatch(state: GameState): void {
+  if (!(state.settlement?.reached ?? false)) return;
+  const flags = state.story.flags;
+  if (foodMinutesLeft(state) < FOOD_ALARM_MINUTES) flags.foodShort = true;
+  if (state.stock.food <= 0) flags.starved = true;
 }
 
 function updateCity(state: GameState, inputs: CityInputs): void {
@@ -289,17 +331,12 @@ function updateCity(state: GameState, inputs: CityInputs): void {
   // Food.
   // The expedition lives on its rations: hunger only starts once there is a city to feed.
   const fed = !(state.settlement?.reached ?? true);
-  const appetite = fed
-    ? 0
-    : (mouths / FOOD_PER_MOUTH_SECONDS) *
-      (city.policies.rationing ? 0.65 : 1) *
-      (1 - Math.min(MAX_APPETITE_CUT, inputs.appetiteCut));
   const foodBefore = state.stock.food;
-  state.stock.food = Math.max(0, foodBefore - appetite * dt);
+  state.stock.food = Math.max(0, foodBefore - appetitePerSecond(state) * dt);
   if (foodBefore >= LOW_FOOD && state.stock.food < LOW_FOOD) {
     log(
       state,
-      'Nourriture presque épuisée : débloquez les cultures (touche R) et bâtissez une serre.',
+      'Nourriture presque épuisée : il faut de la glace, un fondoir et une serre (touche N).',
       'warn',
     );
     state.fx.push({ kind: 'sound', id: 'alert' });
@@ -323,7 +360,15 @@ function updateCity(state: GameState, inputs: CityInputs): void {
   const unemployed =
     city.population > 0 ? Math.max(0, city.population - city.jobs) / city.population : 0;
   const overcrowded = city.population > city.housing;
-  let target = 52 + inputs.moraleBonus + tax.morale + policyMorale + city.moraleShock;
+  const signed = state.edicts.reduce((sum, id) => sum + (edictById(id).morale ?? 0), 0);
+  let target =
+    52 +
+    inputs.moraleBonus +
+    tax.morale +
+    policyMorale +
+    city.moraleShock +
+    signed +
+    RATIONS[city.ration].morale;
   target -= state.city.conspiracy * 0.12;
   if (overcrowded) target -= 12;
   if (starving) target -= 28;
@@ -358,6 +403,8 @@ function updateCity(state: GameState, inputs: CityInputs): void {
     city.population -= 1;
     const why = city.oxygen <= 0 ? 'asphyxie' : starving ? 'la faim' : 'le désespoir';
     log(state, `Un citoyen perdu : ${why}.`, 'bad');
+    // Nobody says it out loud.
+    if (state.edicts.includes('corpses')) addStock(state, 'food', CORPSE_FOOD);
     state.fx.push({ kind: 'sound', id: 'alert' }, { kind: 'voice', id: 'citizenLost' });
   }
   if (city.oxygen <= 0 && state.tick % 10 === 0) {

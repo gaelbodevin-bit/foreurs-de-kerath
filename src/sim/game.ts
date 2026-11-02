@@ -1,16 +1,34 @@
 import { BUILDINGS } from '../data/buildings';
+import { DEFAULT_SKIN, skinLock } from '../data/skins';
 import { REGIONS, sectorAt } from '../data/regions';
 import { CITY_MINERS, CITY_SETTLERS, FIRST_CONTRACT_AT } from '../data/progression';
 import { ADVISOR_IDS } from '../data/story';
 import { RESOURCES, TILE_NAMES, WALLS } from '../data/resources';
 import { UNITS } from '../data/units';
 import { updateCombat } from './combat';
-import { addStock, canAfford, pay, storageCapacity, updateEconomy, updateNetwork } from './economy';
+import {
+  addStock,
+  canAfford,
+  pay,
+  storageCapacity,
+  updateEconomy,
+  updateFoodWatch,
+  updateNetwork,
+} from './economy';
 import { updateCouncil, foundCouncil } from './council';
 import { createBuilding, log, spawnEnemy, spawnPickup, spawnUnit } from './entities';
 import { updateGas } from './gas';
 import { emptySeismic, updateSeismic } from './seismic';
-import { idx, inBounds, isWalkableKind, NEIGHBORS4, reveal, setTile, tileAt } from './grid';
+import {
+  idx,
+  inBounds,
+  isBridgeable,
+  isWalkableKind,
+  NEIGHBORS4,
+  reveal,
+  setTile,
+  tileAt,
+} from './grid';
 import { generateWorld } from './mapgen';
 import { findPath } from './pathfinding';
 import { buildingLock, isWorldConquered, updateProgress } from './progress';
@@ -24,6 +42,7 @@ import type {
   PolicyId,
   ResourceId,
   StoryState,
+  TileKind,
   UnitType,
 } from './types';
 import { baseModifiers, emptyStock, RESOURCE_IDS, TICK_SECONDS } from './types';
@@ -45,7 +64,7 @@ export function createGame(seed: number): GameState {
   for (const r of RESOURCE_IDS) stock[r] = START_STOCK[r] ?? 0;
   const story: StoryState = {
     fired: [],
-    flags: {},
+    flags: { biomes: true },
     pending: [],
     clues: [],
     moleCaught: false,
@@ -75,7 +94,8 @@ export function createGame(seed: number): GameState {
       moraleShock: 0,
       oxygen: 100,
       taxLevel: 1,
-      policies: { rationing: false, curfew: false, propaganda: false, overtime: false },
+      ration: 1,
+      policies: { curfew: false, propaganda: false, overtime: false },
       conspiracy: 8,
       growthT: 0,
       declineT: 0,
@@ -90,6 +110,9 @@ export function createGame(seed: number): GameState {
     kills: {},
     research: 0,
     techs: [],
+    edicts: [],
+    nextEdictAt: 0,
+    crewSkins: { foreur: DEFAULT_SKIN, garde: DEFAULT_SKIN },
     cityLevel: 0,
     conquered: [],
     sectorStart: { [REGIONS[0].id]: 0 },
@@ -159,6 +182,8 @@ export function stepGame(state: GameState): void {
     updateRepairs(state);
     updateHazards(state);
     updateSettlement(state);
+    updateDiscoveries(state);
+    updateFoodWatch(state);
     updateGas(state);
     updateSeismic(state);
     updateProgress(state);
@@ -191,10 +216,11 @@ function updateSettlement(state: GameState): void {
   const place = state.settlement;
   if (!place || place.reached || !tileAt(state, place.x, place.y)?.seen) return;
   place.reached = true;
+  place.reachedAt = state.time;
   state.city.population += CITY_SETTLERS;
   addStock(state, 'ore', 20);
   addStock(state, 'stone', 15);
-  addStock(state, 'food', 40);
+  addStock(state, 'food', 100);
   spawnCityMiners(state);
   // The city's requests start now that there is a city to ask.
   state.nextContractAt = state.time + FIRST_CONTRACT_AT;
@@ -212,6 +238,22 @@ function updateSettlement(state: GameState): void {
     { kind: 'voice', id: 'reunited' },
     { kind: 'burst', x: place.x + 0.5, y: place.y + 0.5, color: 0x35e0c2 },
   );
+}
+
+/** The first sight of each new thing brings someone from the council to explain it. */
+const DISCOVERIES: readonly (readonly [string, (k: TileKind) => boolean])[] = [
+  ['chasmSeen', (k) => k === 'chasm' || k === 'bridge'],
+  ['oilSeen', (k) => k === 'oilSeep'],
+  ['fumaroleSeen', (k) => k === 'fumarole'],
+  ['mossSeen', (k) => k === 'moss'],
+  ['tungstenSeen', (k) => k === 'tungstenSeam'],
+];
+
+function updateDiscoveries(state: GameState): void {
+  const { flags } = state.story;
+  for (const [flag, matches] of DISCOVERIES) {
+    if (!flags[flag] && state.tiles.some((t) => t.seen && matches(t.k))) flags[flag] = true;
+  }
 }
 
 function updateHazards(state: GameState): void {
@@ -287,7 +329,7 @@ export function designateArea(
       if (!t || !t.seen) continue;
       if (WALLS[t.k]) targets.push({ x, y, kind: 'drill' });
       else if (t.k === 'rubble') targets.push({ x, y, kind: 'clear' });
-      else if (t.k === 'fungus') targets.push({ x, y, kind: 'harvest' });
+      else if (t.k === 'fungus' || t.k === 'moss') targets.push({ x, y, kind: 'harvest' });
     }
   }
   const unmarked = targets.filter(
@@ -316,7 +358,10 @@ export function canPlaceBuilding(
     for (let dx = 0; dx < def.size; dx++) {
       const t = tileAt(state, x + dx, y + dy);
       if (!t || !t.seen) return { ok: false, reason: 'Zone inexplorée.' };
-      if (t.k !== 'floor' && t.k !== 'path') {
+      if (def.on && t.k !== def.on) {
+        return { ok: false, reason: `${def.name} : à poser sur : ${TILE_NAMES[def.on]}.` };
+      }
+      if (!def.on && t.k !== 'floor' && t.k !== 'path') {
         return { ok: false, reason: `Impossible de bâtir ici : ${TILE_NAMES[t.k]}.` };
       }
       if (state.buildings.some((b) => tileIsUnder(b.type, b.x, b.y, x + dx, y + dy))) {
@@ -395,6 +440,35 @@ export function placePath(
     }
   }
   // Everything was already queued: this drag is a cancellation, as it is for drilling.
+  if (count === 0) for (const id of queued) removeJob(state, id);
+  return count;
+}
+
+/** Marks a line of void, water or lava to be spanned. Dragging over what is marked cancels it. */
+export function placeBridge(
+  state: GameState,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): number {
+  const [minX, maxX] = x0 < x1 ? [x0, x1] : [x1, x0];
+  const [minY, maxY] = y0 < y1 ? [y0, y1] : [y1, y0];
+  let count = 0;
+  const queued: number[] = [];
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      const t = tileAt(state, x, y);
+      if (!t?.seen || !isBridgeable(t.k)) continue;
+      const job = state.jobs.find((j) => j.kind === 'bridge' && j.x === x && j.y === y);
+      if (job) {
+        queued.push(job.id);
+        continue;
+      }
+      addJob(state, 'bridge', x, y);
+      count++;
+    }
+  }
   if (count === 0) for (const id of queued) removeJob(state, id);
   return count;
 }
@@ -504,6 +578,25 @@ export function orderMove(state: GameState, unitIds: number[], x: number, y: num
 export const setTaxLevel = (state: GameState, level: 0 | 1 | 2 | 3): void => {
   state.city.taxLevel = level;
 };
+
+export function setRation(state: GameState, level: 0 | 1 | 2): void {
+  state.city.ration = level;
+}
+
+/** What the whole crew wears from now on, those with their own outfit put back in line. */
+export function setCrewSkin(state: GameState, type: 'foreur' | 'garde', id: string): boolean {
+  if (skinLock(state, id) !== null) return false;
+  state.crewSkins[type] = id;
+  for (const unit of state.units) if (unit.type === type) delete unit.skin;
+  return true;
+}
+
+export function setUnitSkin(state: GameState, unitId: number, id: string): boolean {
+  const unit = state.units.find((u) => u.id === unitId);
+  if (!unit || skinLock(state, id) !== null) return false;
+  unit.skin = id;
+  return true;
+}
 
 export const togglePolicy = (state: GameState, policy: PolicyId): void => {
   state.city.policies[policy] = !state.city.policies[policy];

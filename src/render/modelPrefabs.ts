@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BUILDINGS } from '../data/buildings';
 import type { DrillTool } from '../data/resources';
+import { skinById, type SkinDef } from '../data/skins';
 import type { BuildingType, EnemyType, ResourceId, UnitType } from '../sim/types';
 import type { ModelId } from './assetManifest';
 import { hasModels, placeCharacter, placeModel } from './assets';
@@ -629,6 +630,186 @@ const BUILDING_MODELS: Record<BuildingType, BuildingModel> = {
       { shape: 'box', color: RUST, x: -0.34, y: 0.28, z: -0.1, w: 0.07, h: 0.07, d: 0.8 },
     ],
   },
+  derrick: {
+    trim: 0x8a6ad0,
+    parts: [],
+    accents: [{ color: 0xff5a5a, y: 1.5, size: 0.04 }],
+    details: [
+      // The tower: four legs leaning in, cross-braced.
+      { shape: 'box', color: RUST, x: -0.3, y: 0.68, z: -0.3, w: 0.05, h: 1.28, d: 0.05 },
+      { shape: 'box', color: RUST, x: 0.3, y: 0.68, z: -0.3, w: 0.05, h: 1.28, d: 0.05 },
+      { shape: 'box', color: RUST, x: -0.3, y: 0.68, z: 0.3, w: 0.05, h: 1.28, d: 0.05 },
+      { shape: 'box', color: RUST, x: 0.3, y: 0.68, z: 0.3, w: 0.05, h: 1.28, d: 0.05 },
+      { shape: 'box', color: STEEL, y: 0.5, w: 0.68, h: 0.04, d: 0.68 },
+      { shape: 'box', color: STEEL, y: 0.95, w: 0.68, h: 0.04, d: 0.68 },
+      { shape: 'box', color: DARK, y: 1.34, w: 0.7, h: 0.06, d: 0.7 },
+      { shape: 'cyl', color: DARK, y: 0.3, w: 0.12, h: 0.5, d: 0.12 },
+      { shape: 'cyl', color: 0x8a6ad0, glow: true, y: 0.09, w: 0.34, h: 0.03, d: 0.34 },
+    ],
+  },
+  gascap: {
+    trim: 0xc9c43a,
+    parts: [{ model: 'barrelMachine', fit: 0.56 }],
+    accents: [{ color: 0xc9c43a, y: 0.66, size: 0.08 }],
+    details: [
+      { shape: 'cyl', color: STEEL, x: 0.3, y: 0.3, z: 0.3, w: 0.08, h: 0.6, d: 0.08 },
+      { shape: 'dome', color: DARK, x: 0.3, y: 0.6, z: 0.3, w: 0.1, h: 0.08, d: 0.1 },
+    ],
+  },
+  fuelplant: {
+    trim: 0x8a6ad0,
+    parts: [
+      { model: 'generator', fit: 1.2, x: -0.3, z: 0.2 },
+      { model: 'chimney', fit: 0.22, x: 0.64, z: -0.64 },
+    ],
+    accents: [{ color: 0xff8c3a, x: 0.64, z: -0.64, y: 1.28, size: 0.05, smoke: true }],
+    details: [
+      { shape: 'cyl', color: DARK, x: 0.56, y: 0.3, z: 0.46, w: 0.5, h: 0.6, d: 0.5 },
+      { shape: 'dome', color: RUST, x: 0.56, y: 0.6, z: 0.46, w: 0.25, h: 0.12, d: 0.25 },
+      { shape: 'box', color: STEEL, x: 0.56, y: 0.2, z: -0.1, w: 0.06, h: 0.06, d: 0.8 },
+    ],
+  },
+  rubberworks: {
+    trim: 0xc9b48a,
+    parts: [{ model: 'hangarSmallA', fit: 1.15, x: -0.25, z: -0.25 }],
+    accents: [{ color: 0xc9b48a, x: 0.6, z: 0.6, y: 0.62, size: 0.07 }],
+    details: [
+      { shape: 'cyl', color: STEEL, x: 0.6, y: 0.3, z: 0.6, w: 0.5, h: 0.6, d: 0.5 },
+      { shape: 'box', color: 0x2a2a30, x: -0.3, y: 0.14, z: 0.68, w: 0.8, h: 0.14, d: 0.34 },
+      { shape: 'cyl', color: RUST, x: 0.62, y: 0.42, z: -0.45, w: 0.28, h: 0.84, d: 0.28 },
+    ],
+  },
+  tyreshop: {
+    trim: 0x8a8f98,
+    parts: [{ model: 'hangarSmallB', fit: 1.1, x: -0.3, z: -0.3 }],
+    accents: [{ color: 0x8a8f98, x: -0.3, z: 0.6, y: 0.55, size: 0.05 }],
+    details: [
+      // Stacks of tyres in the yard: the only thing here anyone would recognise.
+      {
+        shape: 'ring',
+        color: 0x1f1f24,
+        x: 0.55,
+        y: 0.12,
+        z: 0.55,
+        w: 0.34,
+        h: 0.34,
+        d: 0.34,
+        tilt: 1.57,
+      },
+      {
+        shape: 'ring',
+        color: 0x1f1f24,
+        x: 0.55,
+        y: 0.24,
+        z: 0.55,
+        w: 0.34,
+        h: 0.34,
+        d: 0.34,
+        tilt: 1.57,
+      },
+      {
+        shape: 'ring',
+        color: 0x1f1f24,
+        x: 0.55,
+        y: 0.36,
+        z: 0.55,
+        w: 0.34,
+        h: 0.34,
+        d: 0.34,
+        tilt: 1.57,
+      },
+      {
+        shape: 'ring',
+        color: 0x1f1f24,
+        x: 0.1,
+        y: 0.12,
+        z: 0.68,
+        w: 0.3,
+        h: 0.3,
+        d: 0.3,
+        tilt: 1.57,
+      },
+      {
+        shape: 'ring',
+        color: 0x1f1f24,
+        x: 0.1,
+        y: 0.24,
+        z: 0.68,
+        w: 0.3,
+        h: 0.3,
+        d: 0.3,
+        tilt: 1.57,
+      },
+    ],
+  },
+  algae: {
+    trim: GREEN,
+    parts: [{ model: 'platformLarge', fit: 1.86 }],
+    accents: [{ color: 0x6affb0, y: 0.5, size: 0.08 }],
+    details: [
+      {
+        shape: 'cyl',
+        color: 0x3ad08a,
+        glow: true,
+        x: -0.45,
+        y: 0.42,
+        z: -0.45,
+        w: 0.6,
+        h: 0.6,
+        d: 0.6,
+      },
+      {
+        shape: 'cyl',
+        color: 0x3ad08a,
+        glow: true,
+        x: 0.45,
+        y: 0.42,
+        z: -0.45,
+        w: 0.6,
+        h: 0.6,
+        d: 0.6,
+      },
+      {
+        shape: 'cyl',
+        color: 0x3ad08a,
+        glow: true,
+        x: -0.45,
+        y: 0.42,
+        z: 0.45,
+        w: 0.6,
+        h: 0.6,
+        d: 0.6,
+      },
+      {
+        shape: 'cyl',
+        color: 0x3ad08a,
+        glow: true,
+        x: 0.45,
+        y: 0.42,
+        z: 0.45,
+        w: 0.6,
+        h: 0.6,
+        d: 0.6,
+      },
+    ],
+  },
+  vivarium: {
+    trim: 0xa83a2a,
+    parts: [],
+    accents: [{ color: 0xd8562a, y: 0.42, size: 0.06 }],
+    details: [
+      { shape: 'box', color: DARK, y: 0.17, w: 0.8, h: 0.2, d: 0.8 },
+      { shape: 'box', color: 0x8a3a24, glow: true, y: 0.28, w: 0.68, h: 0.02, d: 0.68 },
+      { shape: 'box', color: STEEL, y: 0.33, w: 0.8, h: 0.03, d: 0.04 },
+      { shape: 'box', color: STEEL, y: 0.33, w: 0.04, h: 0.03, d: 0.8 },
+    ],
+  },
+  bigturret: {
+    trim: RED,
+    parts: [{ model: 'turret', fit: 0.82 }],
+    accents: [{ color: RED, y: 0.62, size: 0.07 }],
+    details: [{ shape: 'cyl', color: 0x7d8fb0, y: 0.14, w: 0.8, h: 0.14, d: 0.8 }],
+  },
   silo: {
     trim: TEAL,
     parts: [],
@@ -890,15 +1071,66 @@ function attach(
   character.getObjectByName(bone)?.add(item);
 }
 
-function hardHat(): THREE.Object3D {
+/** What's on the head says who this is, from any distance. */
+function headgear(skin: SkinDef): THREE.Object3D {
   const hat = new THREE.Group();
-  const shell = new THREE.Mesh(capGeometry, new THREE.MeshLambertMaterial({ color: 0xf0c24b }));
-  shell.scale.set(0.2, 0.15, 0.2);
-  const lamp = new THREE.Mesh(ballGeometry, glow(AMBER));
+  const paint = new THREE.MeshLambertMaterial({ color: skin.hat });
+  const lamp = new THREE.Mesh(ballGeometry, glow(skin.lamp));
   lamp.scale.setScalar(0.045);
   lamp.position.set(0, 0.07, 0.19);
+  const shell = new THREE.Mesh(capGeometry, paint);
+  shell.scale.set(0.2, 0.15, 0.2);
   hat.add(shell, lamp);
+  if (skin.headgear === 'dome') {
+    shell.scale.set(0.235, 0.24, 0.235);
+    shell.position.y = -0.05;
+    lamp.position.set(0, 0.08, 0.215);
+  } else if (skin.headgear === 'hood') {
+    shell.scale.set(0.25, 0.36, 0.25);
+    shell.position.y = -0.14;
+    lamp.position.set(0, 0.02, 0.24);
+    lamp.scale.setScalar(0.03);
+  } else if (skin.headgear === 'goggles') {
+    for (const side of [-1, 1]) {
+      const lens = new THREE.Mesh(ballGeometry, glow(skin.lamp));
+      lens.scale.setScalar(0.05);
+      lens.position.set(side * 0.08, -0.08, 0.2);
+      hat.add(lens);
+    }
+    lamp.visible = false;
+  } else if (skin.headgear === 'cap') {
+    shell.scale.set(0.2, 0.1, 0.2);
+    const peak = new THREE.Mesh(cylinderGeometry, paint);
+    peak.scale.set(0.15, 0.015, 0.14);
+    peak.position.set(0, 0.015, 0.17);
+    hat.add(peak);
+    lamp.position.set(0, 0.06, 0.2);
+    lamp.scale.setScalar(0.03);
+  }
   return hat;
+}
+
+/** Shared between everyone in the same outfit, so that a crew stays cheap to draw. */
+const suitMaterials = new Map<string, THREE.Material>();
+
+/** Puts the outfit on: the face stays as it is, and what's carried is attached afterwards. */
+function dress(body: THREE.Object3D, suit: number | null): void {
+  if (suit === null) return;
+  const head = body.getObjectByName('head');
+  body.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    for (let up: THREE.Object3D | null = child; up; up = up.parent) if (up === head) return;
+    const source = child.material as THREE.MeshStandardMaterial;
+    const key = `${source.uuid}${suit}`;
+    let material = suitMaterials.get(key);
+    if (!material) {
+      const copy = source.clone();
+      copy.color.setHex(suit);
+      material = copy;
+      suitMaterials.set(key, copy);
+    }
+    child.material = material;
+  });
 }
 
 /**
@@ -1002,13 +1234,20 @@ function characterGroup(
 }
 
 let foreurCount = 0;
+const SKIN_AS_ISSUED = 'ash';
 
-export function unitFromModels(type: UnitType, tool: DrillTool): THREE.Group | null {
+export function unitFromModels(
+  type: UnitType,
+  tool: DrillTool,
+  skinId?: string,
+): THREE.Group | null {
+  const skin = skinById(skinId);
   switch (type) {
     case 'foreur': {
       const made = characterGroup(foreurCount++ % 2 === 0 ? 'foreurA' : 'foreurB', 1);
       if (!made) return null;
-      attach(made.body, 'head', hardHat(), [0, 0.3, 0]);
+      dress(made.body, skin.suit);
+      attach(made.body, 'head', headgear(skin), [0, 0.3, 0]);
       if (tool === 'pick') {
         attach(made.body, 'arm-right', pickaxe(), [0, -0.27, 0.2]);
       } else if (tool === 'hammer') {
@@ -1021,12 +1260,16 @@ export function unitFromModels(type: UnitType, tool: DrillTool): THREE.Group | n
       }
       made.group.userData.tool = tool;
       // The headlamp's light on the floor: the cave feels darker around it.
-      made.group.add(groundGlow(AMBER, 2.4, 0.22));
+      made.group.add(groundGlow(skin.lamp, 2.4, 0.22));
       return made.group;
     }
     case 'garde': {
       const made = characterGroup('garde', 1);
       if (!made) return null;
+      dress(made.body, skin.suit);
+      // The guard's own helmet is the one that comes with the model, until they're dressed otherwise.
+      if (skinId && skinId !== SKIN_AS_ISSUED)
+        attach(made.body, 'head', headgear(skin), [0, 0.3, 0]);
       attach(made.body, 'arm-right', pistol(), [-0.27, 0, 0]);
       return made.group;
     }
@@ -1042,6 +1285,26 @@ export function unitFromModels(type: UnitType, tool: DrillTool): THREE.Group | n
       const model = placeModel('rover', 0.7);
       if (!model) return null;
       g.add(model);
+      return g;
+    }
+    case 'truck': {
+      const g = new THREE.Group();
+      const model = placeModel('rover', 1);
+      if (!model) return null;
+      g.add(model);
+      for (const side of [-1, 1]) {
+        g.add(
+          makeDetail({
+            shape: 'box',
+            color: 0x2a2a30,
+            x: side * 0.34,
+            y: 0.1,
+            w: 0.1,
+            h: 0.2,
+            d: 0.72,
+          }),
+        );
+      }
       return g;
     }
   }

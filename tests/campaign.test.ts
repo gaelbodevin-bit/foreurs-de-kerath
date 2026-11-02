@@ -68,7 +68,7 @@ describe('monde unique', () => {
     updateProgress(state);
     expect(state.conquered).toEqual(['ash']);
     expect(planetControl(state)).toBe(regionById('ash').control);
-    expect(activeRegions(state).map((r) => r.id)).toEqual(['glass', 'ice']);
+    expect(activeRegions(state).map((r) => r.id)).toEqual(['lumen', 'abyss', 'glass', 'ice']);
     expect(state.tiles).toBe(tiles);
   });
 

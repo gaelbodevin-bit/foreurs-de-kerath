@@ -73,6 +73,76 @@ courant), du sol technique, de CITY et de la roche qui brille : lave et cristal.
 chaque garde a sa lampe frontale, dirigée devant lui, et les machines ont leurs phares. Loin de tout
 cela, la roche se devine à peine, et un monstre aussi.
 
+## Les biomes
+
+Chaque secteur a la teinte de sa roche et sa géologie propre.
+
+| Secteur           | Ce qu'on y trouve                          |
+| ----------------- | ------------------------------------------ |
+| Val de Cendre     | Le point de départ, une première faille    |
+| Jardins de Lueur  | Grottes de mousse luminescente, comestible |
+| Gouffre d'Ombre   | Failles sans fond, pétrole, fumerolles     |
+| Failles de Verre  | Cristal et gorges                          |
+| Banquise Noire    | Glace et eau                               |
+| Bassin de Soufre  | Soufre, gaz, fumerolles, rivière de lave   |
+| Concession Vantor | Tungstène, pétrole                         |
+| Mer de Magma      | Rivières de lave, reliques                 |
+| Le Noyau          | Un peu de tout, en pire                    |
+
+**Gouffres.** Rien ne les franchit sans pont : ni les foreurs, ni la Faune. L'outil Pont (touche B)
+trace une ligne droite au-dessus du vide, de l'eau ou de la lave. Un foreur pose les travées depuis
+le bord, à 3 roches et 2 minerais la case. Un pont porte le courant et ne se démonte pas.
+
+**Fumerolles.** Une fois découverte, une fumerolle souffle 5 s toutes les 40 s. Le captage de gaz,
+posé dessus, la fait taire et produit de l'énergie sans combustible.
+
+**Mousse.** Elle éclaire et se récolte comme les champignons, pour un peu moins de nourriture.
+
+## Les gisements et les chaînes de l'industrie
+
+```text
+Suintement ─► Derrick ─► Pétrole ─┬─► Centrale au fioul ─► Énergie
+                                  └─► Usine de caoutchouc (+ soufre) ─► Caoutchouc
+Caoutchouc + Métal ─► Atelier de pneus ─► Pneus ─┬─► Camion
+                                                 └─► Train tout-terrain (recherche)
+Filon de tungstène (laser) ─┬─► Forets au tungstène (recherche)
+                            └─► Tourelle à obus
+```
+
+Le derrick et le captage se posent uniquement sur leur gisement. Le panneau Production (touche N)
+liste chaque usine, sa recette et ce qui la bloque.
+
+## Les vivres
+
+Chaque bouche mange un tiers de part par minute dès que CITY est rejointe. Une serre nourrit environ
+45 personnes si elle a de l'eau. Le panneau Production donne le bilan, les minutes de réserve et fixe
+les rations : demi-rations (60 %, moral −12), normales ou copieuses (140 %, moral +6).
+
+Krell ouvre une fenêtre pour tout expliquer peu après l'arrivée à CITY, puis revient quand il reste
+moins de trois minutes de vivres, et quand les silos sont vides.
+
+## Les édits
+
+Le registre (touche L) reprend le principe du livre de lois de Frostpunk. Un édit se signe pour
+toujours, il faut 150 s entre deux signatures, et beaucoup en excluent un autre. Trois branches :
+Survie (soupe allongée ou assiette garantie, quarts de quatorze heures ou jour sans forage, viande de
+galerie, puis « Rien ne se perd » ou l'Ossuaire), Ordre (garde de quartier, informateurs ou conseil
+ouvert, tribunal d'exception), Croyance (serment de la Charte ou veillée du Dormeur, puis offrandes).
+Les plus durs ont leurs conséquences dans l'histoire.
+
+## Les tenues
+
+Le panneau Tenues (touche U) habille les foreurs et les gardes. Certaines tenues se gagnent en
+conquérant un secteur, en abattant 40 ennemis ou en signant un édit. Une unité sélectionnée peut
+porter sa propre tenue.
+
+## L'intrigue
+
+Sous le complot du conseil, une autre histoire remonte par morceaux : ce qui frappe derrière la paroi,
+les plaques de la Charte plus vieilles que la première expédition, l'éboulement qui n'en était pas un,
+le rêve commun des Jardins, ce qui appelle au fond du gouffre, la directive qui avait tout prévu, et
+ce que le Noyau a de commun avec les horaires de la cité.
+
 ## Le sol technique
 
 Un glisser trace une ligne droite sur l'axe le plus long. Pour tourner, on repart de son extrémité.
@@ -98,7 +168,9 @@ Minerai ─► Raffinerie ─► Métal ─┐
                                 ├─► Forge ─► Alliage
 Soufre ─────────────────────────┘
 
-Glace ─► Fondoir ─► Eau ─► Serre ─► Nourriture
+Glace ─► Fondoir ─► Eau ─┬─► Serre ─► Nourriture
+                         └─► Cuve à algues ─► Nourriture
+Édit ─► Vivier à larves ─► Nourriture
 Cristal ─► Centrale ─► Énergie
 Or ─► Marché ─► Crédits
 Citoyens ─► Impôts ─► Crédits

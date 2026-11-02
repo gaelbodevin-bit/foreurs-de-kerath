@@ -4,7 +4,7 @@ import { isWallKind } from '../sim/grid';
 import type { GameState, Tile } from '../sim/types';
 import type { ModelId } from './assetManifest';
 import { getTexture, placeModel } from './assets';
-import { WALL_HEIGHT } from './terrain';
+import { bridgeRunsAlongX, WALL_HEIGHT } from './terrain';
 
 const grain = (i: number) => {
   const v = Math.sin(i * 91.7) * 24634.6345;
@@ -35,6 +35,15 @@ const MAX_MUSHROOMS = 1800;
 const CAP_COLORS = [0x9ccc5a, 0xc7e07a, 0x7fb04a, 0xe0c26a].map((c) => new THREE.Color(c));
 /** A freshly picked patch only has small ones left, until it grows back. */
 const PICKED_SCALE = 0.35;
+
+const MAX_GLOW_CAPS = 2600;
+const GLOW_CAPS_PER_TILE = 5;
+const GLOW_CAP_COLORS = [0x35e0c2, 0x7fd8ff, 0xb79cff, 0x6affb0].map((c) =>
+  new THREE.Color(c).multiplyScalar(1.05),
+);
+const MAX_RAILS = 900;
+const RAIL_SIDE = 0.45;
+const RAIL_HEIGHT = 0.26;
 
 const MAX_PEBBLES = 3200;
 const MAX_LICHEN = 1100;
@@ -112,6 +121,28 @@ function makeGroundDetail() {
   return { pebbles, lichen, poles, heads, pools };
 }
 
+/** What grows in the Gardens: lit from within, so that they show however dark it is. */
+function makeGlowGrowth(): { caps: THREE.InstancedMesh; sprigs: THREE.InstancedMesh } {
+  const capShape = new THREE.SphereGeometry(1, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2);
+  const sprigShape = new THREE.ConeGeometry(0.5, 1, 5);
+  sprigShape.translate(0, 0.5, 0);
+  const material = () => new THREE.MeshBasicMaterial({ color: 0xffffff });
+  return {
+    caps: instanced(capShape, material(), MAX_GLOW_CAPS),
+    sprigs: instanced(sprigShape, material(), MAX_GLOW_CAPS),
+  };
+}
+
+function makeRails(): THREE.InstancedMesh {
+  const mesh = instanced(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x6d6258, roughness: 0.75, metalness: 0.35 }),
+    MAX_RAILS,
+  );
+  mesh.castShadow = true;
+  return mesh;
+}
+
 function makeMushrooms(): { stems: THREE.InstancedMesh; caps: THREE.InstancedMesh } {
   const stemShape = new THREE.CylinderGeometry(0.5, 0.75, 1, 7);
   stemShape.translate(0, 0.5, 0);
@@ -178,6 +209,10 @@ export class DecorView {
   private readonly spikes = makeSpikes();
   private readonly mushrooms = makeMushrooms();
   private readonly ground = makeGroundDetail();
+  private readonly glowGrowth = makeGlowGrowth();
+  private readonly rails = makeRails();
+  /** Where smoke rises from: the view lets it out. */
+  fumaroles: { x: number; y: number }[] = [];
   private buildingCount = -1;
 
   constructor(
@@ -190,10 +225,20 @@ export class DecorView {
       this.mushrooms.stems,
       this.mushrooms.caps,
       ...Object.values(this.ground),
+      ...Object.values(this.glowGrowth),
+      this.rails,
     );
     this.rebuildSpikes();
     this.rebuildMushrooms();
     this.rebuildGround();
+  }
+
+  /** The moss and the lichen breathe, all together. */
+  update(time: number): void {
+    const breath = 1 + Math.sin(time * 0.8) * 0.3;
+    (this.glowGrowth.caps.material as THREE.MeshBasicMaterial).color.setScalar(breath);
+    (this.glowGrowth.sprigs.material as THREE.MeshBasicMaterial).color.setScalar(breath);
+    (this.ground.lichen.material as THREE.MeshBasicMaterial).color.setScalar(breath);
   }
 
   /** A wall's height depends on its neighbours, so those are refreshed along with it. */
@@ -264,8 +309,42 @@ export class DecorView {
     const noTurn = new THREE.Quaternion();
     const scale = new THREE.Vector3();
     let count = 0;
+    const { caps: glowCaps, sprigs } = this.glowGrowth;
+    let glowing = 0;
     for (let i = 0; i < state.tiles.length; i++) {
       const tile = state.tiles[i];
+      if (tile.seen && tile.k === 'moss') {
+        const x = i % state.w;
+        const y = Math.floor(i / state.w);
+        const growth = tile.regrow > 0 ? PICKED_SCALE : 1;
+        for (let n = 0; n < GLOW_CAPS_PER_TILE && glowing < MAX_GLOW_CAPS; n++) {
+          const seed = i * 11 + n * 19;
+          const px = x + 0.08 + grain(seed + 1) * 0.84;
+          const pz = y + 0.08 + grain(seed + 2) * 0.84;
+          const size = (0.025 + grain(seed + 3) * 0.05) * growth;
+          const tint = GLOW_CAP_COLORS[Math.floor(grain(seed + 5) * GLOW_CAP_COLORS.length)];
+          glowCaps.setMatrixAt(
+            glowing,
+            matrix.compose(
+              position.set(px, 0.01, pz),
+              noTurn,
+              scale.set(size * 1.5, size, size * 1.5),
+            ),
+          );
+          sprigs.setMatrixAt(
+            glowing,
+            matrix.compose(
+              position.set(px + size, 0, pz - size),
+              noTurn,
+              scale.set(size * 0.5, size * (2 + grain(seed + 6) * 4), size * 0.5),
+            ),
+          );
+          glowCaps.setColorAt(glowing, tint);
+          sprigs.setColorAt(glowing, tint);
+          glowing++;
+        }
+        continue;
+      }
       if (!tile.seen || tile.k !== 'fungus') continue;
       const x = i % state.w;
       const y = Math.floor(i / state.w);
@@ -291,6 +370,12 @@ export class DecorView {
         caps.setColorAt(count, CAP_COLORS[Math.floor(grain(seed + 5) * CAP_COLORS.length)]);
         count++;
       }
+    }
+    glowCaps.count = glowing;
+    sprigs.count = glowing;
+    for (const mesh of [glowCaps, sprigs]) {
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
     stems.count = count;
     caps.count = count;
@@ -319,11 +404,46 @@ export class DecorView {
     let spots = 0;
     let lamps = 0;
     let lit = 0;
+    let railCount = 0;
+    this.fumaroles = [];
     for (let i = 0; i < state.tiles.length; i++) {
       const tile = state.tiles[i];
       if (!tile.seen || occupied.has(i)) continue;
       const x = i % state.w;
       const y = Math.floor(i / state.w);
+      if (tile.k === 'fumarole') this.fumaroles.push({ x, y });
+      if (tile.k === 'bridge') {
+        const alongX = bridgeRunsAlongX(state, x, y);
+        for (const side of [-RAIL_SIDE, RAIL_SIDE]) {
+          const rx = alongX ? x + 0.5 : x + 0.5 + side;
+          const rz = alongX ? y + 0.5 + side : y + 0.5;
+          if (railCount + 2 > MAX_RAILS) break;
+          this.rails.setMatrixAt(
+            railCount++,
+            matrix.compose(
+              position.set(rx, RAIL_HEIGHT, rz),
+              turn.identity(),
+              scale.set(alongX ? 1 : 0.035, 0.035, alongX ? 0.035 : 1),
+            ),
+          );
+          this.rails.setMatrixAt(
+            railCount++,
+            matrix.compose(
+              position.set(rx, RAIL_HEIGHT / 2, rz),
+              turn.identity(),
+              scale.set(0.05, RAIL_HEIGHT, 0.05),
+            ),
+          );
+        }
+        if (tile.powered && (x + y) % LAMP_SPACING === 0 && lit < MAX_LAMPS) {
+          const px = alongX ? x + 0.5 : x + 0.5 + RAIL_SIDE;
+          const pz = alongX ? y + 0.5 + RAIL_SIDE : y + 0.5;
+          heads.setMatrixAt(lit, matrix.makeTranslation(px, RAIL_HEIGHT + 0.08, pz));
+          pools.setMatrixAt(lit, matrix.makeScale(3, 1, 3).setPosition(px, 0.08, pz));
+          lit++;
+        }
+        continue;
+      }
       if (tile.k === 'path') {
         if ((x + y) % LAMP_SPACING !== 0 || lamps >= MAX_LAMPS) continue;
         const px = x + 0.14;
@@ -375,6 +495,8 @@ export class DecorView {
     }
     pebbles.count = stones;
     lichen.count = spots;
+    this.rails.count = railCount;
+    this.rails.instanceMatrix.needsUpdate = true;
     poles.count = lamps;
     heads.count = pools.count = lit;
     for (const mesh of Object.values(this.ground)) mesh.instanceMatrix.needsUpdate = true;
@@ -425,7 +547,13 @@ export class DecorView {
     this.spikes.geometry.dispose();
     (this.spikes.material as THREE.Material).dispose();
     this.spikes.dispose();
-    for (const mesh of [this.mushrooms.stems, this.mushrooms.caps, ...Object.values(this.ground)]) {
+    for (const mesh of [
+      this.mushrooms.stems,
+      this.mushrooms.caps,
+      ...Object.values(this.ground),
+      ...Object.values(this.glowGrowth),
+      this.rails,
+    ]) {
       mesh.geometry.dispose();
       (mesh.material as THREE.Material).dispose();
       mesh.dispose();

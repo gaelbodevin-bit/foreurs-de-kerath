@@ -11,7 +11,19 @@ export const tileAt = (g: Grid, x: number, y: number): Tile | undefined =>
 
 export const isWallKind = (k: TileKind): boolean => k === 'solid' || WALLS[k] !== undefined;
 export const isWalkableKind = (k: TileKind): boolean =>
-  k === 'floor' || k === 'rubble' || k === 'path' || k === 'fungus';
+  k === 'floor' ||
+  k === 'rubble' ||
+  k === 'path' ||
+  k === 'fungus' ||
+  k === 'moss' ||
+  k === 'oilSeep' ||
+  k === 'fumarole' ||
+  k === 'bridge';
+/** Road and bridge have the cable in them. */
+export const carriesCurrent = (k: TileKind): boolean => k === 'path' || k === 'bridge';
+/** What a bridge can be thrown over. */
+export const isBridgeable = (k: TileKind): boolean =>
+  k === 'chasm' || k === 'water' || k === 'lava';
 
 export const NEIGHBORS4: readonly (readonly [number, number])[] = [
   [1, 0],

@@ -17,18 +17,23 @@ export type Effect =
   | { kind: 'spawn'; enemy: EnemyType; count: number }
   | { kind: 'sabotage'; count: number }
   | { kind: 'accuse'; advisor: AdvisorId }
-  | { kind: 'governor'; trait: GovernorTraitId };
+  | { kind: 'governor'; trait: GovernorTraitId }
+  | { kind: 'ration'; level: 0 | 1 | 2 };
 
 export interface StoryChoice {
   label: string;
   effects: Effect[];
   /** Hidden unless every flag listed is set. */
   needsFlags?: string[];
+  /** The panel this choice takes the player to. */
+  opens?: 'production' | 'edicts';
 }
 
 export interface StoryTrigger {
   regions?: string[];
   minTime?: number;
+  /** Seconds since the expedition reached CITY. */
+  sinceCity?: number;
   flags?: string[];
   noFlags?: string[];
   minClues?: number;
@@ -91,6 +96,362 @@ export const STORY_EVENTS: StoryEvent[] = [
         effects: [{ kind: 'governor', trait: 'prospector' }],
       },
       { label: 'Un stratège (dégâts +20 %)', effects: [{ kind: 'governor', trait: 'warlord' }] },
+    ],
+  },
+  {
+    id: 'food_intro',
+    speaker: 'Tomas Krell',
+    title: 'Ce que mangent vos gens',
+    text: "Gouverneur, un mot sur ce qui fera tomber cette cité bien avant Vantor : la faim.\n\nChaque bouche, citoyen ou foreur, mange un tiers de ration par minute. Depuis que nous sommes ici, les réserves baissent, et personne ne les remplit.\n\nLa chaîne est simple : de la glace forée, un fondoir qui en fait de l'eau, une serre qui en fait de la nourriture. Une serre nourrit à peu près quarante-cinq personnes. Les champignons et la mousse se récoltent à la main, en appoint.\n\nLe panneau Production (touche N) vous donne le compte exact : ce qui entre, ce qui sort, combien de minutes il nous reste. Vous y fixez aussi les rations.",
+    when: { flags: ['cityReached'], sinceCity: 40 },
+    choices: [
+      { label: 'Montrez-moi les comptes.', effects: [], opens: 'production' },
+      { label: 'Compris.', effects: [] },
+    ],
+  },
+  {
+    id: 'food_short',
+    speaker: 'Tomas Krell',
+    title: 'Les réserves fondent',
+    text: "J'ai refait le calcul trois fois, Gouverneur. À ce rythme, il nous reste moins de trois minutes de vivres.\n\nVérifiez d'abord la chaîne : une serre sans eau ne produit rien, un fondoir sans glace non plus, et rien ne tourne sans courant. Sinon, je peux réduire les parts dès ce soir. Ils me détesteront, puis ils vous détesteront.",
+    when: { flags: ['foodShort'] },
+    choices: [
+      { label: 'Ouvrir les comptes.', effects: [], opens: 'production' },
+      {
+        label: 'Passez aux demi-rations.',
+        effects: [{ kind: 'ration', level: 0 }],
+      },
+    ],
+  },
+  {
+    id: 'starving',
+    speaker: 'Tomas Krell',
+    title: 'Il n’y a plus rien',
+    text: "Les silos sont vides. Il n'y aura pas de distribution ce soir.\n\nSans vivres, le moral s'effondre et nous perdrons quelqu'un chaque minute. Les premiers sont déjà les plus vieux. Une serre met du temps à rendre : il faut tenir d'ici là, et il n'y a pas de bonne manière de le faire.",
+    when: { flags: ['starved'] },
+    choices: [
+      { label: 'Ouvrir les comptes.', effects: [], opens: 'production' },
+      {
+        label: 'Ouvrir les réserves de la Charte (+25 vivres, −60 crédits)',
+        effects: [
+          { kind: 'stock', res: 'food', amount: 25 },
+          { kind: 'stock', res: 'credits', amount: -60 },
+        ],
+      },
+      {
+        label: 'Les foreurs mangeront d’abord (+15 vivres, le complot monte)',
+        effects: [
+          { kind: 'stock', res: 'food', amount: 15 },
+          { kind: 'conspiracy', amount: 12 },
+          { kind: 'morale', amount: -8 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'edict_intro',
+    speaker: 'Tomas Krell',
+    title: 'Le registre des édits',
+    text: "Gouverneur, le registre de la Charte est sur votre table. Tout ce que vous y signez devient loi, et aucun édit ne s'abroge.\n\nCertains nourrissent, d'autres surveillent, d'autres rassurent ceux qui ont peur du noir. Beaucoup en excluent un autre : choisir, c'est fermer une porte pour de bon. Et la colonie a besoin de temps pour encaisser : un édit à la fois, avec un délai entre deux.\n\nPersonne ne vous demandera si c'était juste. Seulement si ça a marché.",
+    when: { flags: ['cityReached'], sinceCity: 110 },
+    choices: [
+      { label: 'Ouvrez le registre (touche L).', effects: [], opens: 'edicts' },
+      { label: 'Plus tard.', effects: [] },
+    ],
+  },
+  {
+    id: 'chasm_seen',
+    speaker: 'Orsa Veld',
+    title: 'Un gouffre',
+    text: "Regardez devant vous : la roche s'arrête. On a jeté une lampe, on ne l'a pas entendue toucher le fond.\n\nOn ne contourne pas ça, Chef : il faut un pont. L'outil Pont, dans le menu de construction : glissez sur le vide, et une équipe posera les travées une à une depuis le bord. Trois roches et deux minerais par case. Le pont porte aussi le courant.\n\nÇa marche au-dessus de l'eau et de la lave. Et n'oubliez pas qu'un pont, ça laisse aussi passer ce qui vit de l'autre côté.",
+    when: { flags: ['chasmSeen'] },
+    choices: [{ label: 'Compris.', effects: [] }],
+  },
+  {
+    id: 'oil_seen',
+    speaker: 'Dr Ilyane Soum',
+    title: 'La roche suinte',
+    text: "Ce noir sur le sol, c'est du pétrole, et il remonte tout seul. Ne me demandez pas comment une planète sans forêt en produit : je préfère ne pas y penser.\n\nLa recherche Pétrochimie permet de poser un derrick, sur le suintement et nulle part ailleurs. Le pétrole alimente une centrale au fioul, très puissante. Vulcanisé au soufre, il donne du caoutchouc, et le caoutchouc donne les pneus de nos camions.",
+    when: { flags: ['oilSeen', 'cityReached'] },
+    choices: [{ label: 'Bon à savoir.', effects: [] }],
+  },
+  {
+    id: 'fumarole_seen',
+    speaker: 'Orsa Veld',
+    title: 'Le sol respire',
+    text: "Cette fissure crache du gaz par bouffées, et ce n'est pas près de s'arrêter. Restez à distance quand ça souffle, ou posez un ventilateur.\n\nMieux : la recherche Captage des gaz permet de coiffer la fumerolle. Plus d'émanations, et de l'énergie gratuite. C'est le genre de chose qui sauve une colonie, si on n'y laisse pas d'abord une équipe.",
+    when: { flags: ['fumaroleSeen'] },
+    choices: [{ label: 'Compris.', effects: [] }],
+  },
+  {
+    id: 'moss_seen',
+    speaker: 'Dr Ilyane Soum',
+    title: 'De la lumière, ici',
+    text: "Une mousse qui brille d'elle-même. Elle éclaire la galerie, et elle se mange : glissez dessus pour la faire récolter, elle repousse en un peu plus d'une minute.\n\nJe note une chose, sans savoir encore quoi en faire : elle pulse. Toute la nappe, en même temps, et lentement. Comme une respiration.",
+    when: { flags: ['mossSeen'] },
+    choices: [{ label: 'Faites-en analyser.', effects: [{ kind: 'research', amount: 1 }] }],
+  },
+  {
+    id: 'tungsten_seen',
+    speaker: 'Orsa Veld',
+    title: 'Du tungstène',
+    text: "Ce filon gris-bleu, c'est du tungstène. Rien d'autre ne tient autant la chaleur. Seule une foreuse laser en viendra à bout, mais il vaut le détour : forets au tungstène, tourelles à obus.",
+    when: { flags: ['tungstenSeen', 'cityReached'] },
+    choices: [{ label: 'On y viendra.', effects: [] }],
+  },
+  {
+    id: 'knocking',
+    speaker: 'Contremaître Ilan Roche',
+    title: 'On frappe dans la roche',
+    text: "Gouverneur, l'équipe de nuit a posé ses outils. Ça frappe, derrière la paroi est. Trois coups, un silence, trois coups. Depuis deux jours, toujours à la même heure.\n\nÇa ne peut pas être des survivants. Personne n'a jamais creusé par là. La cité, en tout cas, prétend que non.",
+    when: { flags: ['cityReached'], sinceCity: 260 },
+    choices: [
+      {
+        label: 'Percez. Je veux savoir.',
+        effects: [
+          { kind: 'flag', flag: 'knockingOpened' },
+          { kind: 'morale', amount: -4 },
+          { kind: 'research', amount: 1 },
+        ],
+      },
+      {
+        label: 'Murez la galerie, et qu’on n’en parle plus.',
+        effects: [
+          { kind: 'flag', flag: 'knockingWalled' },
+          { kind: 'conspiracy', amount: 5 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'old_tags',
+    speaker: 'Contremaître Ilan Roche',
+    title: 'Les plaques',
+    text: "Il n'y avait personne derrière la paroi. Enfin, plus depuis longtemps. Neuf corps, assis en cercle, face à la roche, une pioche à la main. Ils portent des plaques de la Charte.\n\nLa date de la plus récente précède de quarante et un ans la « première expédition » que l'on enseigne à nos enfants.\n\nEt la paroi, de leur côté, est usée à hauteur de poing.",
+    when: { flags: ['knockingOpened'], sinceCity: 420 },
+    choices: [
+      {
+        label: 'Rapportez les plaques au laboratoire.',
+        effects: [
+          { kind: 'research', amount: 2 },
+          { kind: 'flag', flag: 'knowsOldExpedition' },
+        ],
+      },
+      {
+        label: 'Rebouchez. Ils n’ont jamais existé.',
+        effects: [
+          { kind: 'conspiracy', amount: 6 },
+          { kind: 'morale', amount: 3 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'city_secret',
+    speaker: 'Maren Oule, doyenne de CITY',
+    title: 'L’éboulement',
+    text: "Vous nous avez sauvés, on le répète partout. Alors je vais vous le dire une fois, Gouverneur.\n\nCet éboulement n'était pas un accident. C'est nous qui avons fait sauter la galerie, le jour où votre navette a été signalée. Pas pour vous nuire : pour que vous restiez de l'autre côté.\n\nChaque fois que quelqu'un creuse vers le bas, ici, ça finit de la même façon. Nos pères le savaient. La Charte aussi. Vous n'êtes pas la première colonie de Kerath. Vous êtes juste la première à qui on ne l'a pas dit.",
+    when: { flags: ['cityReached'], sinceCity: 620 },
+    choices: [
+      {
+        label: 'Écoutez-la jusqu’au bout, en privé.',
+        effects: [
+          { kind: 'flag', flag: 'cityTruth' },
+          { kind: 'research', amount: 2 },
+          { kind: 'conspiracy', amount: 4 },
+        ],
+      },
+      {
+        label: 'Sabotage d’une galerie : faites-la arrêter.',
+        effects: [
+          { kind: 'morale', amount: -10 },
+          { kind: 'conspiracy', amount: -6 },
+          { kind: 'flag', flag: 'marenJailed' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'lumen_dream',
+    speaker: 'Dr Ilyane Soum',
+    title: 'Le même rêve',
+    text: "J'ai interrogé séparément douze colons ayant dormi près des Jardins. Ils décrivent tous le même rêve : une pièce sans mur, une lumière qui respire, et quelqu'un de très grand, très patient, qui les écoute penser.\n\nC'est sans doute les spores. La mousse nourrit bien, et ceux qui en mangent ne se plaignent plus de rien.\n\nC'est justement ce qui m'inquiète.",
+    when: { regions: ['lumen'], minTime: 120 },
+    choices: [
+      {
+        label: 'Brûlez la nappe la plus proche (moral en baisse).',
+        effects: [
+          { kind: 'morale', amount: -6 },
+          { kind: 'conspiracy', amount: -6 },
+        ],
+      },
+      {
+        label: 'Récoltez davantage. Un homme qui rêve ne fait pas grève.',
+        effects: [
+          { kind: 'stock', res: 'food', amount: 30 },
+          { kind: 'morale', amount: 6 },
+          { kind: 'conspiracy', amount: 10 },
+          { kind: 'flag', flag: 'sporesEaten' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'lumen_walkers',
+    speaker: 'Tomas Krell',
+    title: 'Les marcheurs',
+    text: "Ce matin, un habitat entier a été retrouvé vide, lits faits. On a suivi les traces : ils ont marché pieds nus jusqu'à la paroi des Jardins, et ils se sont arrêtés là, le front contre la roche, les yeux ouverts.\n\nOn en a ramené la plupart. Ils ne se souviennent de rien. Il en manque un.",
+    when: { regions: ['lumen'], minTime: 380, flags: ['sporesEaten'] },
+    choices: [
+      {
+        label: 'Verrouillez les habitats la nuit.',
+        effects: [
+          { kind: 'population', amount: -1 },
+          { kind: 'morale', amount: -6 },
+        ],
+      },
+      {
+        label: 'Laissez-les dormir. Postez seulement un garde.',
+        effects: [
+          { kind: 'population', amount: -2 },
+          { kind: 'conspiracy', amount: 8 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'abyss_voices',
+    speaker: 'Orsa Veld',
+    title: 'Ce qui monte du noir',
+    text: "On a perdu Ansel Marr au bord du grand gouffre. Il n'a pas glissé. Son équipier dit qu'il a posé son casque, qu'il l'a posé bien droit, et qu'il a sauté en répondant à quelqu'un.\n\nLes hommes disent qu'on entend appeler leur nom, en bas. Le pire, c'est que je ne peux pas leur dire que c'est faux.",
+    when: { regions: ['abyss'], minTime: 110 },
+    choices: [
+      {
+        label: 'Garde-fous partout (−20 métal, −15 roche).',
+        effects: [
+          { kind: 'stock', res: 'metal', amount: -20 },
+          { kind: 'stock', res: 'stone', amount: -15 },
+          { kind: 'morale', amount: 7 },
+        ],
+      },
+      {
+        label: 'Descendez un micro. Soum veut entendre ça.',
+        effects: [
+          { kind: 'research', amount: 3 },
+          { kind: 'conspiracy', amount: 7 },
+          { kind: 'population', amount: -1 },
+          { kind: 'flag', flag: 'abyssListened' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'abyss_bridge',
+    speaker: 'Dr Ilyane Soum',
+    title: 'Le vieux pont',
+    text: "Une équipe a trouvé, trois failles plus loin, les restes d'un pont de câbles. Du matériel de la Charte, ancien modèle. Il ne mène nulle part : il s'arrête au milieu du vide, posé à la perfection, comme si ceux qui le construisaient n'avaient jamais eu l'intention de le finir.\n\nSur la dernière travée, quelqu'un a gravé une liste de noms. Et la dernière ligne n'est pas un nom : c'est un ordre de mission. « Continuer à descendre. Le rapport suivra. »",
+    when: { regions: ['abyss'], minTime: 340 },
+    choices: [
+      {
+        label: 'Récupérez les câbles.',
+        effects: [
+          { kind: 'stock', res: 'metal', amount: 12 },
+          { kind: 'flag', flag: 'knowsOldExpedition' },
+        ],
+      },
+      {
+        label: 'Coupez-le. Que rien ne remonte par là.',
+        effects: [{ kind: 'morale', amount: 4 }],
+      },
+    ],
+  },
+  {
+    id: 'charter_letter',
+    speaker: 'Directive de la Charte',
+    title: 'Ne pas diffuser',
+    text: "« Au gouverneur de la concession Kerath. Les navettes de relève sont suspendues jusqu'à nouvel ordre. Poursuivez le forage en direction du Noyau, quel qu'en soit le coût local.\n\nLa colonie n'a pas vocation à être rentable. Son rôle est d'atteindre la profondeur prévue. Les pertes sont intégrées au plan. »\n\nLe message a mis onze ans à vous parvenir. Il a été envoyé avant votre départ.",
+    when: { regions: ['sulfur'], minTime: 70 },
+    choices: [
+      {
+        label: 'Brûlez ça. Personne ne doit le lire.',
+        effects: [
+          { kind: 'conspiracy', amount: 8 },
+          { kind: 'flag', flag: 'letterHidden' },
+        ],
+      },
+      {
+        label: 'Lisez-le en place publique.',
+        effects: [
+          { kind: 'morale', amount: -14 },
+          { kind: 'conspiracy', amount: -14 },
+          { kind: 'flag', flag: 'letterRead' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'corpses_noticed',
+    speaker: 'Déléguée Nira Oss',
+    title: 'Le registre des protéines',
+    text: 'Une cuisinière sait lire, Gouverneur. Elle sait compter aussi. Elle a déposé son tablier devant ma porte, et sa fille ne mange plus.\n\nJe ne vous demande rien. Je voulais seulement que vous sachiez que nous savons.',
+    when: { flags: ['edict_corpses'], minTime: 0 },
+    choices: [
+      {
+        label: 'Personne ne manque de rien. C’est tout ce qui compte.',
+        effects: [{ kind: 'conspiracy', amount: 6 }],
+      },
+      {
+        label: 'Donnez une prime aux cuisines (−50 crédits).',
+        effects: [
+          { kind: 'stock', res: 'credits', amount: -50 },
+          { kind: 'morale', amount: 5 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'offerings_answer',
+    speaker: 'La Grande Veilleuse',
+    title: 'Il a entendu',
+    text: "Vous nourrissez les failles, Gouverneur, et la roche s'apaise. Vous l'avez mesuré vous-même.\n\nVous n'avez pas fait un pacte : un pacte se défait. Vous avez pris une habitude. Elle lui plaît. Il en voudra davantage, et vous le lui donnerez, parce que vous avez vu ce que coûte le contraire.",
+    when: { flags: ['edict_offerings'], minTime: 0 },
+    choices: [
+      {
+        label: 'Encore une offrande (−25 vivres, moral en hausse).',
+        effects: [
+          { kind: 'stock', res: 'food', amount: -25 },
+          { kind: 'morale', amount: 8 },
+        ],
+      },
+      {
+        label: 'Sortez-la de ce bureau.',
+        effects: [{ kind: 'spawn', enemy: 'saboteur', count: 2 }],
+      },
+    ],
+  },
+  {
+    id: 'tribunal_files',
+    speaker: 'Greffier du tribunal',
+    title: 'Le dossier 114',
+    text: "Pour la bonne tenue du registre, Gouverneur : nous avons jugé cent quatorze personnes ce mois-ci, pour une colonie qui en compte bien moins.\n\nJ'ai vérifié. Certains ont été condamnés plusieurs fois. L'un d'eux après sa mort. Le tribunal fonctionne parfaitement, et je n'ai aucune recommandation à formuler.",
+    when: { flags: ['edict_tribunal'], minTime: 0 },
+    choices: [{ label: 'Classez le dossier.', effects: [{ kind: 'morale', amount: -4 }] }],
+  },
+  {
+    id: 'core_heartbeat',
+    speaker: 'Dr Ilyane Soum',
+    title: 'Le rythme',
+    text: "J'ai superposé deux relevés sans raison particulière : les battements enregistrés au Noyau, et la consommation électrique de la cité sur un an.\n\nC'est la même courbe, Gouverneur. Nos relèves, nos pauses, nos nuits. Je ne sais pas lequel des deux suit l'autre.\n\nJe ne suis plus certaine que nous ayons un jour décidé quoi que ce soit.",
+    when: { regions: ['core'], minTime: 70 },
+    choices: [
+      { label: 'Continuez à forer.', effects: [{ kind: 'conspiracy', amount: 4 }] },
+      {
+        label: 'Décalez toutes les relèves de sept minutes.',
+        effects: [
+          { kind: 'morale', amount: -6 },
+          { kind: 'research', amount: 3 },
+        ],
+      },
     ],
   },
   {
@@ -372,14 +733,14 @@ export const INVESTIGATION_CLUES: Record<AdvisorId, string[]> = {
 export const ENDINGS = {
   conquest: {
     title: 'Le Maître de Kerath',
-    text: "Le cœur du Dormeur s'est tu. La Faune s'éteint galerie après galerie, le Consortium a plié bagage et la Charte vous nomme gouverneur à vie. La planète est à vous. Elle est aussi, pour la première fois, parfaitement silencieuse.",
+    text: "Le cœur du Dormeur s'est tu. La Faune s'éteint galerie après galerie, le Consortium a plié bagage et la Charte vous nomme gouverneur à vie, par un message envoyé il y a onze ans. La planète est à vous. Elle est aussi, pour la première fois, parfaitement silencieuse. Dans les habitats, la nuit, plus personne ne rêve. Plus personne ne se réveille tout à fait non plus.",
   },
   mercy: {
     title: 'Le Serment de Kerath',
-    text: "Le cœur bat moins vite. Les sectaires déposent les armes, la Faune retourne aux profondeurs et votre cité s'étend sur toute la planète, sous la surveillance muette de quelque chose qui rêve. Vous gouvernez Kerath, et Kerath vous tolère.",
+    text: "Le cœur bat moins vite. Les sectaires déposent les armes, la Faune retourne aux profondeurs et votre cité s'étend sur toute la planète, sous la surveillance muette de quelque chose qui rêve. Vous gouvernez Kerath, et Kerath vous tolère. Chaque année, sans que personne l'ait décidé, une équipe descend, et ne remonte pas. On appelle ça la relève.",
   },
   treason: {
     title: 'Un Trône sur des Cendres',
-    text: 'Vous tenez la planète, mais le serment brisé vous suit. Les galeries se souviennent et le conseil se méfie. Vantor attend déjà la prochaine crise pour revenir frapper à votre porte.',
+    text: 'Vous tenez la planète, mais le serment brisé vous suit. Les galeries se souviennent et le conseil se méfie. Vantor attend déjà la prochaine crise. Et certaines nuits, derrière la paroi de votre chambre, ça frappe : trois coups, un silence, trois coups.',
   },
 } as const;
