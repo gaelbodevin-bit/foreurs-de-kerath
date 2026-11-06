@@ -311,10 +311,41 @@ export function outputPerMinute(state: GameState, res: ResourceId): number {
   }, 0);
 }
 
-/** Minutes the stores last at this rate. Infinite when more comes in than goes out. */
+/** What the running buildings draw from the stores each minute. */
+function usePerMinute(state: GameState, res: ResourceId): number {
+  return state.buildings.reduce((sum, b) => {
+    const recipe = BUILDINGS[b.type].recipe;
+    if (!recipe?.inputs[res] || b.built < 1 || !canAfford(state, recipe.inputs)) return sum;
+    return sum + ((recipe.inputs[res] ?? 0) / recipe.cycle) * 60 * b.eff;
+  }, 0);
+}
+
+/**
+ * Minutes the stores last at this rate. Infinite only when more comes in than goes out for good:
+ * a greenhouse whose water is running out stops feeding anyone once the tank is empty.
+ */
 export function foodMinutesLeft(state: GameState): number {
-  const net = appetitePerSecond(state) * 60 - outputPerMinute(state, 'food');
-  return net <= 0 ? Infinity : state.stock.food / net;
+  const eaten = appetitePerSecond(state) * 60;
+  const grown = outputPerMinute(state, 'food');
+  // How long the growers keep going on what feeds them.
+  let lasts = Infinity;
+  for (const res of RESOURCE_IDS) {
+    const drain = usePerMinute(state, res) - outputPerMinute(state, res);
+    if (drain > 0 && feedsGrowers(state, res)) lasts = Math.min(lasts, state.stock[res] / drain);
+  }
+  const net = grown - eaten;
+  if (lasts === Infinity) return net >= 0 ? Infinity : state.stock.food / -net;
+  if (net < 0 && state.stock.food / -net <= lasts) return state.stock.food / -net;
+  const after = state.stock.food + net * lasts;
+  return eaten <= 0 ? Infinity : lasts + after / eaten;
+}
+
+/** Whether some food producer runs on this resource. */
+function feedsGrowers(state: GameState, res: ResourceId): boolean {
+  return state.buildings.some((b) => {
+    const recipe = BUILDINGS[b.type].recipe;
+    return b.built >= 1 && !!recipe?.outputs.food && !!recipe.inputs[res];
+  });
 }
 
 /** Once a second: what brings the steward to the governor's door. */

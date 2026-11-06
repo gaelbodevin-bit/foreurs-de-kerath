@@ -453,7 +453,11 @@ describe('intrigues', () => {
       state.story.flags.cityReached = true;
       state.time = 500;
       state.tick = 5000;
-      updateStory(state);
+      // One event at a time: the ones before it in the list go first.
+      for (let i = 0; i < 40 && !state.story.fired.includes('missing_crates'); i++) {
+        state.story.pending = [];
+        updateStory(state);
+      }
       expect(state.story.clues).toContain(eventById('missing_crates').clue![mole]);
     }
   });

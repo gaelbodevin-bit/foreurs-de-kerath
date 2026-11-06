@@ -71,7 +71,7 @@ de lui. En rejoignant CITY, le gouverneur reçoit aussi 10 mineurs.
 La caverne est noire. La lumière vient des bâtiments achevés (presque plus quand ils n'ont pas de
 courant), du sol technique, de CITY et de la roche qui brille : lave et cristal. Chaque foreur et
 chaque garde a sa lampe frontale, dirigée devant lui, et les machines ont leurs phares. Loin de tout
-cela, la roche se devine à peine, et un monstre aussi.
+cela, la roche se devine encore, assez pour choisir quoi forer, mais un monstre beaucoup moins.
 
 ## Les biomes
 
@@ -116,7 +116,8 @@ liste chaque usine, sa recette et ce qui la bloque.
 
 Chaque bouche mange un tiers de part par minute dès que CITY est rejointe. Une serre nourrit environ
 45 personnes si elle a de l'eau. Le panneau Production donne le bilan, les minutes de réserve et fixe
-les rations : demi-rations (60 %, moral −12), normales ou copieuses (140 %, moral +6).
+les rations : demi-rations (60 %, moral −12), normales ou copieuses (140 %, moral +6). La réserve tient
+compte de l'eau : une serre dont la citerne se vide ne compte plus une fois à sec.
 
 Krell ouvre une fenêtre pour tout expliquer peu après l'arrivée à CITY, puis revient quand il reste
 moins de trois minutes de vivres, et quand les silos sont vides.
@@ -143,6 +144,10 @@ les plaques de la Charte plus vieilles que la première expédition, l'ébouleme
 le rêve commun des Jardins, ce qui appelle au fond du gouffre, la directive qui avait tout prévu, et
 ce que le Noyau a de commun avec les horaires de la cité.
 
+Une seule fenêtre à la fois, et 45 secondes de jeu entre deux décisions, pour laisser le joueur agir.
+Seules les urgences passent sans attendre : l'arrivée, CITY rejointe, le réseau en court-circuit, le
+laboratoire prêt, les vivres qui manquent. Aucune fenêtre ne s'ouvre pendant un glisser.
+
 ## Le sol technique
 
 Un glisser trace une ligne droite, à l'horizontale, à la verticale ou à 45°, selon la direction la
@@ -160,7 +165,11 @@ dès qu'une unité approche ou qu'on les blesse.
 
 Une fois CITY rejointe, une demande arrive toutes les 35 à 75 secondes, 4 au plus à la fois : livrer une commande, bâtir un
 chantier, forer jusqu'à un point marqué, sauver une équipe ensevelie, abattre une incursion ou
-accueillir des réfugiés. Réussir paie, et rater pèse sur le moral.
+accueillir des réfugiés. Réussir paie, et rater pèse sur le moral. Une commande laisse 3 min 30, et ne
+réclame jamais plus du double de ce qu'on a en réserve (8 au moins, 4 pour les ressources rares).
+
+Le marquage du forage ignore la roche que personne dans l'équipe ne peut percer, et dit quel outil il
+faut.
 
 ## Chaînes de production
 

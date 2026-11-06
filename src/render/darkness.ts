@@ -5,7 +5,7 @@ import { computeLightMap } from './lightMap';
 
 export const MAX_HEAD_LAMPS = 32;
 /** What is left to see far from any light: enough to tell rock from floor. */
-const CAVE_DARK = 0.13;
+const CAVE_DARK = 0.22;
 /** Seconds between two refreshes of the fixed lights. They hardly ever change. */
 const REFRESH = 0.5;
 

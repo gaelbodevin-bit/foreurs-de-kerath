@@ -50,6 +50,8 @@ export interface StoryEvent {
   title: string;
   text: string;
   when: StoryTrigger;
+  /** Answers something the player just did, or a danger: it doesn't wait for the pause between two events. */
+  urgent?: boolean;
   /** Evidence gained on firing. The wording points to whichever advisor is the traitor. */
   clue?: Record<AdvisorId, string>;
   choices: StoryChoice[];
@@ -58,6 +60,7 @@ export interface StoryEvent {
 export const STORY_EVENTS: StoryEvent[] = [
   {
     id: 'lab_ready',
+    urgent: true,
     speaker: 'Dr Ilyane Soum',
     title: 'Le laboratoire tourne',
     text: "Mes équipes sont au travail, Gouverneur. Chaque laboratoire alimenté produit des points de recherche, à dépenser dans le panneau Recherche (touche R).\n\nCommencez par ce qui vous bloque. La roche qui sépare ce secteur des suivants ne cédera qu'au marteau-piqueur, ou à une foreuse lourde.",
@@ -66,6 +69,7 @@ export const STORY_EVENTS: StoryEvent[] = [
   },
   {
     id: 'landing',
+    urgent: true,
     speaker: 'Orsa Veld',
     title: 'Coupés de CITY',
     text: "Chef d'expédition, bienvenue sous la croûte. Kerath est un monde creux : le cristal, le métal et l'air respirable se trouvent tous en profondeur. La Charte nous envoie en prendre le contrôle, avant que d'autres ne s'en emparent. Tout partira d'ici : ce campement doit devenir la capitale de Kerath, et il lui faudra un gouverneur.\n\nLes colons de CITY devaient nous accueillir, mais un éboulement a fermé la galerie à notre arrivée. Nous sommes isolés, et eux aussi.\n\nNotre priorité : les rejoindre. Ils sont signalés par l'anneau turquoise sur la mini-carte. Glissez sur la roche pour marquer le passage à forer. Nos pioches n'entament que la roche tendre : il faudra contourner la roche dure.\n\nD'ici là, nous n'avons que le nécessaire : le menu de construction se limite à ce qui sert à explorer.",
@@ -74,6 +78,7 @@ export const STORY_EVENTS: StoryEvent[] = [
   },
   {
     id: 'grid_short',
+    urgent: true,
     speaker: 'Orsa Veld',
     title: 'Le courant ne porte pas plus loin',
     text: "Regardez le sol technique : au-delà d'un certain point, les dalles sont éteintes. Le courant s'épuise en chemin, et ce qui est branché là-bas ne reçoit rien.\n\nIl nous faut produire plus. Une centrale à cristaux posée sur la partie encore allumée relancera le courant bien plus loin. Gardez-lui du cristal : à l'arrêt, elle ne porte plus rien.",
@@ -82,6 +87,7 @@ export const STORY_EVENTS: StoryEvent[] = [
   },
   {
     id: 'city_reached',
+    urgent: true,
     speaker: 'Orsa Veld',
     title: 'Gouverneur de Kerath',
     text: "La galerie est ouverte ! Les douze colons de CITY se joignent à nous, avec leurs logements, et dix de leurs mineurs passent sous vos ordres.\n\nIls vous reconnaissent comme gouverneur : la colonie est à vous, et le conseil aussi : il siège au centre de la ville (cliquez dessus, ou touche K). Krell, Soum et moi y siégeons, le siège de la Défense est libre, et vous pourrez recruter qui vous voudrez.\n\nLe menu de construction s'ouvre sur la cité : vous pouvez bâtir où vous voulez, et CITY alimente le réseau autour d'elle comme le Noyau. Faites respirer, nourrissez et logez ces gens. Bâtissez vite un laboratoire : sa recherche (touche R) mène au marteau-piqueur, au laser et aux véhicules.\n\nQuel gouverneur serez-vous ?",
@@ -111,6 +117,7 @@ export const STORY_EVENTS: StoryEvent[] = [
   },
   {
     id: 'food_short',
+    urgent: true,
     speaker: 'Tomas Krell',
     title: 'Les réserves fondent',
     text: "J'ai refait le calcul trois fois, Gouverneur. À ce rythme, il nous reste moins de trois minutes de vivres.\n\nVérifiez d'abord la chaîne : une serre sans eau ne produit rien, un fondoir sans glace non plus, et rien ne tourne sans courant. Sinon, je peux réduire les parts dès ce soir. Ils me détesteront, puis ils vous détesteront.",
@@ -125,6 +132,7 @@ export const STORY_EVENTS: StoryEvent[] = [
   },
   {
     id: 'starving',
+    urgent: true,
     speaker: 'Tomas Krell',
     title: 'Il n’y a plus rien',
     text: "Les silos sont vides. Il n'y aura pas de distribution ce soir.\n\nSans vivres, le moral s'effondre et nous perdrons quelqu'un chaque minute. Les premiers sont déjà les plus vieux. Une serre met du temps à rendre : il faut tenir d'ici là, et il n'y a pas de bonne manière de le faire.",

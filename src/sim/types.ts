@@ -301,6 +301,8 @@ export interface StoryState {
   flags: Record<string, boolean>;
   /** Events waiting for a player decision, oldest first. */
   pending: string[];
+  /** Game time when the last decision was taken: the next event waits a while after it. */
+  answeredAt?: number;
   clues: string[];
   moleCaught: boolean;
   /** Set by the campaign when it starts the mission; never shown to the player. */

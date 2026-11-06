@@ -50,14 +50,23 @@ export function eventText(state: GameState, event: StoryEvent): string {
   return event.clue ? `${event.text}\n\nIndice : ${event.clue[state.story.mole]}` : event.text;
 }
 
+/** Seconds of play between two decisions, so that windows don't follow one another and the player gets to act. */
+export const STORY_GAP = 45;
+
 export function updateStory(state: GameState): void {
   const s = state.story;
-  for (const event of STORY_EVENTS) {
-    if (s.fired.includes(event.id) || !triggerMet(state, event)) continue;
-    s.fired.push(event.id);
-    s.pending.push(event.id);
-    if (event.clue) s.clues.push(event.clue[s.mole]);
-    state.fx.push({ kind: 'sound', id: 'plot' });
+  const rested = s.answeredAt === undefined || state.time - s.answeredAt >= STORY_GAP;
+  if (s.pending.length === 0) {
+    // One event at a time: the others keep for later, their conditions are checked again.
+    const event = STORY_EVENTS.find(
+      (e) => (rested || e.urgent) && !s.fired.includes(e.id) && triggerMet(state, e),
+    );
+    if (event) {
+      s.fired.push(event.id);
+      s.pending.push(event.id);
+      if (event.clue) s.clues.push(event.clue[s.mole]);
+      state.fx.push({ kind: 'sound', id: 'plot' });
+    }
   }
   updateConspiracyStages(state);
 }
@@ -158,6 +167,7 @@ function applyEffect(state: GameState, effect: Effect): void {
 export function answerEvent(state: GameState, choiceIndex: number): void {
   const id = state.story.pending.shift();
   if (!id) return;
+  state.story.answeredAt = state.time;
   const choice = visibleChoices(state, eventById(id))[choiceIndex];
   if (!choice) return;
   for (const effect of choice.effects) applyEffect(state, effect);

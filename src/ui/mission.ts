@@ -84,6 +84,7 @@ import { clear, h } from './dom';
 import { regionById, REGIONS } from '../data/regions';
 import { resourceIcon } from './icons';
 import { formatMagnitude, hasSeismicStation, riskName, tremorRadius } from '../sim/seismic';
+import { crewDrillPower } from '../sim/workers';
 import { renderPlanetMap, renderSectorList } from './planet';
 
 /** Seconds a tremor stays marked on the minimap. */
@@ -792,26 +793,30 @@ export class MissionScreen {
     this.selectedUnits = [];
     const count = designateArea(state, drag.x0, drag.y0, drag.x1, drag.y1);
     if (count > 0) this.speak('drill');
-    this.explainUndrillable(drag, count);
+    this.explainUndrillable(drag);
   }
 
   /** Spells out why nothing happens on hard rock, rather than leaving the player guessing. */
-  private explainUndrillable(drag: NonNullable<MissionScreen['drag']>, count: number): void {
-    if (count === 0) return;
+  private explainUndrillable(drag: NonNullable<MissionScreen['drag']>): void {
     const { state } = this;
-    const tile = state.tiles[drag.y1 * state.w + drag.x1];
-    const wall = WALLS[tile.k];
-    if (!wall) return;
-    const best = Math.max(
-      state.mods.drillPower,
-      ...state.units.filter((u) => u.type === 'heavy').map((u) => UNITS[u.type].drillPower),
-    );
-    if (best >= wall.power) return;
+    const best = crewDrillPower(state);
+    let hardest: TileKind | null = null;
+    for (let y = Math.min(drag.y0, drag.y1); y <= Math.max(drag.y0, drag.y1); y++) {
+      for (let x = Math.min(drag.x0, drag.x1); x <= Math.max(drag.x0, drag.x1); x++) {
+        const tile = state.tiles[y * state.w + x];
+        const wall = tile?.seen ? WALLS[tile.k] : undefined;
+        if (!wall || wall.power <= best) continue;
+        if (state.jobs.some((j) => j.kind === 'drill' && j.x === x && j.y === y)) continue;
+        if (!hardest || wall.power > WALLS[hardest]!.power) hardest = tile.k;
+      }
+    }
+    if (!hardest) return;
+    const wall = WALLS[hardest]!;
     const needed = DRILL_TOOLS[drillToolFor(wall.power)].name;
     this.say(
       wall.power === DRILL_TOOLS.hammer.power
-        ? `${TILE_NAMES[tile.k]} : la pioche n’y suffit pas. Il faut le ${needed.toLowerCase()} (recherche) ou une foreuse lourde (Atelier).`
-        : `${TILE_NAMES[tile.k]} : seule la ${needed.toLowerCase()} en vient à bout (recherche).`,
+        ? `${TILE_NAMES[hardest]} : pas de marquage, la pioche n’y suffit pas. Il faut le ${needed.toLowerCase()} (recherche) ou une foreuse lourde (Atelier).`
+        : `${TILE_NAMES[hardest]} : pas de marquage, seule la ${needed.toLowerCase()} en vient à bout (recherche).`,
     );
   }
 
@@ -1346,8 +1351,9 @@ export class MissionScreen {
   }
 
   private updateOverlay(): void {
+    // A window never opens under a drag in progress: the marking would be lost.
     const pending = this.state.story.pending[0];
-    if (pending) {
+    if (pending && (this.shownEvent === pending || this.drag === null)) {
       if (this.shownEvent !== pending) {
         this.shownEvent = pending;
         this.renderEvent(pending);

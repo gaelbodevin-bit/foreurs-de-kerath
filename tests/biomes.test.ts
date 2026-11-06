@@ -292,7 +292,8 @@ describe('vivres', () => {
   it('Krell vient expliquer, puis revient quand les vivres manquent', () => {
     const state = createGame(1);
     reveal(state, state.settlement!.x, state.settlement!.y);
-    run(state, 45);
+    // Krell waits for the pause after the arrival at the city before coming in.
+    run(state, 60);
     expect(state.story.fired).toContain('food_intro');
     expect(state.story.fired).not.toContain('food_short');
     state.stock.food = 1;

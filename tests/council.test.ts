@@ -35,7 +35,7 @@ describe('gouverneur et conseil', () => {
     const place = state.settlement!;
     reveal(state, place.x, place.y);
     const speed = state.mods.buildSpeed;
-    play(state, 15);
+    play(state, 25);
     expect(state.council.map((c) => c.advisor)).toEqual(['orsa', 'krell', 'soum']);
     expect(state.governorTrait).toBe('builder');
     expect(state.mods.buildSpeed).toBeCloseTo(speed + 0.2);

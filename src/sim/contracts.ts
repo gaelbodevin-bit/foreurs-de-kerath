@@ -58,16 +58,18 @@ function deliverDraft(state: GameState): Draft | null {
   ).filter((r) => state.stock[r] >= 3);
   if (pool.length === 0) return null;
   const res = randPick(state, [...pool]);
-  const scale = 1 + state.cityLevel * 0.6;
+  const scale = 1 + state.cityLevel * 0.4;
   const rare = !['ore', 'stone', 'ice', 'food', 'water'].includes(res);
-  const amount = Math.round(randInt(state, rare ? 4 : 8, rare ? 8 : 18) * scale);
+  // The Charter asks for what the colony can gather in time, not thirty-five of what it holds three of.
+  const within = Math.max(rare ? 4 : 8, Math.round(state.stock[res] * 2));
+  const amount = Math.min(within, Math.round(randInt(state, rare ? 4 : 8, rare ? 8 : 18) * scale));
   return {
     kind: 'deliver',
     title: `Commande : ${RESOURCES[res].name}`,
     text: `La Charte réclame ${amount} ${RESOURCES[res].name.toLowerCase()}.`,
     res,
     amount,
-    seconds: 150,
+    seconds: 210,
     reward: { stock: { credits: amount * (rare ? 6 : 3) }, research: 0.5, morale: 0 },
   };
 }

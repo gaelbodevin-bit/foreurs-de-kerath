@@ -64,7 +64,10 @@ export function removeJob(state: GameState, jobId: number): void {
 /** Gives the job back to the pool, dropping anything the unit was carrying. */
 export function releaseJob(state: GameState, unit: Unit): void {
   const job = state.jobs.find((j) => j.id === unit.jobId);
-  if (job) {
+  if (job?.kind === 'haul' && job.deliver) {
+    // The item is in the unit's arms, not on the ground any more: the load dropped below gets jobs of its own.
+    state.jobs.splice(state.jobs.indexOf(job), 1);
+  } else if (job) {
     job.unitId = null;
     job.deliver = false;
     const pickup = state.pickups.find((p) => p.claimedBy === unit.id);
@@ -90,6 +93,15 @@ export const drillPowerOf = (state: GameState, unit: Unit): number => {
   const base = UNITS[unit.type].drillPower;
   return unit.type === 'foreur' ? Math.max(base, state.mods.drillPower) : base;
 };
+
+/** The hardest rock someone in the crew can break today. */
+export function crewDrillPower(state: GameState): number {
+  let best = 0;
+  for (const unit of state.units) {
+    if (UNITS[unit.type].jobs.includes('drill')) best = Math.max(best, drillPowerOf(state, unit));
+  }
+  return best;
+}
 
 /** Where a unit must stand to work this job, or null if nothing is in reach. */
 function bestAccess(
@@ -126,6 +138,8 @@ function jobIsOpen(state: GameState, unit: Unit, job: Job): boolean {
     case 'bridge':
       return canAfford(state, BRIDGE_COST);
     case 'haul': {
+      // Nobody goes looking for what lies in rock no one has seen yet.
+      if (!state.tiles[idx(state, job.x, job.y)].seen) return false;
       const pickup = state.pickups.find((p) => p.id === job.refId);
       return pickup !== undefined && hasRoomFor(state, pickup.res);
     }

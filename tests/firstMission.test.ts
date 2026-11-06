@@ -57,7 +57,8 @@ describe('rejoindre CITY', () => {
     const place = state.settlement!;
     const before = state.city.population;
     reveal(state, place.x, place.y);
-    play(state, 12);
+    // The story engine looks once a second, and only one window is open at a time.
+    play(state, 25);
     expect(state.settlement!.reached).toBe(true);
     expect(objectiveProgress(state, reachObjective()).value).toBe(1);
     expect(state.city.population).toBeGreaterThanOrEqual(before + 8);

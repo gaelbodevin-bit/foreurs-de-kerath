@@ -46,7 +46,7 @@ import type {
   UnitType,
 } from './types';
 import { baseModifiers, emptyStock, RESOURCE_IDS, TICK_SECONDS } from './types';
-import { addJob, dropCarried, removeJob, updateRepairs } from './workers';
+import { addJob, crewDrillPower, releaseJob, removeJob, updateRepairs } from './workers';
 
 /** Keeps the crew from building over the settlement's own structures. */
 const SETTLEMENT_CLEARANCE = 5.5;
@@ -312,7 +312,10 @@ export interface CommandResult {
   reason?: string;
 }
 
-/** Marks a rectangle for work: walls to drill, rubble to clear, fungus to harvest. Dragging over marked tiles cancels them. */
+/**
+ * Marks a rectangle for work: walls to drill, rubble to clear, fungus to harvest. Dragging over marked tiles cancels them.
+ * Rock nobody in the crew can break is left alone: a mark that no one will ever take only hides the real work.
+ */
 export function designateArea(
   state: GameState,
   x0: number,
@@ -323,12 +326,16 @@ export function designateArea(
   const [minX, maxX] = x0 < x1 ? [x0, x1] : [x1, x0];
   const [minY, maxY] = y0 < y1 ? [y0, y1] : [y1, y0];
   const targets: { x: number; y: number; kind: 'drill' | 'clear' | 'harvest' }[] = [];
+  const power = crewDrillPower(state);
   for (let y = minY; y <= maxY; y++) {
     for (let x = minX; x <= maxX; x++) {
       const t = tileAt(state, x, y);
       if (!t || !t.seen) continue;
-      if (WALLS[t.k]) targets.push({ x, y, kind: 'drill' });
-      else if (t.k === 'rubble') targets.push({ x, y, kind: 'clear' });
+      const wall = WALLS[t.k];
+      if (wall) {
+        const marked = state.jobs.some((j) => j.kind === 'drill' && j.x === x && j.y === y);
+        if (wall.power <= power || marked) targets.push({ x, y, kind: 'drill' });
+      } else if (t.k === 'rubble') targets.push({ x, y, kind: 'clear' });
       else if (t.k === 'fungus' || t.k === 'moss') targets.push({ x, y, kind: 'harvest' });
     }
   }
@@ -571,15 +578,7 @@ export function orderMove(state: GameState, unitIds: number[], x: number, y: num
     const path = findPath(state, Math.floor(unit.x), Math.floor(unit.y), x, y);
     if (!path) continue;
     // A unit on a job drops it: the order wins.
-    const job = state.jobs.find((j) => j.id === unit.jobId);
-    if (job) {
-      job.unitId = null;
-      job.deliver = false;
-      const pickup = state.pickups.find((p) => p.claimedBy === unit.id);
-      if (pickup) pickup.claimedBy = null;
-    }
-    dropCarried(state, unit);
-    unit.jobId = null;
+    releaseJob(state, unit);
     unit.path = path;
     unit.order = idx(state, x, y);
     any = true;
