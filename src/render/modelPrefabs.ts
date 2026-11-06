@@ -1181,9 +1181,13 @@ function pickaxe(): THREE.Object3D {
   return tool;
 }
 
-/** How far the tool leans forward at rest, and how far its bit stands out of the body. */
-export const JACKHAMMER_TILT = 1;
+/** How far the bit stands out of the tool's body. */
 export const JACKHAMMER_BIT = -0.27;
+/**
+ * Where the bit points, in the frame of the arm that holds it. That arm is turned 60° outwards in
+ * the drilling pose: this comes out as forward and down for the miner, towards the rock.
+ */
+const JACKHAMMER_AIM = new THREE.Vector3(-0.75, -0.5, 0.433).normalize();
 
 /** Held in one hand, working end down. */
 function jackhammer(): THREE.Object3D {
@@ -1201,11 +1205,15 @@ function jackhammer(): THREE.Object3D {
   const bit = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.26, 8), steel);
   bit.rotation.x = Math.PI;
   bit.position.y = -0.27;
-  tool.add(body, handle, bit);
-  // Tilted towards the rock in front, and big enough to be seen from the camera's height.
+  // Rattles on its own, inside the fixed aim.
+  const rattling = new THREE.Group();
+  rattling.add(body, handle, bit);
+  tool.add(rattling);
+  // Big enough to be seen from the camera's height.
   tool.scale.setScalar(1.15);
-  tool.rotation.x = JACKHAMMER_TILT;
+  tool.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), JACKHAMMER_AIM);
   tool.userData.bit = bit;
+  tool.userData.rattling = rattling;
   return tool;
 }
 
@@ -1267,7 +1275,7 @@ export function unitFromModels(
         attach(made.body, 'arm-right', pickaxe(), [0, -0.27, 0.2]);
       } else if (tool === 'hammer') {
         const held = jackhammer();
-        attach(made.body, 'arm-right', held, [0, -0.16, 0.3]);
+        attach(made.body, 'arm-right', held, [-0.2, -0.09, 0.28]);
         made.group.userData.jackhammer = held;
       } else {
         attach(made.body, 'arm-right', laserDrill(), [0, -0.2, 0.12]);

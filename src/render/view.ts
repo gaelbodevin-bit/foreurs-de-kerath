@@ -13,12 +13,7 @@ import type { CharacterRig } from './assets';
 import { DarknessPass, MAX_HEAD_LAMPS, type HeadLamp } from './darkness';
 import { DecorView } from './decor';
 import { Dust, GasClouds, Smoke } from './particles';
-import {
-  JACKHAMMER_BIT,
-  JACKHAMMER_TILT,
-  residentFromModels,
-  settlementFromModels,
-} from './modelPrefabs';
+import { JACKHAMMER_BIT, residentFromModels, settlementFromModels } from './modelPrefabs';
 import { makeBuilding, makeEnemy, makePickup, makeUnit } from './prefabs';
 import { TerrainView } from './terrain';
 import { tremorRadius } from '../sim/seismic';
@@ -710,7 +705,9 @@ export class MissionView {
           // The bit punches in and out, slowly enough for the eye and the frame rate to follow.
           const blow = hammering ? Math.abs(Math.sin(time * 26 + u.id)) : 0;
           (held.userData.bit as THREE.Object3D).position.y = JACKHAMMER_BIT - blow * 0.13;
-          held.rotation.x = JACKHAMMER_TILT + (hammering ? Math.sin(time * 37 + u.id) * 0.09 : 0);
+          (held.userData.rattling as THREE.Object3D).rotation.x = hammering
+            ? Math.sin(time * 37 + u.id) * 0.09
+            : 0;
         }
         // The hammer shakes whoever holds it, and chips fly off the rock.
         if (hammering) {
