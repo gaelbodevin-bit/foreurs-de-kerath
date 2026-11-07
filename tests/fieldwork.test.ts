@@ -17,7 +17,7 @@ import { createBuilding, spawnEnemy, spawnPickup } from '../src/sim/entities';
 import { designateArea, placeBuilding, placePath, roadEnd } from '../src/sim/game';
 import { idx } from '../src/sim/grid';
 import { answerEvent, STORY_GAP, updateStory } from '../src/sim/storyEngine';
-import { addJob, crewCanReachWall } from '../src/sim/workers';
+import { addJob, breakWall, crewCanReachWall } from '../src/sim/workers';
 import type { GameState, Unit } from '../src/sim/types';
 import { instantBuilding, newGame, run } from './helpers';
 
@@ -477,5 +477,43 @@ describe('alertes de pénurie', () => {
     run(state, 2);
     expect(state.power.ratio).toBeLessThan(0.8);
     expect(state.log.filter((l) => l.text.startsWith('Courant insuffisant')).length).toBe(1);
+  });
+});
+
+describe('éboulements', () => {
+  it('le journal ne parle d’un éboulement que s’il blesse quelqu’un, et nomme la cause d’une mort', () => {
+    const { state, foreur } = loneMiner();
+    const x = Math.floor(foreur.x);
+    const y = Math.floor(foreur.y);
+    state.mods.hazard = 100;
+    // Far from anyone: nothing to report.
+    for (const dx of [6, 7]) state.tiles[idx(state, x + dx, y)].k = 'loose';
+    breakWall(state, x + 6, y);
+    expect(state.log.some((l) => l.text.startsWith('Éboulement'))).toBe(false);
+
+    // Right next to the miner, with the last of his strength.
+    for (const dx of [-2, -1]) state.tiles[idx(state, x + dx, y)].k = 'loose';
+    foreur.hp = 5;
+    breakWall(state, x - 2, y);
+    expect(state.log.some((l) => l.text === 'Éboulement : un blessé.')).toBe(true);
+    run(state, 0.2);
+    expect(state.log.some((l) => l.text === 'Foreur enseveli sous un éboulement.')).toBe(true);
+  });
+});
+
+describe('commandes distinctes', () => {
+  it('jamais deux commandes de la même ressource en même temps', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const state = newGame(seed);
+      state.settlement!.reached = true;
+      state.stock.food = 200;
+      state.contracts = [];
+      for (let i = 0; i < 8; i++) {
+        state.nextContractAt = 0;
+        updateContracts(state);
+      }
+      const orders = state.contracts.filter((c) => c.kind === 'deliver').map((c) => c.res);
+      expect(new Set(orders).size).toBe(orders.length);
+    }
   });
 });

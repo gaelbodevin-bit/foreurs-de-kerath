@@ -81,7 +81,7 @@ export function updateGas(state: GameState): void {
     const gas = tiles[Math.floor(unit.y) * w + Math.floor(unit.x)].gas ?? 0;
     if (gas < GAS_HARMFUL) continue;
     unit.hp -= gas * GAS_DAMAGE * state.mods.hazard;
-    unit.gassed = unit.hp <= 0;
+    if (unit.hp <= 0) unit.fatal = 'gas';
     hurt = true;
   }
   if (hurt) {

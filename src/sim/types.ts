@@ -149,8 +149,8 @@ export interface Unit {
   working: boolean;
   /** Has downed tools to go after an enemy. */
   chasing?: boolean;
-  /** Last hurt by the gas rather than by an enemy, for the death notice. */
-  gassed?: boolean;
+  /** What dealt the killing blow when it wasn't an enemy, for the death notice. */
+  fatal?: 'gas' | 'rock';
 }
 
 export interface Building {

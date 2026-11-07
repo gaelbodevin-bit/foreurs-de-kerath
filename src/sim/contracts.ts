@@ -55,7 +55,10 @@ function deliverDraft(state: GameState): Draft | null {
       'tyres',
       'tungsten',
     ] as const
-  ).filter((r) => state.stock[r] >= 3);
+  ).filter(
+    // One order per resource at a time: three food orders at once read like a bug.
+    (r) => state.stock[r] >= 3 && !state.contracts.some((c) => c.kind === 'deliver' && c.res === r),
+  );
   if (pool.length === 0) return null;
   const res = randPick(state, [...pool]);
   const scale = 1 + state.cityLevel * 0.4;

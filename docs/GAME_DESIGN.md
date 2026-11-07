@@ -171,7 +171,7 @@ Une fois CITY rejointe, une demande arrive toutes les 35 à 75 secondes, 4 au pl
 chantier, forer jusqu'à un point marqué, sauver une équipe ensevelie, abattre une incursion ou
 accueillir des réfugiés. Réussir paie, et rater pèse sur le moral. Une commande laisse 3 min 30, et ne
 réclame jamais plus du double de ce qu'on a en réserve (8 au moins, 4 pour les ressources rares). Un chantier n'est demandé que si la réserve
-peut déjà le payer.
+peut déjà le payer. Deux commandes ouvertes ne portent jamais sur la même ressource.
 
 Le marquage du forage ignore la roche que personne dans l'équipe ne peut percer, et dit quel outil il
 faut.

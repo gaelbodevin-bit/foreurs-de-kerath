@@ -668,14 +668,21 @@ export function breakWall(state: GameState, x: number, y: number, silent = false
 
 function collapse(state: GameState, x: number, y: number): void {
   breakWall(state, x, y, true);
-  log(state, 'Éboulement !', 'warn');
   state.fx.push(
     { kind: 'sound', id: 'collapse', x, y },
-    { kind: 'voice', id: 'collapse' },
     { kind: 'burst', x: x + 0.5, y: y + 0.5, color: 0xa08a6e },
   );
+  let hurt = 0;
   for (const unit of state.units) {
-    if (Math.hypot(unit.x - x - 0.5, unit.y - y - 0.5) < 1.6) unit.hp -= 14;
+    if (Math.hypot(unit.x - x - 0.5, unit.y - y - 0.5) >= 1.6) continue;
+    unit.hp -= 14;
+    if (unit.hp <= 0) unit.fatal = 'rock';
+    hurt++;
+  }
+  // Rock falling where nobody stands is just noise: the journal only hears of it when it hits someone.
+  if (hurt > 0) {
+    log(state, hurt === 1 ? 'Éboulement : un blessé.' : `Éboulement : ${hurt} blessés.`, 'warn');
+    state.fx.push({ kind: 'voice', id: 'collapse' });
   }
 }
 
