@@ -2,6 +2,7 @@ import {
   BRIDGE_COST,
   BUILD_MENUS,
   BUILD_TIME_FACTOR,
+  buildersFor,
   BUILDINGS,
   PATH_COST,
   PATH_REFUND,
@@ -432,7 +433,7 @@ export class MissionScreen {
             h('span', { class: 'b-name' }, def.name),
             h('span', { class: 'b-cost' }, costLabel(def.cost)),
           );
-          button.title = `${def.desc} Construction : ${def.buildTime * BUILD_TIME_FACTOR} s.`;
+          button.title = `${def.desc} Construction : ${String(Math.round((def.buildTime * BUILD_TIME_FACTOR) / 6) / 10).replace('.', ',')} min pour un ouvrier${buildersFor(type) > 1 ? `, jusqu’à ${buildersFor(type)} ouvriers à la fois` : ''}.`;
           const lock = h('span', { class: 'b-lock' });
           button.append(lock);
           this.buildLocks.set(type, lock);

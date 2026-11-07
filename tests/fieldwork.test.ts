@@ -614,3 +614,31 @@ describe('blessés', () => {
     expect(foreur.hp).toBe(max);
   });
 });
+
+describe('fourmilière', () => {
+  it('un grand chantier accueille plusieurs ouvriers, un petit un seul', () => {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    openGround(state, hq.x + 6, hq.y + 1, 3);
+    state.cityLevel = 4;
+    state.settlement!.reached = true;
+    expect(placeBuilding(state, 'depot', hq.x + 5, hq.y).ok).toBe(true);
+    const depot = state.buildings[state.buildings.length - 1];
+    expect(state.jobs.filter((j) => j.kind === 'build' && j.refId === depot.id).length).toBe(
+      Math.min(3, BUILDINGS.depot.size ** 2),
+    );
+  });
+
+  it('pas de naissance quand l’air ne suffit plus, même avec des logements libres', () => {
+    const state = newGame();
+    state.settlement!.reached = true;
+    state.city.population = 40;
+    state.city.housing = 200;
+    state.city.morale = 60;
+    state.stock.food = 500;
+    state.mods.oxygen = 0;
+    state.city.oxygen = 100;
+    run(state, 30);
+    expect(state.city.population).toBeLessThanOrEqual(40);
+  });
+});

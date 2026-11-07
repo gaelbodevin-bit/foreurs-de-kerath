@@ -318,6 +318,12 @@ const FOOD_ALARM_MINUTES = 3;
 const FUEL_ALARM_MINUTES = 3;
 /** Seconds between two deaths, for as long as the colony goes hungry or breathless. */
 const DEATH_EVERY = 60;
+/** Population at which births come twice as fast as in a fresh colony. */
+const GROWTH_CROWD = 40;
+/** Air level under which no child is born. */
+const BIRTH_AIR = 50;
+/** Minutes of food ahead under which no child is born. */
+const BIRTH_FOOD_MINUTES = 8;
 
 interface CityInputs {
   oxygenFlow: number;
@@ -532,9 +538,17 @@ function updateCity(state: GameState, inputs: CityInputs): void {
   // Population.
   city.growthT += dt;
   const roomy = city.population < city.housing;
-  const healthy = !starving && city.oxygen > 15 && city.morale >= 30;
-  const growthEvery = 16 - city.morale / 10;
-  if (roomy && healthy && city.growthT >= growthEvery) {
+  // Births need air to spare, not just air left: a colony that outgrows its extractors suffocates.
+  const healthy = !starving && o2Flow > 0 && city.oxygen > BIRTH_AIR && city.morale >= 30;
+  // Like an anthill: the more people, the more births. Housing, air and food are what hold it back.
+  const growthEvery = (16 - city.morale / 10) / (1 + city.population / GROWTH_CROWD);
+  // Nor without food ahead: an anthill grows on what it has stored, not on what it hopes to find.
+  if (
+    roomy &&
+    healthy &&
+    city.growthT >= growthEvery &&
+    foodMinutesLeft(state) > BIRTH_FOOD_MINUTES
+  ) {
     city.growthT = 0;
     city.population += 1;
   }

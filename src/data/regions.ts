@@ -167,7 +167,7 @@ export const REGIONS: RegionDef[] = [
     seismic: { every: 220, magnitude: [3, 5.6] },
     objectives: [
       { kind: 'resource', res: 'crystal', amount: 50 },
-      { kind: 'population', amount: 22 },
+      { kind: 'population', amount: 60 },
       { kind: 'destroy', enemy: 'nest', amount: 1 },
     ],
     perk: {
@@ -202,7 +202,7 @@ export const REGIONS: RegionDef[] = [
     objectives: [
       { kind: 'resource', res: 'food', amount: 50 },
       { kind: 'resource', res: 'water', amount: 30 },
-      { kind: 'population', amount: 24 },
+      { kind: 'population', amount: 90 },
       { kind: 'destroy', enemy: 'nest', amount: 1 },
     ],
     perk: {
@@ -240,7 +240,7 @@ export const REGIONS: RegionDef[] = [
     objectives: [
       { kind: 'resource', res: 'alloy', amount: 10 },
       { kind: 'resource', res: 'rubber', amount: 8 },
-      { kind: 'population', amount: 26 },
+      { kind: 'population', amount: 130 },
       { kind: 'survive', seconds: 480 },
     ],
     perk: {
@@ -316,7 +316,7 @@ export const REGIONS: RegionDef[] = [
     seismic: { every: 120, magnitude: [4.5, 7.2] },
     objectives: [
       { kind: 'resource', res: 'relic', amount: 3 },
-      { kind: 'population', amount: 30 },
+      { kind: 'population', amount: 200 },
     ],
     perk: {
       name: 'Savoir des caveaux',
@@ -367,7 +367,7 @@ export const REGIONS: RegionDef[] = [
 ];
 
 /** Tiles along one side of the planet map. */
-export const WORLD_SIZE = 140;
+export const WORLD_SIZE = 200;
 
 /**
  * Which sector a point belongs to: the nearest centre. `margin` is how far it is from the border

@@ -1,4 +1,4 @@
-import { BUILDINGS } from '../data/buildings';
+import { BUILDINGS, buildersFor } from '../data/buildings';
 import { DEFAULT_SKIN, skinLock } from '../data/skins';
 import { REGIONS, sectorAt } from '../data/regions';
 import { CITY_MINERS, CITY_SETTLERS, FIRST_CONTRACT_AT } from '../data/progression';
@@ -251,8 +251,12 @@ const DISCOVERIES: readonly (readonly [string, (k: TileKind) => boolean])[] = [
 
 function updateDiscoveries(state: GameState): void {
   const { flags } = state.story;
-  for (const [flag, matches] of DISCOVERIES) {
-    if (!flags[flag] && state.tiles.some((t) => t.seen && matches(t.k))) flags[flag] = true;
+  const missing = DISCOVERIES.filter(([flag]) => !flags[flag]);
+  if (missing.length === 0) return;
+  // One pass over the map for all of them: on a big planet, five passes a second add up.
+  for (const tile of state.tiles) {
+    if (!tile.seen) continue;
+    for (const [flag, matches] of missing) if (matches(tile.k)) flags[flag] = true;
   }
 }
 
@@ -405,7 +409,7 @@ export function placeBuilding(
   pay(state, def.cost);
   const b = createBuilding(state, type, x, y, 0);
   b.hp = def.hp * 0.3;
-  addJob(state, 'build', x, y, b.id);
+  for (let n = 0; n < buildersFor(type); n++) addJob(state, 'build', x, y, b.id);
   // Work scheduled under the new walls would never finish.
   for (let dy = 0; dy < def.size; dy++) {
     for (let dx = 0; dx < def.size; dx++) {

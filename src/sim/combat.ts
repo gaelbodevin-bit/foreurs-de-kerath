@@ -264,11 +264,16 @@ function updateEnemy(state: GameState, e: Enemy): void {
 const canSeeEnemy = (state: GameState, e: Enemy): boolean =>
   state.tiles[idx(state, Math.floor(e.x), Math.floor(e.y))].seen;
 
-function nearestEnemy(state: GameState, x: number, y: number, range: number): Enemy | null {
+/**
+ * The enemies in sight this tick, worked out once: most of a big planet's enemies sleep in the dark,
+ * and every unit asking about each of them, every tick, adds up.
+ */
+let inSight: Enemy[] = [];
+
+function nearestEnemy(_state: GameState, x: number, y: number, range: number): Enemy | null {
   let best: Enemy | null = null;
   let bestD = range;
-  for (const e of state.enemies) {
-    if (!canSeeEnemy(state, e)) continue;
+  for (const e of inSight) {
     const d = Math.hypot(e.x - x, e.y - y);
     if (d <= bestD) {
       best = e;
@@ -347,11 +352,11 @@ function updateGuard(state: GameState, unit: Unit): void {
 const alertRadius = (unit: Unit): number =>
   unit.jobId === null && !unit.carry ? MINER_GUARD : MINER_ALERT;
 
-function nearestThreat(state: GameState, unit: Unit): Enemy | null {
+function nearestThreat(_state: GameState, unit: Unit): Enemy | null {
   let best: Enemy | null = null;
   let bestD = alertRadius(unit);
-  for (const e of state.enemies) {
-    if (e.dormant || ENEMIES[e.type].structure || !canSeeEnemy(state, e)) continue;
+  for (const e of inSight) {
+    if (e.dormant || ENEMIES[e.type].structure) continue;
     const d = Math.hypot(e.x - unit.x, e.y - unit.y);
     if (d <= bestD) {
       best = e;
@@ -446,11 +451,10 @@ function updateTurrets(state: GameState): void {
  * to be finished off. Out of danger, it works again, and heals once back at the HQ.
  */
 function fallBack(state: GameState, unit: Unit): boolean {
-  const danger = state.enemies.some(
+  const danger = inSight.some(
     (e) =>
       !e.dormant &&
       !ENEMIES[e.type].structure &&
-      canSeeEnemy(state, e) &&
       Math.hypot(e.x - unit.x, e.y - unit.y) <= MINER_ALERT,
   );
   const hq = state.buildings.find((b) => b.type === 'hq');
@@ -513,6 +517,7 @@ export function updateCombat(state: GameState): void {
   updateWaves(state);
   // Enemies and units can both add to these lists, so walk over stable copies.
   for (const e of [...state.enemies]) updateEnemy(state, e);
+  inSight = state.enemies.filter((e) => canSeeEnemy(state, e));
   for (const unit of [...state.units]) {
     if (UNITS[unit.type].attack) updateGuard(state, unit);
     else {

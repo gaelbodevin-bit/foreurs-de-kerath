@@ -1,10 +1,11 @@
 /** What the colony is called as it grows. Each rank opens more of the build menu. */
 export const CITY_LEVELS: readonly { name: string; population: number }[] = [
   { name: 'Campement', population: 0 },
-  { name: 'Bourg', population: 14 },
-  { name: 'Ville', population: 30 },
-  { name: 'Cité', population: 55 },
-  { name: 'Capitale', population: 90 },
+  { name: 'Bourg', population: 20 },
+  { name: 'Ville', population: 50 },
+  { name: 'Cité', population: 110 },
+  { name: 'Capitale', population: 200 },
+  { name: 'Métropole', population: 350 },
 ];
 
 export const FIRST_CONTRACT_AT = 75;

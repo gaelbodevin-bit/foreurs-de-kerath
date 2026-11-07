@@ -86,7 +86,7 @@ describe('monde unique', () => {
     state.enemies = state.enemies.filter((e) => !inGlass.includes(e));
     state.stock.crystal = 60;
     state.stock.food = 0;
-    state.city.population = 22;
+    state.city.population = 60;
     updateProgress(state);
     expect(state.conquered).toContain('glass');
     expect(state.conquered).not.toContain('ice');

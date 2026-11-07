@@ -37,8 +37,22 @@ Raffinage ─┬─► Atelier de véhicules
 La roche entre les secteurs impose cet ordre : du dur autour du premier, qu'il faut percer au
 marteau-piqueur ou à la foreuse lourde, puis du basalte, réservé au laser.
 
-La population donne le rang de la cité (Campement, Bourg, Ville, Cité, Capitale), qui ne débloque
-rien : il agrandit le Noyau.
+La population donne le rang de la cité (Campement 0, Bourg 20, Ville 50, Cité 110, Capitale 200,
+Métropole 350), qui ne débloque rien : il agrandit le Noyau.
+
+## Une fourmilière
+
+On commence petit et ça croît fort. La planète fait 200 cases de côté. Les naissances s'accélèrent
+avec la population : à 40 habitants, elles vont deux fois plus vite qu'au départ, et à 120 habitants,
+quatre fois plus vite. Ce sont les ressources qui tiennent la croissance en bride : il faut un
+logement libre, de l'air en excédent (production supérieure à la consommation, réserve au-dessus de
+50 %), au moins 8 minutes de vivres d'avance et un moral d'au moins 30. Une colonie qui grandit plus
+vite que ses extracteurs et ses serres cesse simplement de naître, au lieu de s'asphyxier.
+
+Les chantiers sont longs : un habitat demande près de 2 minutes à un ouvrier seul, une fonderie
+près de 4. Un chantier de 2×2 cases ou plus accueille jusqu'à 3 ouvriers à la fois, chacun ajoutant
+son rythme. Plus la colonie a de bras, plus elle bâtit vite. L'infobulle de chaque bâtiment indique
+sa durée pour un ouvrier et le nombre d'ouvriers qu'il peut accueillir.
 
 ## La cité et les avant-postes
 

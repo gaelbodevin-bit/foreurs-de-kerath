@@ -173,7 +173,8 @@ describe('réseau et bâtiments', () => {
     unlockEverything(state);
     expect(placeBuilding(state, 'depot', hq.x + 3, hq.y).ok).toBe(true);
     expect(placePath(state, hq.x + 2, hq.y, hq.x + 2, hq.y)).toBe(1);
-    run(state, 40);
+    // A site takes a while now, even with several workers on it.
+    run(state, 120);
     expect(state.buildings.find((b) => b.type === 'depot')?.built).toBe(1);
     expect(state.tiles[idx(state, hq.x + 2, hq.y)].k).toBe('path');
   });
