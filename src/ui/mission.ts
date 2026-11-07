@@ -1679,7 +1679,7 @@ export class MissionScreen {
                 : 'En marche';
       return { type, def, recipe, count: all.length, status, ok: status === 'En marche' };
     });
-    const sig = `pro${state.city.ration}${Math.round(eaten * 10)}${Math.round(grown)}${Math.floor(state.stock.food)}${rows.map((r) => r.status + r.count).join()}`;
+    const sig = `pro${state.city.ration}${Math.round(eaten * 10)}${Math.round(grown)}${Math.floor(state.stock.food)}${Math.round(left * 10)}${rows.map((r) => r.status + r.count).join()}`;
     this.patch(this.overlay, sig, () => [
       h(
         'div',
