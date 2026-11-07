@@ -19,7 +19,7 @@ import { idx } from '../src/sim/grid';
 import { answerEvent, STORY_GAP, updateStory } from '../src/sim/storyEngine';
 import { addJob, crewCanReachWall } from '../src/sim/workers';
 import type { GameState, Unit } from '../src/sim/types';
-import { newGame, run } from './helpers';
+import { instantBuilding, newGame, run } from './helpers';
 
 /** Clears and reveals a square of ground, and stops the rest of the crew from interfering. */
 function openGround(state: GameState, cx: number, cy: number, radius: number): void {
@@ -444,5 +444,38 @@ describe('gaz toxique', () => {
     run(state, 1.5);
     expect(state.units).not.toContain(foreur);
     expect(state.log.some((l) => l.text === 'Foreur asphyxié par le gaz.')).toBe(true);
+  });
+});
+
+describe('alertes de pénurie', () => {
+  it('prévient une fois quand le cristal des centrales va manquer, puis quand l’air s’épuise', () => {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    openGround(state, hq.x, hq.y, 8);
+    instantBuilding(state, 'generator', hq.x + 2, hq.y);
+    state.stock.crystal = 2;
+    run(state, 2);
+    const fuel = () => state.log.filter((l) => l.text.startsWith('Réserve de cristal')).length;
+    expect(fuel()).toBe(1);
+    run(state, 5);
+    expect(fuel()).toBe(1);
+
+    state.city.oxygen = 35;
+    run(state, 1.1);
+    expect(state.log.some((l) => l.text.startsWith('L’air de la cité s’épuise'))).toBe(true);
+  });
+
+  it('prévient quand le courant ne suffit plus', () => {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    openGround(state, hq.x, hq.y, 8);
+    for (const r of Object.keys(state.stock) as (keyof typeof state.stock)[]) state.stock[r] = 500;
+    // Three labs against the HQ: far more demand than its own current.
+    instantBuilding(state, 'lab', hq.x + 2, hq.y);
+    instantBuilding(state, 'lab', hq.x - 2, hq.y);
+    instantBuilding(state, 'lab', hq.x, hq.y + 2);
+    run(state, 2);
+    expect(state.power.ratio).toBeLessThan(0.8);
+    expect(state.log.filter((l) => l.text.startsWith('Courant insuffisant')).length).toBe(1);
   });
 });

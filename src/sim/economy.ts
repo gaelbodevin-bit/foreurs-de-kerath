@@ -312,6 +312,8 @@ const MAX_APPETITE_CUT = 0.5;
 const LOW_FOOD = 12;
 /** The steward comes knocking when the stores would run out in this many minutes. */
 const FOOD_ALARM_MINUTES = 3;
+/** Warning time before the plants burn their last fuel. */
+const FUEL_ALARM_MINUTES = 3;
 /** Seconds between two deaths, for as long as the colony goes hungry or breathless. */
 const DEATH_EVERY = 60;
 
@@ -391,6 +393,59 @@ export function updateFoodWatch(state: GameState): void {
   const flags = state.story.flags;
   if (foodMinutesLeft(state) < FOOD_ALARM_MINUTES) flags.foodShort = true;
   if (state.stock.food <= 0) flags.starved = true;
+  updateSupplyWatch(state);
+}
+
+/**
+ * Raises the alarm once when something vital tips over, and again only after it has recovered:
+ * fuel for the plants, current for the grid, air for the city.
+ */
+function updateSupplyWatch(state: GameState): void {
+  const flags = state.story.flags;
+  const alarm = (key: string, on: boolean, off: boolean, text: string) => {
+    if (on && !flags[key]) {
+      flags[key] = true;
+      log(state, text, 'warn');
+      state.fx.push({ kind: 'sound', id: 'alert' });
+    } else if (off) {
+      flags[key] = false;
+    }
+  };
+
+  const burn: Partial<Record<ResourceId, number>> = {};
+  for (const b of state.buildings) {
+    const def = BUILDINGS[b.type];
+    if (b.built < 1 || !def.burnTime) continue;
+    const fuel = def.fuel ?? 'crystal';
+    burn[fuel] = (burn[fuel] ?? 0) + 60 / def.burnTime;
+  }
+  for (const [fuel, perMinute] of Object.entries(burn) as [ResourceId, number][]) {
+    const minutes = state.stock[fuel] / perMinute;
+    const name = RESOURCES[fuel].name.toLowerCase();
+    alarm(
+      `fuelShort_${fuel}`,
+      minutes < FUEL_ALARM_MINUTES,
+      minutes > FUEL_ALARM_MINUTES * 2,
+      `Réserve de ${name} : moins de ${FUEL_ALARM_MINUTES} min pour les centrales. Sans elles, plus de courant ni d’oxygène.`,
+    );
+  }
+
+  const { produced, demand, ratio } = state.power;
+  alarm(
+    'powerShort',
+    ratio < 0.8,
+    ratio >= 1,
+    `Courant insuffisant (${Math.round(produced)}/${Math.round(demand)}) : les bâtiments tournent au ralenti.`,
+  );
+
+  if (state.settlement?.reached) {
+    alarm(
+      'airShort',
+      state.city.oxygen < 40,
+      state.city.oxygen > 60,
+      'L’air de la cité s’épuise : il faut des extracteurs d’oxygène alimentés en courant.',
+    );
+  }
 }
 
 function updateCity(state: GameState, inputs: CityInputs): void {

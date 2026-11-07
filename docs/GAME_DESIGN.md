@@ -199,6 +199,9 @@ produite par sa source, soit 16 pour le Noyau et 36 pour une centrale à cristau
 portée à chaque pas, et chaque centrale en marche atteinte le relance. Une centrale sans cristal ne
 relance rien.
 
+Le journal prévient une fois par crise : quand le combustible des centrales tient moins de 3 min,
+quand le courant tombe sous 80 % de la demande, et quand l'air de la cité passe sous 40 %.
+
 Au-delà, les dalles sont éteintes, sans lumière dans leur voie ni lampadaire allumé, et ce qui en
 dépend est à l'arrêt : c'est le signe qu'il faut produire plus. Orsa Veld le signale la première
 fois. Les voies accélèrent aussi les déplacements et arrêtent la lave : le tracé de la ville est une
