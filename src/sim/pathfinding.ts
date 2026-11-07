@@ -69,6 +69,29 @@ class MinHeap {
 }
 
 /**
+ * Scratch space for A*, kept between searches: on a big planet, three fresh maps of the whole world for
+ * every path cost more than the search itself. A tile's entries only count when its stamp is this search's.
+ */
+let scratchSize = 0;
+let stamp = new Uint32Array(0);
+let closed = new Uint32Array(0);
+let gScore = new Float64Array(0);
+let cameFrom = new Int32Array(0);
+let search = 0;
+
+function nextSearch(n: number): number {
+  if (scratchSize !== n || search >= 0xfffffff0) {
+    scratchSize = n;
+    stamp = new Uint32Array(n);
+    closed = new Uint32Array(n);
+    gScore = new Float64Array(n);
+    cameFrom = new Int32Array(n);
+    search = 0;
+  }
+  return ++search;
+}
+
+/**
  * A* over walkable tiles. Returns tile indices excluding the start, or null if unreachable.
  * With a budget, gives up on anything costlier: a quick answer for "is it close by?".
  */
@@ -89,19 +112,22 @@ export function findPath(
   const n = state.w * state.h;
   // Double precision: rounded to single, the same cost would look cheaper again and again, and a
   // long walk took millions of steps to find.
-  const g = new Float64Array(n).fill(Infinity);
-  const from = new Int32Array(n).fill(-1);
-  const done = new Uint8Array(n);
+  const run = nextSearch(n);
+  const g = gScore;
+  const from = cameFrom;
+  const known = (i: number): boolean => stamp[i] === run;
   const open = new MinHeap();
+  stamp[start] = run;
   g[start] = 0;
+  from[start] = -1;
   open.push(start, 0);
 
   while (open.size > 0) {
     const cur = open.pop();
     if (cur === goal) break;
     // An older, costlier entry for a tile already settled.
-    if (done[cur]) continue;
-    done[cur] = 1;
+    if (closed[cur] === run) continue;
+    closed[cur] = run;
     const cx = cur % state.w;
     const cy = Math.floor(cur / state.w);
     for (const [dx, dy] of NEIGHBORS8) {
@@ -118,7 +144,8 @@ export function findPath(
       const step = tileCost(state, ni, occupied) * (dx !== 0 && dy !== 0 ? 1.414 : 1);
       const score = g[cur] + step;
       const estimate = score + Math.hypot(nx - toX, ny - toY) * 0.7;
-      if (score < g[ni] && estimate <= maxCost) {
+      if ((!known(ni) || score < g[ni]) && estimate <= maxCost) {
+        stamp[ni] = run;
         g[ni] = score;
         from[ni] = cur;
         open.push(ni, estimate);
@@ -126,7 +153,7 @@ export function findPath(
     }
   }
 
-  if (from[goal] === -1) return null;
+  if (!known(goal) || from[goal] === -1) return null;
   const path: number[] = [];
   for (let c = goal; c !== start; c = from[c]) path.push(c);
   return path.reverse();
@@ -146,16 +173,16 @@ export function distanceField(state: GameState, fromX: number, fromY: number): I
     const cur = queue[head++];
     const cx = cur % state.w;
     const cy = Math.floor(cur / state.w);
-    const candidates = [
-      cx + 1 < state.w ? cur + 1 : -1,
-      cx > 0 ? cur - 1 : -1,
-      cy + 1 < state.h ? cur + state.w : -1,
-      cy > 0 ? cur - state.w : -1,
-    ];
-    for (const ni of candidates) {
+    const next = dist[cur] + 1;
+    for (let k = 0; k < 4; k++) {
+      let ni: number;
+      if (k === 0) ni = cx + 1 < state.w ? cur + 1 : -1;
+      else if (k === 1) ni = cx > 0 ? cur - 1 : -1;
+      else if (k === 2) ni = cy + 1 < state.h ? cur + state.w : -1;
+      else ni = cy > 0 ? cur - state.w : -1;
       if (ni < 0 || dist[ni] !== -1) continue;
       if (!isWalkableKind(state.tiles[ni].k)) continue;
-      dist[ni] = dist[cur] + 1;
+      dist[ni] = next;
       queue[tail++] = ni;
     }
   }

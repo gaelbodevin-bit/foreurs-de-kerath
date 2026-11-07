@@ -192,6 +192,9 @@ function jobIsOpen(state: GameState, unit: Unit, job: Job): boolean {
   }
 }
 
+/** Ticks before an idle worker who found nothing to do looks again. */
+const IDLE_RETHINK = 15;
+
 function assignJob(state: GameState, unit: Unit): void {
   const open = state.jobs.filter((j) => jobIsOpen(state, unit, j));
   if (open.length === 0) return;
@@ -322,6 +325,8 @@ export function updateWorker(state: GameState, unit: Unit): void {
     if (--unit.thinkIn <= 0) {
       unit.thinkIn = 5;
       assignJob(state, unit);
+      // Nothing in reach: a whole-map search twice a second for nothing adds up with a big crew.
+      if (unit.jobId === null) unit.thinkIn = IDLE_RETHINK;
     }
     return;
   }
