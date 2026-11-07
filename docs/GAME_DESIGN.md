@@ -213,7 +213,9 @@ vraie décision.
 - Les intrigues livrent des indices dont le texte dépend du coupable. Chacun pointe vers un métier :
   l'ingénierie, l'intendance ou le laboratoire.
 - Le complot monte seul, plus vite si le moral est bas et tant que le traître est libre. À 40 % et
-  70 %, des bâtiments sont sabotés. À 100 %, c'est le soulèvement.
+  70 %, des bâtiments sont sabotés. À 100 %, c'est le soulèvement. Le dossier d'enquête affiche sa
+  vitesse en points par minute et chacune de ses causes : secteurs ouverts, moral sous 40, traître
+  en liberté, sûreté.
 - L'accusation arrive quand les secteurs de rang 3 s'ouvrent. Viser juste fait chuter le complot et
   rapporte de la recherche. Viser faux détruit un innocent et renforce le complot.
 

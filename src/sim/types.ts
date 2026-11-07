@@ -287,6 +287,8 @@ export interface CityState {
   conspiracyStage: number;
   /** What the morale is heading for and why, refreshed every tick for the city panel. */
   moraleWhy?: MoraleFactor[];
+  /** What drives the plot, in points per minute, for the investigation file. */
+  conspiracyWhy?: MoraleFactor[];
 }
 
 export interface MoraleFactor {

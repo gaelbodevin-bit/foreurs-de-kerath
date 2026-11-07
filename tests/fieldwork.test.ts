@@ -517,3 +517,20 @@ describe('commandes distinctes', () => {
     }
   });
 });
+
+describe('complot expliqué', () => {
+  it('le dossier donne la vitesse du complot et ses causes, qui collent à ce qui se passe', () => {
+    const state = newGame();
+    state.settlement!.reached = true;
+    state.city.morale = 20;
+    state.city.conspiracy = 30;
+    run(state, 0.1);
+    const why = state.city.conspiracyWhy ?? [];
+    expect(why.map((f) => f.label)).toContain('Moral sous 40');
+    expect(why.map((f) => f.label)).toContain('Traître en liberté');
+    const perMinute = why.reduce((sum, f) => sum + f.value, 0);
+    const before = state.city.conspiracy;
+    run(state, 6);
+    expect(state.city.conspiracy - before).toBeCloseTo(perMinute / 10, 0);
+  });
+});

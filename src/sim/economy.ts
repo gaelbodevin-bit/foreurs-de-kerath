@@ -200,6 +200,8 @@ function canRun(b: Building, def: BuildingDef): boolean {
 }
 
 const MORALE_BASE = 52;
+/** Below this morale, discontent feeds the plot. */
+const UNREST_MORALE = 40;
 
 export function updateEconomy(state: GameState): void {
   const dt = TICK_SECONDS;
@@ -514,14 +516,18 @@ function updateCity(state: GameState, inputs: CityInputs): void {
   city.moraleShock *= 1 - 0.01 * dt;
 
   // Conspiracy.
-  const unrest = city.morale < 40 ? 0.03 : 0;
+  const unrest = city.morale < UNREST_MORALE ? 0.03 : 0;
   const mole = state.story.moleCaught ? 0 : 0.012;
-  let gain = (regionIntrigue(state) + unrest + mole) * state.mods.conspiracyGain;
-  if (city.policies.curfew) gain *= 0.5;
-  city.conspiracy = Math.max(
-    0,
-    Math.min(100, city.conspiracy + (gain - inputs.securityPressure) * dt),
-  );
+  const scale = state.mods.conspiracyGain * (city.policies.curfew ? 0.5 : 1);
+  const plot: MoraleFactor[] = [
+    { label: 'Secteurs ouverts', value: regionIntrigue(state) * scale * 60 },
+    { label: `Moral sous ${UNREST_MORALE}`, value: unrest * scale * 60 },
+    { label: 'Traître en liberté', value: mole * scale * 60 },
+    { label: 'Sûreté', value: -inputs.securityPressure * 60 },
+  ];
+  city.conspiracyWhy = plot.filter((f) => Math.abs(f.value) >= 0.05);
+  const perSecond = plot.reduce((sum, f) => sum + f.value, 0) / 60;
+  city.conspiracy = Math.max(0, Math.min(100, city.conspiracy + perSecond * dt));
 
   // Population.
   city.growthT += dt;

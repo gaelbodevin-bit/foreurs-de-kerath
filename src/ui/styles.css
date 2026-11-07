@@ -378,6 +378,8 @@ p {
   justify-content: center;
   background: rgba(3, 2, 6, 0.6);
   padding: 16px;
+  /* Above every piece of HUD, speech bubbles included: an open window has the floor. */
+  z-index: 10;
 }
 
 .overlay.show {

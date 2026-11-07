@@ -812,6 +812,29 @@ export class MissionScreen {
     }
   }
 
+  /** How fast the plot climbs and why, in points per minute. */
+  private conspiracyBreakdown(): HTMLElement[] {
+    const why = this.state.city.conspiracyWhy;
+    if (!why) return [];
+    const total = why.reduce((sum, f) => sum + f.value, 0);
+    const fmt = (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(1).replace('.', ',')}`;
+    return [
+      h('h3', {}, `Évolution : ${fmt(total)} % par minute`),
+      h(
+        'ul',
+        { class: 'morale-why' },
+        ...why.map((f) =>
+          h(
+            'li',
+            { class: f.value > 0 ? 'bad' : 'good' },
+            h('span', {}, f.label),
+            h('b', {}, fmt(f.value)),
+          ),
+        ),
+      ),
+    ];
+  }
+
   /** Where the morale is heading and the reasons, so the player knows what to fix. */
   private moraleBreakdown(): HTMLElement[] {
     const why = this.state.city.moraleWhy;
@@ -2089,6 +2112,7 @@ export class MissionScreen {
           { class: 'dim' },
           'À 40 % et 70 %, un bâtiment est saboté. À 100 %, c’est le soulèvement. Un bureau de sûreté ou le couvre-feu le freinent.',
         ),
+        ...this.conspiracyBreakdown(),
         h(
           'button',
           {
