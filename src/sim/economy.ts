@@ -387,11 +387,18 @@ export function foodMinutesLeft(state: GameState): number {
   return eaten <= 0 ? Infinity : lasts + after / eaten;
 }
 
-/** Whether some food producer runs on this resource. */
-function feedsGrowers(state: GameState, res: ResourceId): boolean {
+/** Whether some food producer runs on this resource, directly or further up the chain (ice for the water). */
+function feedsGrowers(state: GameState, res: ResourceId, depth = 0): boolean {
   return state.buildings.some((b) => {
     const recipe = BUILDINGS[b.type].recipe;
-    return b.built >= 1 && !!recipe?.outputs.food && !!recipe.inputs[res];
+    if (b.built < 1 || !recipe?.inputs[res]) return false;
+    if (recipe.outputs.food) return true;
+    return (
+      depth < 3 &&
+      (Object.keys(recipe.outputs) as ResourceId[]).some(
+        (out) => out !== res && feedsGrowers(state, out, depth + 1),
+      )
+    );
   });
 }
 
@@ -547,6 +554,7 @@ function updateCity(state: GameState, inputs: CityInputs): void {
     roomy &&
     healthy &&
     city.growthT >= growthEvery &&
+    outputPerMinute(state, 'food') >= appetitePerSecond(state) * 60 &&
     foodMinutesLeft(state) > BIRTH_FOOD_MINUTES
   ) {
     city.growthT = 0;

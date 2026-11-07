@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDINGS } from '../src/data/buildings';
+import { BUILDINGS, buildersFor } from '../src/data/buildings';
 import { CITY_STORAGE } from '../src/data/progression';
 import { REGIONS, sectorAt } from '../src/data/regions';
 import { STORY_EVENTS } from '../src/data/story';
@@ -616,7 +616,7 @@ describe('blessés', () => {
 });
 
 describe('fourmilière', () => {
-  it('un grand chantier accueille plusieurs ouvriers, un petit un seul', () => {
+  it('un chantier accueille plusieurs ouvriers, trois au plus', () => {
     const state = newGame();
     const hq = state.buildings.find((b) => b.type === 'hq')!;
     openGround(state, hq.x + 6, hq.y + 1, 3);
@@ -625,7 +625,7 @@ describe('fourmilière', () => {
     expect(placeBuilding(state, 'depot', hq.x + 5, hq.y).ok).toBe(true);
     const depot = state.buildings[state.buildings.length - 1];
     expect(state.jobs.filter((j) => j.kind === 'build' && j.refId === depot.id).length).toBe(
-      Math.min(3, BUILDINGS.depot.size ** 2),
+      Math.min(3, BUILDINGS.depot.size ** 2 + 1),
     );
   });
 
@@ -640,5 +640,86 @@ describe('fourmilière', () => {
     state.city.oxygen = 100;
     run(state, 30);
     expect(state.city.population).toBeLessThanOrEqual(40);
+  });
+});
+
+describe('fourmilière, suite', () => {
+  it('un chantier fini libère tous ses ouvriers d’un coup', () => {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    openGround(state, hq.x + 6, hq.y + 1, 3);
+    state.cityLevel = 4;
+    state.settlement!.reached = true;
+    state.units = [state.units.find((u) => u.type === 'foreur')!];
+    expect(placeBuilding(state, 'generator', hq.x + 5, hq.y).ok).toBe(true);
+    const site = state.buildings[state.buildings.length - 1];
+    for (let i = 0; i < 4000 && site.built < 1; i++) run(state, 0.1);
+    expect(site.built).toBe(1);
+    expect(state.jobs.filter((j) => j.kind === 'build' && j.refId === site.id)).toEqual([]);
+  });
+
+  it('un chantier d’une ancienne sauvegarde retrouve toute son équipe', () => {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    openGround(state, hq.x + 6, hq.y + 1, 3);
+    state.cityLevel = 4;
+    state.settlement!.reached = true;
+    expect(placeBuilding(state, 'generator', hq.x + 5, hq.y).ok).toBe(true);
+    const site = state.buildings[state.buildings.length - 1];
+    const slots = () => state.jobs.filter((j) => j.kind === 'build' && j.refId === site.id).length;
+    // An old save had a single job per site.
+    state.jobs = state.jobs.filter(
+      (j) =>
+        j.kind !== 'build' ||
+        j.refId !== site.id ||
+        j === state.jobs.find((k) => k.refId === site.id),
+    );
+    expect(slots()).toBe(1);
+    run(state, 1.1);
+    expect(slots()).toBe(buildersFor('generator'));
+  });
+
+  it('personne ne guérit quand la colonie n’a plus d’air', () => {
+    const state = newGame();
+    state.enemies = [];
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    const foreur = state.units.find((u) => u.type === 'foreur')!;
+    state.mods.oxygen = 0;
+    foreur.hp = 30;
+    for (let i = 0; i < 50; i++) {
+      foreur.x = hq.x + 1.5;
+      foreur.y = hq.y + 2.5;
+      state.city.oxygen = 0;
+      run(state, 0.1);
+    }
+    expect(foreur.hp).toBeLessThan(30);
+  });
+
+  it('pas de naissance sans serres qui suivent, même avec des vivres en stock', () => {
+    const state = newGame();
+    state.settlement!.reached = true;
+    state.city.population = 40;
+    state.city.housing = 200;
+    state.city.morale = 60;
+    state.stock.food = 500;
+    state.city.oxygen = 100;
+    state.mods.oxygen = 10;
+    run(state, 30);
+    expect(state.city.population).toBeLessThanOrEqual(40);
+  });
+
+  it('la réserve de vivres compte la glace qui fait tourner les serres', () => {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    openGround(state, hq.x + 5, hq.y + 1, 3);
+    Object.assign(state.stock, { ore: 200, stone: 200, crystal: 50, credits: 500 });
+    instantBuilding(state, 'farm', hq.x + 3, hq.y);
+    instantBuilding(state, 'farm', hq.x + 3, hq.y + 2);
+    instantBuilding(state, 'melter', hq.x + 5, hq.y);
+    state.city.population = 20;
+    state.stock.food = 20;
+    state.stock.water = 6;
+    state.stock.ice = 4;
+    expect(foodMinutesLeft(state)).toBeLessThan(Infinity);
   });
 });

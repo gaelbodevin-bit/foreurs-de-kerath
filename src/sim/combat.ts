@@ -464,6 +464,18 @@ function fallBack(state: GameState, unit: Unit): boolean {
     return false;
   }
   const home = buildingCenter(hq);
+  // With the fight at the HQ itself, running there means running into it: better carry on where it is.
+  const besieged = inSight.some(
+    (e) =>
+      !e.dormant &&
+      !ENEMIES[e.type].structure &&
+      Math.hypot(e.x - home.x, e.y - home.y) <= MINER_ALERT,
+  );
+  if (besieged) {
+    if (unit.chasing) unit.path = [];
+    unit.chasing = false;
+    return false;
+  }
   if (Math.hypot(home.x - unit.x, home.y - unit.y) <= CARE_RADIUS - 1) {
     unit.path = [];
     return true;
@@ -500,9 +512,11 @@ function healUnits(state: GameState): void {
     (b) => b.built >= 1 && (b.type === 'hq' || (b.type === 'clinic' && b.eff > 0)),
   );
   if (carers.length === 0) return;
+  const choking = state.city.oxygen <= 0;
   for (const unit of state.units) {
     const max = UNITS[unit.type].hp;
     if (unit.hp >= max) continue;
+    if (choking && UNITS[unit.type].citizens > 0) continue;
     let rate = 0;
     for (const b of carers) {
       const c = buildingCenter(b);

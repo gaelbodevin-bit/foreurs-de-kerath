@@ -477,4 +477,5 @@ export const CITY_BUILDINGS: ReadonlySet<BuildingType> = new Set(
 /** Every `buildTime` is multiplied by this: raising a colony is meant to take a while, for a single worker. */
 export const BUILD_TIME_FACTOR = 14;
 /** Workers who can share one site, each adding their own pace: a big site goes faster with a crowd on it. */
-export const buildersFor = (type: BuildingType): number => Math.min(3, BUILDINGS[type].size ** 2);
+export const buildersFor = (type: BuildingType): number =>
+  Math.min(3, BUILDINGS[type].size ** 2 + 1);

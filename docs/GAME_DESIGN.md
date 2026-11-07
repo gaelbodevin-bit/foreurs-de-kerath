@@ -38,7 +38,7 @@ La roche entre les secteurs impose cet ordre : du dur autour du premier, qu'il f
 marteau-piqueur ou à la foreuse lourde, puis du basalte, réservé au laser.
 
 La population donne le rang de la cité (Campement 0, Bourg 20, Ville 50, Cité 110, Capitale 200,
-Métropole 350), qui ne débloque rien : il agrandit le Noyau.
+Métropole 350), qui ne débloque rien : chaque rang ajoute une tour ou un anneau au Noyau.
 
 ## Une fourmilière
 
@@ -46,12 +46,14 @@ On commence petit et ça croît fort. La planète fait 200 cases de côté. Les 
 avec la population : à 40 habitants, elles vont deux fois plus vite qu'au départ, et à 120 habitants,
 quatre fois plus vite. Ce sont les ressources qui tiennent la croissance en bride : il faut un
 logement libre, de l'air en excédent (production supérieure à la consommation, réserve au-dessus de
-50 %), au moins 8 minutes de vivres d'avance et un moral d'au moins 30. Une colonie qui grandit plus
-vite que ses extracteurs et ses serres cesse simplement de naître, au lieu de s'asphyxier.
+50 %), des serres qui produisent au moins ce que la colonie mange, au moins 8 minutes de vivres
+d'avance (en comptant la glace et l'eau dont dépendent les serres) et un moral d'au moins 30. Une
+colonie qui grandit plus vite que ses extracteurs et ses serres cesse simplement de naître, au lieu
+de s'asphyxier ou de mourir de faim.
 
 Les chantiers sont longs : un habitat demande près de 2 minutes à un ouvrier seul, une fonderie
-près de 4. Un chantier de 2×2 cases ou plus accueille jusqu'à 3 ouvriers à la fois, chacun ajoutant
-son rythme. Plus la colonie a de bras, plus elle bâtit vite. L'infobulle de chaque bâtiment indique
+près de 4. Un petit chantier accueille 2 ouvriers à la fois, un chantier de 2×2 cases ou plus jusqu'à 3,
+chacun ajoutant son rythme. Plus la colonie a de bras, plus elle bâtit vite. L'infobulle de chaque bâtiment indique
 sa durée pour un ouvrier et le nombre d'ouvriers qu'il peut accueillir.
 
 ## La cité et les avant-postes
@@ -245,10 +247,11 @@ Les foreurs rendent les coups au corps à corps, faiblement mais plus fort avec 
 et, dès qu'un ennemi s'approche à moins de 6 cases, lâchent leur travail pour aller le frapper, sauf
 ordre contraire du joueur : les gardes et les tourelles restent la vraie défense. Sous 40 % de
 leurs PV, ils ne cherchent plus le combat : avec un ennemi à moins de 6 cases, ils se replient vers
-le QG, sous les tourelles.
+le QG, sous les tourelles, sauf si le combat a lieu au QG lui-même.
 
 Les blessures se referment près du QG (1,5 PV par seconde) et bien plus vite près d'un dispensaire
-alimenté (5 PV par seconde). Loin de la base, une unité blessée le reste.
+alimenté (5 PV par seconde). Loin de la base, une unité blessée le reste. Quand la colonie n'a plus
+d'air, personne ne guérit : le repos ne remplace pas l'oxygène.
 
 Les structures dorment tant qu'elles n'ont pas été découvertes : creuser vers elles, c'est aussi
 décider quand le combat commence.

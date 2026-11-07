@@ -1011,6 +1011,7 @@ function headquartersGrowth(): THREE.Object3D[] {
     tower(-0.78, 0.78, 1.25, TEAL),
     tower(0.78, 0.78, 1.5, AMBER),
     ring,
+    tower(0.78, -0.78, 1.75, TEAL),
   ];
 }
 

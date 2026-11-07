@@ -4,6 +4,7 @@ import {
   BUILDINGS,
   PATH_COST,
   PATH_REFUND,
+  buildersFor,
 } from '../data/buildings';
 import { CITY_STORE_REACH } from '../data/progression';
 import { WALLS } from '../data/resources';
@@ -486,7 +487,10 @@ function runBuild(state: GameState, unit: Unit, job: Job, b: Building, speed: nu
       state.networkDirty = true;
       log(state, `${def.name} : construction terminée.`, 'good');
       state.fx.push({ kind: 'sound', id: 'build', x: b.x, y: b.y }, { kind: 'voice', id: 'built' });
-      removeJob(state, job.id);
+      // Every builder is done, not just this one: a spare slot left open would send someone over for nothing.
+      for (const other of state.jobs.filter((j) => j.kind === 'build' && j.refId === b.id)) {
+        removeJob(state, other.id);
+      }
     }
   } else {
     b.hp = Math.min(def.hp, b.hp + REPAIR_RATE * dt);
@@ -689,7 +693,12 @@ function collapse(state: GameState, x: number, y: number): void {
 /** Queues repairs for damaged buildings. */
 export function updateRepairs(state: GameState): void {
   for (const b of state.buildings) {
-    if (b.built < 1 || b.hp >= BUILDINGS[b.type].hp * 0.9) continue;
+    if (b.built < 1) {
+      const slots = state.jobs.filter((j) => j.kind === 'build' && j.refId === b.id).length;
+      for (let n = slots; n < buildersFor(b.type); n++) addJob(state, 'build', b.x, b.y, b.id);
+      continue;
+    }
+    if (b.hp >= BUILDINGS[b.type].hp * 0.9) continue;
     if (state.jobs.some((j) => j.kind === 'build' && j.refId === b.id)) continue;
     addJob(state, 'build', b.x, b.y, b.id);
   }
