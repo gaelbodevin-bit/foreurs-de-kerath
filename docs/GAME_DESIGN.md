@@ -97,6 +97,9 @@ le bord, à 3 roches et 2 minerais la case. Un pont porte le courant et ne se d�
 **Fumerolles.** Une fois découverte, une fumerolle souffle 5 s toutes les 40 s. Le captage de gaz,
 posé dessus, la fait taire et produit de l'énergie sans combustible.
 
+**Gaz toxique.** Il ronge les PV de qui s'y tient. L'équipe n'accepte aucune tâche dans un nuage
+nocif, et un membre tombé sous la moitié de ses PV lâche tout pour gagner l'air sain.
+
 **Mousse.** Elle éclaire et se récolte comme les champignons, pour un peu moins de nourriture.
 
 ## Les gisements et les chaînes de l'industrie
@@ -167,7 +170,8 @@ dès qu'une unité approche ou qu'on les blesse.
 Une fois CITY rejointe, une demande arrive toutes les 35 à 75 secondes, 4 au plus à la fois : livrer une commande, bâtir un
 chantier, forer jusqu'à un point marqué, sauver une équipe ensevelie, abattre une incursion ou
 accueillir des réfugiés. Réussir paie, et rater pèse sur le moral. Une commande laisse 3 min 30, et ne
-réclame jamais plus du double de ce qu'on a en réserve (8 au moins, 4 pour les ressources rares).
+réclame jamais plus du double de ce qu'on a en réserve (8 au moins, 4 pour les ressources rares). Un chantier n'est demandé que si la réserve
+peut déjà le payer.
 
 Le marquage du forage ignore la roche que personne dans l'équipe ne peut percer, et dit quel outil il
 faut.

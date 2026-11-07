@@ -462,6 +462,7 @@ export function updateCombat(state: GameState): void {
     state.units.splice(state.units.indexOf(unit), 1);
     state.fx.push({ kind: 'burst', x: unit.x, y: unit.y, color: 0xff5050 });
     if (UNITS[unit.type].citizens > 0) state.city.moraleShock -= 4;
-    log(state, `${UNITS[unit.type].name} perdu au combat.`, 'bad');
+    const name = UNITS[unit.type].name;
+    log(state, unit.gassed ? `${name} asphyxié par le gaz.` : `${name} perdu au combat.`, 'bad');
   }
 }

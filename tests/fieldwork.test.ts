@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BUILDINGS } from '../src/data/buildings';
 import { CITY_STORAGE } from '../src/data/progression';
 import { STORY_EVENTS } from '../src/data/story';
 import { updateContracts } from '../src/sim/contracts';
@@ -296,6 +297,27 @@ describe('commandes de la Charte', () => {
       }
     }
   });
+
+  it('ne commandent un chantier que si la colonie peut le payer', () => {
+    let builds = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const state = newGame(seed);
+      state.settlement!.reached = true;
+      state.stock.crystal = 0;
+      state.stock.ore = 20;
+      state.stock.stone = 20;
+      state.contracts = [];
+      state.nextContractAt = 0;
+      updateContracts(state);
+      for (const c of state.contracts.filter((k) => k.kind === 'build')) {
+        builds++;
+        const cost = BUILDINGS[c.building!].cost;
+        expect(cost.crystal ?? 0).toBe(0);
+        expect(cost.ore ?? 0).toBeLessThanOrEqual(20);
+      }
+    }
+    expect(builds).toBeGreaterThan(0);
+  });
 });
 
 describe('marquage du forage', () => {
@@ -379,5 +401,48 @@ describe('moral expliqué', () => {
     run(state, 30);
     // Drifting towards the target: the gap shrinks.
     expect(Math.abs(state.city.morale - target)).toBeLessThan(Math.abs(before - target) + 1e-9);
+  });
+});
+
+describe('gaz toxique', () => {
+  it('personne n’est envoyé travailler dans un nuage de gaz', () => {
+    const { state, foreur } = loneMiner();
+    const x = Math.floor(foreur.x) + 4;
+    const y = Math.floor(foreur.y);
+    spawnPickup(state, 'ore', x + 0.5, y + 0.5);
+    state.tiles[idx(state, x, y)].gas = 0.9;
+    run(state, 2);
+    expect(foreur.jobId).toBeNull();
+  });
+
+  it('un foreur à moitié asphyxié lâche sa tâche et sort du gaz', () => {
+    const { state, foreur } = loneMiner();
+    const x = Math.floor(foreur.x);
+    const y = Math.floor(foreur.y);
+    state.tiles[idx(state, x - 1, y)].k = 'dirt';
+    addJob(state, 'drill', x - 1, y);
+    run(state, 0.5);
+    expect(foreur.jobId).not.toBeNull();
+    // The cloud settles on the miner after the job was handed out.
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = 0; dx <= 1; dx++) state.tiles[idx(state, x + dx, y + dy)].gas = 0.9;
+    }
+    foreur.hp = 20;
+    run(state, 3);
+    expect(foreur.jobId).toBeNull();
+    expect(
+      state.tiles[idx(state, Math.floor(foreur.x), Math.floor(foreur.y))].gas ?? 0,
+    ).toBeLessThan(0.2);
+    expect(foreur.hp).toBeGreaterThan(0);
+  });
+
+  it('une mort dans le gaz est annoncée comme telle', () => {
+    const { state, foreur } = loneMiner();
+    foreur.hp = 1;
+    // Gas wall to wall: no clean air to run to.
+    for (const tile of state.tiles) if (tile.k === 'floor') tile.gas = 0.9;
+    run(state, 1.5);
+    expect(state.units).not.toContain(foreur);
+    expect(state.log.some((l) => l.text === 'Foreur asphyxié par le gaz.')).toBe(true);
   });
 });

@@ -149,6 +149,8 @@ export interface Unit {
   working: boolean;
   /** Has downed tools to go after an enemy. */
   chasing?: boolean;
+  /** Last hurt by the gas rather than by an enemy, for the death notice. */
+  gassed?: boolean;
 }
 
 export interface Building {

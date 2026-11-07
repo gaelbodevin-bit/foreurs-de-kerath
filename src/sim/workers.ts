@@ -10,6 +10,7 @@ import { WALLS } from '../data/resources';
 import { UNITS } from '../data/units';
 import { canAfford, hasRoomFor, addStock, pay } from './economy';
 import { buildingCenter, log, newId, spawnPickup } from './entities';
+import { GAS_HARMFUL } from './gas';
 import { idx, isBridgeable, isWalkableKind, NEIGHBORS4, reveal, setTile, tileCenter } from './grid';
 import { distanceField, findPath } from './pathfinding';
 import { rand } from './rng';
@@ -138,6 +139,9 @@ export function crewDrillPower(state: GameState): number {
 }
 
 /** Where a unit must stand to work this job, or null if nothing is in reach. */
+/** Air nobody should stand in for long. */
+const gassed = (state: GameState, i: number): boolean => (state.tiles[i].gas ?? 0) >= GAS_HARMFUL;
+
 function bestAccess(
   state: GameState,
   job: Job,
@@ -151,11 +155,14 @@ function bestAccess(
       const ny = job.y + dy;
       if (nx < 0 || ny < 0 || nx >= state.w || ny >= state.h) continue;
       const i = idx(state, nx, ny);
+      // Nobody is sent to work in a cloud of gas: the job waits for the air to clear.
+      if (gassed(state, i)) continue;
       if (dist[i] >= 0 && (!best || dist[i] < best.steps)) best = { tile: i, steps: dist[i] };
     }
     return best;
   }
   const i = idx(state, job.x, job.y);
+  if (gassed(state, i)) return null;
   return dist[i] >= 0 ? { tile: i, steps: dist[i] } : null;
 }
 
@@ -258,8 +265,51 @@ export function moveAlongPath(
 
 const distTo = (u: Unit, x: number, y: number) => Math.hypot(u.x - x, u.y - y);
 
+/**
+ * Half dead in the gas, a crew member drops the job and heads for clean air: the player would
+ * rarely be quick enough to save them all.
+ */
+function fleeGas(state: GameState, unit: Unit): void {
+  if (UNITS[unit.type].citizens === 0 || unit.hp > UNITS[unit.type].hp * 0.5) return;
+  const here = idx(state, Math.floor(unit.x), Math.floor(unit.y));
+  if (!gassed(state, here)) return;
+  const seen = new Uint8Array(state.tiles.length);
+  const queue = [here];
+  seen[here] = 1;
+  for (let head = 0; head < queue.length && head < 4000; head++) {
+    const i = queue[head];
+    if (!gassed(state, i)) {
+      const path = findPath(
+        state,
+        here % state.w,
+        Math.floor(here / state.w),
+        i % state.w,
+        Math.floor(i / state.w),
+      );
+      if (!path) return;
+      dropCarried(state, unit);
+      releaseJob(state, unit);
+      unit.path = path;
+      unit.order = i;
+      return;
+    }
+    const x = i % state.w;
+    const y = Math.floor(i / state.w);
+    for (const [dx, dy] of NEIGHBORS4) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= state.w || ny >= state.h) continue;
+      const n = idx(state, nx, ny);
+      if (seen[n] || !isWalkableKind(state.tiles[n].k)) continue;
+      seen[n] = 1;
+      queue.push(n);
+    }
+  }
+}
+
 export function updateWorker(state: GameState, unit: Unit): void {
   const speed = UNITS[unit.type].speed * state.mods.moveSpeed;
+  if (unit.order === null) fleeGas(state, unit);
   if (unit.order !== null) {
     // Player orders overrule jobs until the unit arrives.
     moveAlongPath(state, unit, speed);

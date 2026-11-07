@@ -75,10 +75,14 @@ function deliverDraft(state: GameState): Draft | null {
 }
 
 function buildDraft(state: GameState): Draft | null {
+  // Only what the colony can pay for right now: a site it can't afford is a mission lost in advance.
+  const affordable = (t: BuildingType) => canAfford(state, BUILDINGS[t].cost);
   const missing = availableBuildings(state).filter(
-    (t) => t !== 'hq' && !state.buildings.some((b) => b.type === t),
+    (t) => t !== 'hq' && !state.buildings.some((b) => b.type === t) && affordable(t),
   );
-  const options: BuildingType[] = missing.length > 0 ? missing : ['habitat', 'depot'];
+  const options: BuildingType[] =
+    missing.length > 0 ? missing : (['habitat', 'depot'] as BuildingType[]).filter(affordable);
+  if (options.length === 0) return null;
   const building = randPick(state, options);
   return {
     kind: 'build',
