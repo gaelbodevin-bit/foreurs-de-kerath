@@ -30,8 +30,10 @@ import {
   canAfford,
   foodMinutesLeft,
   hasRoomFor,
+  needsGrid,
   outputPerMinute,
   storageCapacity,
+  wouldConnect,
 } from '../sim/economy';
 import { canSignAny, edictLock, edictWait, signEdict } from '../sim/edicts';
 import { isBridgeable } from '../sim/grid';
@@ -84,7 +86,7 @@ import { clear, h } from './dom';
 import { regionById, REGIONS } from '../data/regions';
 import { resourceIcon } from './icons';
 import { formatMagnitude, hasSeismicStation, riskName, tremorRadius } from '../sim/seismic';
-import { crewDrillPower } from '../sim/workers';
+import { crewCanReachWall, crewDrillPower } from '../sim/workers';
 import { renderPlanetMap, renderSectorList } from './planet';
 
 /** Seconds a tremor stays marked on the minimap. */
@@ -715,14 +717,21 @@ export class MissionScreen {
     const moved = Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6;
 
     if (tool.kind === 'build') {
+      const def = BUILDINGS[tool.type];
+      const onGrid = !needsGrid(def) || wouldConnect(state, tool.type, drag.x1, drag.y1);
       const result = placeBuilding(state, tool.type, drag.x1, drag.y1);
       if (!result.ok) {
         this.say(result.reason ?? 'Construction impossible.');
         // Clicking again wouldn't help: the left button goes back to its usual job.
-        if (!canAfford(state, BUILDINGS[tool.type].cost)) this.setTool({ kind: 'select' });
+        if (!canAfford(state, def.cost)) this.setTool({ kind: 'select' });
         return;
       }
       this.speak('ack');
+      if (!onGrid) {
+        this.say(
+          `${def.name} hors réseau : il ne tournera pas tant qu’un sol technique ne le relie pas au courant.`,
+        );
+      }
       // Shift keeps the tool in hand to place a series.
       if (!e.shiftKey || !canAfford(state, BUILDINGS[tool.type].cost)) {
         this.setTool({ kind: 'select' });
@@ -791,9 +800,15 @@ export class MissionScreen {
     }
     this.selectedBuilding = null;
     this.selectedUnits = [];
+    const before = new Set(state.jobs.map((j) => j.id));
     const count = designateArea(state, drag.x0, drag.y0, drag.x1, drag.y1);
     if (count > 0) this.speak('drill');
     this.explainUndrillable(drag);
+    // Marks deep in the rock are fine, as long as the crew can start on one of them.
+    const fresh = state.jobs.filter((j) => j.kind === 'drill' && !before.has(j.id));
+    if (fresh.length > 0 && !fresh.some((j) => crewCanReachWall(state, j.x, j.y))) {
+      this.say('Personne ne peut y accéder : marquez aussi la roche qui y mène.');
+    }
   }
 
   /** Spells out why nothing happens on hard rock, rather than leaving the player guessing. */

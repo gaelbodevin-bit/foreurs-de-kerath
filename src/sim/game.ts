@@ -376,7 +376,11 @@ export function canPlaceBuilding(
       }
       const place = state.settlement;
       if (place && Math.hypot(x + dx - place.x, y + dy - place.y) < SETTLEMENT_CLEARANCE) {
-        return { ok: false, reason: 'Cet espace appartient à CITY.' };
+        return {
+          ok: false,
+          reason:
+            'Cet espace appartient à CITY : forez la roche autour pour bâtir à portée de son réseau.',
+        };
       }
     }
   }

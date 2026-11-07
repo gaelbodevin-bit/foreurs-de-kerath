@@ -68,13 +68,17 @@ class MinHeap {
   }
 }
 
-/** A* over walkable tiles. Returns tile indices excluding the start, or null if unreachable. */
+/**
+ * A* over walkable tiles. Returns tile indices excluding the start, or null if unreachable.
+ * With a budget, gives up on anything costlier: a quick answer for "is it close by?".
+ */
 export function findPath(
   state: GameState,
   fromX: number,
   fromY: number,
   toX: number,
   toY: number,
+  maxCost = Infinity,
 ): number[] | null {
   const start = idx(state, fromX, fromY);
   const goal = idx(state, toX, toY);
@@ -83,8 +87,11 @@ export function findPath(
 
   const occupied = buildingTiles(state);
   const n = state.w * state.h;
-  const g = new Float32Array(n).fill(Infinity);
+  // Double precision: rounded to single, the same cost would look cheaper again and again, and a
+  // long walk took millions of steps to find.
+  const g = new Float64Array(n).fill(Infinity);
   const from = new Int32Array(n).fill(-1);
+  const done = new Uint8Array(n);
   const open = new MinHeap();
   g[start] = 0;
   open.push(start, 0);
@@ -92,6 +99,9 @@ export function findPath(
   while (open.size > 0) {
     const cur = open.pop();
     if (cur === goal) break;
+    // An older, costlier entry for a tile already settled.
+    if (done[cur]) continue;
+    done[cur] = 1;
     const cx = cur % state.w;
     const cy = Math.floor(cur / state.w);
     for (const [dx, dy] of NEIGHBORS8) {
@@ -107,10 +117,11 @@ export function findPath(
       }
       const step = tileCost(state, ni, occupied) * (dx !== 0 && dy !== 0 ? 1.414 : 1);
       const score = g[cur] + step;
-      if (score < g[ni]) {
+      const estimate = score + Math.hypot(nx - toX, ny - toY) * 0.7;
+      if (score < g[ni] && estimate <= maxCost) {
         g[ni] = score;
         from[ni] = cur;
-        open.push(ni, score + Math.hypot(nx - toX, ny - toY) * 0.7);
+        open.push(ni, estimate);
       }
     }
   }

@@ -10,12 +10,13 @@ import {
   hasRoomFor,
   storageCapacity,
   updateNetwork,
+  wouldConnect,
 } from '../src/sim/economy';
 import { createBuilding, spawnEnemy, spawnPickup } from '../src/sim/entities';
 import { designateArea, placeBuilding, placePath, roadEnd } from '../src/sim/game';
 import { idx } from '../src/sim/grid';
 import { answerEvent, STORY_GAP, updateStory } from '../src/sim/storyEngine';
-import { addJob } from '../src/sim/workers';
+import { addJob, crewCanReachWall } from '../src/sim/workers';
 import type { GameState, Unit } from '../src/sim/types';
 import { newGame, run } from './helpers';
 
@@ -310,5 +311,54 @@ describe('marquage du forage', () => {
     expect(state.jobs.some((j) => j.kind === 'drill' && j.x === x)).toBe(false);
     state.mods.drillPower = 2;
     expect(designateArea(state, x, y, x, y)).toBe(1);
+  });
+});
+
+describe('ce qu’on dit au joueur avant qu’il attende pour rien', () => {
+  it('un bâtiment posé loin du courant est signalé hors réseau', () => {
+    const state = newGame();
+    const place = state.settlement!;
+    place.reached = true;
+    expect(wouldConnect(state, 'farm', place.x + 2, place.y)).toBe(true);
+    expect(wouldConnect(state, 'farm', place.x + 12, place.y)).toBe(false);
+  });
+
+  it('une roche enfermée n’est accessible qu’une fois le passage marqué', () => {
+    const { state, foreur } = loneMiner();
+    const x = Math.floor(foreur.x) + 4;
+    const y = Math.floor(foreur.y);
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) state.tiles[idx(state, x + dx, y + dy)].k = 'dirt';
+    }
+    state.tiles[idx(state, x, y)].k = 'oreSeam';
+    expect(crewCanReachWall(state, x - 1, y)).toBe(true);
+    expect(crewCanReachWall(state, x, y)).toBe(false);
+    addJob(state, 'drill', x - 1, y);
+    expect(crewCanReachWall(state, x, y)).toBe(true);
+  });
+});
+
+describe('les mineurs désœuvrés gardent la colonie', () => {
+  it('un foreur sans tâche va au-devant d’un ennemi plus loin qu’un foreur occupé', () => {
+    const { state, foreur } = loneMiner();
+    foreur.hp = 500;
+    spawnEnemy(state, 'rongeur', foreur.x + 8, foreur.y);
+    run(state, 0.6);
+    expect(foreur.chasing).toBe(true);
+  });
+
+  it('un foreur au travail ne lâche sa tâche que pour un ennemi tout proche', () => {
+    const { state, foreur } = loneMiner();
+    foreur.hp = 500;
+    const x = Math.floor(foreur.x);
+    const y = Math.floor(foreur.y);
+    state.tiles[idx(state, x - 1, y - 1)].k = 'basalt';
+    state.mods.drillPower = 3;
+    addJob(state, 'drill', x - 1, y - 1);
+    run(state, 0.5);
+    expect(foreur.jobId).not.toBeNull();
+    spawnEnemy(state, 'rongeur', foreur.x + 8, foreur.y);
+    run(state, 0.6);
+    expect(foreur.chasing).toBeFalsy();
   });
 });

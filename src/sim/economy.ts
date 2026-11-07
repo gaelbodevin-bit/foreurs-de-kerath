@@ -13,7 +13,7 @@ import { CORPSE_FOOD, edictById } from '../data/edicts';
 import { POLICIES, RATIONS, TAX_LEVELS, UNITS } from '../data/units';
 import { carriesCurrent, idx, NEIGHBORS8 } from './grid';
 import { log, spawnUnit } from './entities';
-import type { Building, Cost, GameState, ResourceId } from './types';
+import type { Building, BuildingType, Cost, GameState, ResourceId } from './types';
 import { RESOURCE_IDS, TICK_SECONDS } from './types';
 
 export const storageCapacity = (state: GameState): number =>
@@ -156,8 +156,43 @@ export function updateNetwork(state: GameState): void {
   if (shortfall) flags.gridShort = true;
 }
 
-const needsGrid = (def: BuildingDef): boolean =>
+export const needsGrid = (def: BuildingDef): boolean =>
   (def.power ?? 0) > 0 || def.powerOutput !== undefined;
+
+/**
+ * Whether a building put down here would be on the grid as things stand: inside the city's own reach,
+ * or touching a live slab or a building that already has current.
+ */
+export function wouldConnect(state: GameState, type: BuildingType, x: number, y: number): boolean {
+  const size = BUILDINGS[type].size;
+  const place = state.settlement;
+  for (let dy = 0; dy < size; dy++) {
+    for (let dx = 0; dx < size; dx++) {
+      const tx = x + dx;
+      const ty = y + dy;
+      if (place?.reached && Math.hypot(tx - place.x, ty - place.y) <= CITY_GRID_RADIUS) return true;
+      for (const [nx, ny] of [
+        [tx + 1, ty],
+        [tx - 1, ty],
+        [tx, ty + 1],
+        [tx, ty - 1],
+      ]) {
+        if (nx < 0 || ny < 0 || nx >= state.w || ny >= state.h) continue;
+        if (state.tiles[idx(state, nx, ny)].powered) return true;
+        const other = state.buildings.find(
+          (b) =>
+            b.connected &&
+            nx >= b.x &&
+            ny >= b.y &&
+            nx < b.x + BUILDINGS[b.type].size &&
+            ny < b.y + BUILDINGS[b.type].size,
+        );
+        if (other) return true;
+      }
+    }
+  }
+  return false;
+}
 
 function canRun(b: Building, def: BuildingDef): boolean {
   if (b.built < 1 || b.sabotaged > 0) return false;

@@ -16,6 +16,8 @@ const PATROL_RADIUS = 4;
 const PATROL_CHANCE = 0.3;
 /** How near an enemy has to come for a miner to down tools, in tiles. */
 const MINER_ALERT = 6;
+/** A miner with nothing to do looks further: the colony's buildings need guarding too. */
+const MINER_GUARD = 14;
 /** Ticks between two looks at the way to an enemy. */
 const MINER_REPATH = 5;
 /** Share of its health under which a miner stops looking for a fight, and goes back to work. */
@@ -148,7 +150,7 @@ function destroyBuilding(state: GameState, b: Building): void {
     { kind: 'voice', id: 'destroyed' },
   );
   state.city.moraleShock -= 3;
-  log(state, `${BUILDINGS[b.type].name} détruit !`, 'bad');
+  log(state, `Bâtiment détruit : ${BUILDINGS[b.type].name}.`, 'bad');
 }
 
 export function damageBuilding(state: GameState, b: Building, amount: number): void {
@@ -337,9 +339,12 @@ function updateGuard(state: GameState, unit: Unit): void {
 }
 
 /** The nearest thing a miner would drop everything for. Lairs and sleepers can wait. */
+const alertRadius = (unit: Unit): number =>
+  unit.jobId === null && !unit.carry ? MINER_GUARD : MINER_ALERT;
+
 function nearestThreat(state: GameState, unit: Unit): Enemy | null {
   let best: Enemy | null = null;
-  let bestD = MINER_ALERT;
+  let bestD = alertRadius(unit);
   for (const e of state.enemies) {
     if (e.dormant || ENEMIES[e.type].structure || !canSeeEnemy(state, e)) continue;
     const d = Math.hypot(e.x - unit.x, e.y - unit.y);
@@ -385,14 +390,17 @@ function minerDefence(state: GameState, unit: Unit): boolean {
     unit.path.length === 0 ||
     (state.tick + unit.id) % MINER_REPATH === 0
   ) {
+    const limit = alertRadius(unit) * 2;
     const path = findPath(
       state,
       Math.floor(unit.x),
       Math.floor(unit.y),
       Math.floor(threat.x),
       Math.floor(threat.y),
+      // Crowded tiles cost more than one step: a little slack so a crowd doesn't hide the way.
+      limit * 3,
     );
-    if (!path || path.length > MINER_ALERT * 2) {
+    if (!path || path.length > limit) {
       if (unit.chasing) unit.path = [];
       unit.chasing = false;
       return false;

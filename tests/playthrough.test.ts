@@ -277,5 +277,6 @@ describe('partie complète (joueur automatique)', () => {
     );
     expect(Number.isFinite(state.stock.credits)).toBe(true);
     expect(state.w).toBe(WORLD_SIZE);
-  }, 240_000);
+    // Under fifteen seconds on a dev machine: far beyond that, something is spinning, as pathfinding once did.
+  }, 60_000);
 });

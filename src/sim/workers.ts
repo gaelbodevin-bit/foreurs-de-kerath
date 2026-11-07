@@ -94,6 +94,40 @@ export const drillPowerOf = (state: GameState, unit: Unit): number => {
   return unit.type === 'foreur' ? Math.max(base, state.mods.drillPower) : base;
 };
 
+/** Whether someone in the crew can walk up to the edge of this wall, once the rock already marked is gone. */
+export function crewCanReachWall(state: GameState, x: number, y: number): boolean {
+  const seen = new Uint8Array(state.w * state.h);
+  const queue: number[] = [];
+  for (const unit of state.units) {
+    const i = idx(state, Math.floor(unit.x), Math.floor(unit.y));
+    if (!seen[i]) {
+      seen[i] = 1;
+      queue.push(i);
+    }
+  }
+  const target = idx(state, x, y);
+  const marked = new Set(
+    state.jobs.filter((j) => j.kind === 'drill').map((j) => idx(state, j.x, j.y)),
+  );
+  marked.delete(target);
+  for (let head = 0; head < queue.length; head++) {
+    const cur = queue[head];
+    const cx = cur % state.w;
+    const cy = Math.floor(cur / state.w);
+    for (const [dx, dy] of NEIGHBORS4) {
+      const nx = cx + dx;
+      const ny = cy + dy;
+      if (nx < 0 || ny < 0 || nx >= state.w || ny >= state.h) continue;
+      const ni = idx(state, nx, ny);
+      if (ni === target) return true;
+      if (seen[ni] || !(isWalkableKind(state.tiles[ni].k) || marked.has(ni))) continue;
+      seen[ni] = 1;
+      queue.push(ni);
+    }
+  }
+  return false;
+}
+
 /** The hardest rock someone in the crew can break today. */
 export function crewDrillPower(state: GameState): number {
   let best = 0;
