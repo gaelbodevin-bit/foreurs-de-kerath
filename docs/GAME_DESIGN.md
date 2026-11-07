@@ -13,7 +13,8 @@ arrivent sans cesse.
 
 **Cité (dizaines de minutes) : gouverner.** Chaque citoyen respire, mange et veut un toit et un
 emploi. Les impôts paient les recrues, mais pèsent sur le moral. Un moral bas ralentit la production
-et nourrit le complot.
+et nourrit le complot. Le panneau Cité détaille chaque raison du moral et la valeur vers laquelle
+il tend.
 
 **Campagne (heures) : conquérir.** Tout se joue sur une seule carte, autour d'une seule cité. Chaque
 secteur conquis ajoute un pourcentage de contrôle et un bonus permanent, et ouvre les suivants.

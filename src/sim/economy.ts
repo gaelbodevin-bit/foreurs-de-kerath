@@ -13,7 +13,7 @@ import { CORPSE_FOOD, edictById } from '../data/edicts';
 import { POLICIES, RATIONS, TAX_LEVELS, UNITS } from '../data/units';
 import { carriesCurrent, idx, NEIGHBORS8 } from './grid';
 import { log, spawnUnit } from './entities';
-import type { Building, BuildingType, Cost, GameState, ResourceId } from './types';
+import type { Building, BuildingType, Cost, GameState, MoraleFactor, ResourceId } from './types';
 import { RESOURCE_IDS, TICK_SECONDS } from './types';
 
 export const storageCapacity = (state: GameState): number =>
@@ -198,6 +198,8 @@ function canRun(b: Building, def: BuildingDef): boolean {
   if (b.built < 1 || b.sabotaged > 0) return false;
   return !needsGrid(def) || b.connected;
 }
+
+const MORALE_BASE = 52;
 
 export function updateEconomy(state: GameState): void {
   const dt = TICK_SECONDS;
@@ -434,19 +436,25 @@ function updateCity(state: GameState, inputs: CityInputs): void {
     city.population > 0 ? Math.max(0, city.population - city.jobs) / city.population : 0;
   const overcrowded = city.population > city.housing;
   const signed = state.edicts.reduce((sum, id) => sum + (edictById(id).morale ?? 0), 0);
-  let target =
-    52 +
-    inputs.moraleBonus +
-    tax.morale +
-    policyMorale +
-    city.moraleShock +
-    signed +
-    RATIONS[city.ration].morale;
-  target -= state.city.conspiracy * 0.12;
-  if (overcrowded) target -= 12;
-  if (starving) target -= 28;
-  if (city.oxygen < 25) target -= 18;
-  if (unemployed > 0.5) target -= 6;
+  const why: MoraleFactor[] = [
+    { label: 'Base', value: MORALE_BASE },
+    { label: 'Bâtiments (place, cantine…)', value: inputs.moraleBonus },
+    { label: `Impôts : ${tax.name.toLowerCase()}`, value: tax.morale },
+    { label: 'Décrets', value: policyMorale },
+    { label: 'Édits signés', value: signed },
+    {
+      label: `Rations : ${RATIONS[city.ration].name.toLowerCase()}`,
+      value: RATIONS[city.ration].morale,
+    },
+    { label: 'Événements récents', value: city.moraleShock },
+    { label: 'Complot', value: -state.city.conspiracy * 0.12 },
+    { label: 'Surpopulation : pas assez de logements', value: overcrowded ? -12 : 0 },
+    { label: 'Famine', value: starving ? -28 : 0 },
+    { label: 'Air vicié', value: city.oxygen < 25 ? -18 : 0 },
+    { label: 'Chômage : moins d’un emploi pour deux', value: unemployed > 0.5 ? -6 : 0 },
+  ];
+  city.moraleWhy = why.filter((f) => f.label === 'Base' || Math.abs(f.value) >= 0.5);
+  const target = why.reduce((sum, f) => sum + f.value, 0);
   city.morale += (Math.max(0, Math.min(100, target)) - city.morale) * 0.03 * dt;
   city.moraleShock *= 1 - 0.01 * dt;
 

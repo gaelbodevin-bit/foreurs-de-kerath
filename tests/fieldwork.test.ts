@@ -362,3 +362,22 @@ describe('les mineurs désœuvrés gardent la colonie', () => {
     expect(foreur.chasing).toBeFalsy();
   });
 });
+
+describe('moral expliqué', () => {
+  it('la cité affiche chaque raison du moral, et leur somme est la cible vers laquelle il tend', () => {
+    const state = newGame();
+    state.city.population = 30;
+    state.city.housing = 20;
+    state.city.jobs = 0;
+    run(state, 1);
+    const why = state.city.moraleWhy ?? [];
+    const labels = why.map((f) => f.label);
+    expect(labels.some((l) => l.startsWith('Surpopulation'))).toBe(true);
+    expect(labels.some((l) => l.startsWith('Chômage'))).toBe(true);
+    const target = why.reduce((sum, f) => sum + f.value, 0);
+    const before = state.city.morale;
+    run(state, 30);
+    // Drifting towards the target: the gap shrinks.
+    expect(Math.abs(state.city.morale - target)).toBeLessThan(Math.abs(before - target) + 1e-9);
+  });
+});

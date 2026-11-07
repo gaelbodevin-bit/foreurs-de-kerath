@@ -802,13 +802,43 @@ export class MissionScreen {
     this.selectedUnits = [];
     const before = new Set(state.jobs.map((j) => j.id));
     const count = designateArea(state, drag.x0, drag.y0, drag.x1, drag.y1);
-    if (count > 0) this.speak('drill');
     this.explainUndrillable(drag);
     // Marks deep in the rock are fine, as long as the crew can start on one of them.
     const fresh = state.jobs.filter((j) => j.kind === 'drill' && !before.has(j.id));
     if (fresh.length > 0 && !fresh.some((j) => crewCanReachWall(state, j.x, j.y))) {
       this.say('Personne ne peut y accéder : marquez aussi la roche qui y mène.');
+    } else if (count > 0) {
+      this.speak('drill');
     }
+  }
+
+  /** Where the morale is heading and the reasons, so the player knows what to fix. */
+  private moraleBreakdown(): HTMLElement[] {
+    const why = this.state.city.moraleWhy;
+    if (!why) return [];
+    const target = Math.max(
+      0,
+      Math.min(
+        100,
+        why.reduce((sum, f) => sum + f.value, 0),
+      ),
+    );
+    const sign = (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v))}`;
+    return [
+      h('h3', {}, `Moral : tend vers ${Math.round(target)}`),
+      h(
+        'ul',
+        { class: 'morale-why' },
+        ...why.map((f) =>
+          h(
+            'li',
+            { class: f.value < 0 ? 'bad' : f.value > 0 && f.label !== 'Base' ? 'good' : '' },
+            h('span', {}, f.label),
+            h('b', {}, f.label === 'Base' ? `${f.value}` : sign(f.value)),
+          ),
+        ),
+      ),
+    ];
   }
 
   /** Spells out why nothing happens on hard rock, rather than leaving the player guessing. */
@@ -1458,6 +1488,7 @@ export class MissionScreen {
           h('div', {}, h('b', {}, Math.floor(city.morale)), 'moral'),
           h('div', {}, h('b', {}, `${state.research.toFixed(1)}`), 'recherche'),
         ),
+        ...this.moraleBreakdown(),
         h('h3', {}, 'Impôts'),
         h(
           'div',

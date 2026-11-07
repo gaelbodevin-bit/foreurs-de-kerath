@@ -283,6 +283,13 @@ export interface CityState {
   jobs: number;
   /** Peak conspiracy threshold already punished, so each one only fires once per climb. */
   conspiracyStage: number;
+  /** What the morale is heading for and why, refreshed every tick for the city panel. */
+  moraleWhy?: MoraleFactor[];
+}
+
+export interface MoraleFactor {
+  label: string;
+  value: number;
 }
 
 export interface PowerState {
