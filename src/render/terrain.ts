@@ -310,7 +310,7 @@ export class TerrainView {
     depthWrite: false,
     emissive: 0x35e0c2,
     emissiveMap: this.pathGlow,
-    emissiveIntensity: 1.3,
+    emissiveIntensity: 2,
     roughness: 0.85,
     metalness: 0.1,
   });

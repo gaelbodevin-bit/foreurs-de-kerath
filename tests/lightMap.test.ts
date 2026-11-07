@@ -34,7 +34,8 @@ describe('lumière de la caverne', () => {
     const light = lit(state);
     expect(light(x, hq.y)).toBe(1);
     expect(light(x + 2, hq.y)).toBeGreaterThan(0);
-    expect(light(x + 6, hq.y)).toBe(0);
+    expect(light(x + 4, hq.y)).toBeGreaterThan(0);
+    expect(light(x + 8, hq.y)).toBe(0);
   });
 
   it('un bâtiment sans courant n’éclaire presque plus, et un chantier pas du tout', () => {

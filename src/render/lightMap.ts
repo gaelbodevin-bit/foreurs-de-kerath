@@ -6,7 +6,7 @@ import type { GameState, TileKind } from '../sim/types';
 const BUILDING_LIGHT = 7;
 const HQ_LIGHT = 11;
 const CITY_LIGHT = 11;
-const ROAD_LIGHT = 4;
+const ROAD_LIGHT = 6;
 const LAMP_LIGHT = 6;
 /** A building with no power keeps only its emergency lights. */
 const UNPOWERED_SHARE = 0.55;
