@@ -552,6 +552,7 @@ function updateCity(state: GameState, inputs: CityInputs): void {
   if (city.oxygen <= 0 && state.tick % 10 === 0) {
     for (const u of state.units) {
       if (UNITS[u.type].citizens > 0) u.hp -= 1;
+      if (u.hp <= 0) u.fatal = 'air';
     }
   }
 }

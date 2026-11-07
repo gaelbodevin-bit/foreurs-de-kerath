@@ -118,6 +118,7 @@ export function strike(
       return Math.hypot(unit.x - tx - 0.5, unit.y - ty - 0.5) < 1;
     });
     if (hit) unit.hp -= (magnitude - 2) * UNIT_DAMAGE * hazard;
+    if (hit && unit.hp <= 0) unit.fatal = 'rock';
   }
 
   let damaged = 0;

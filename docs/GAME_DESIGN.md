@@ -229,7 +229,12 @@ vraie décision.
 
 Les foreurs rendent les coups au corps à corps, faiblement mais plus fort avec de meilleurs outils,
 et, dès qu'un ennemi s'approche à moins de 6 cases, lâchent leur travail pour aller le frapper, sauf
-ordre contraire du joueur : les gardes et les tourelles restent la vraie défense.
+ordre contraire du joueur : les gardes et les tourelles restent la vraie défense. Sous 40 % de
+leurs PV, ils ne cherchent plus le combat : avec un ennemi à moins de 6 cases, ils se replient vers
+le QG, sous les tourelles.
+
+Les blessures se referment près du QG (1,5 PV par seconde) et bien plus vite près d'un dispensaire
+alimenté (5 PV par seconde). Loin de la base, une unité blessée le reste.
 
 Les structures dorment tant qu'elles n'ont pas été découvertes : creuser vers elles, c'est aussi
 décider quand le combat commence.

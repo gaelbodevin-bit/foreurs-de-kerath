@@ -279,7 +279,10 @@ function updateHazards(state: GameState): void {
     setTile(state, x, y, 'lava');
     const job = state.jobs.find((j) => j.x === x && j.y === y);
     if (job) removeJob(state, job.id);
-    log(state, 'La lave gagne du terrain.', 'warn');
+    // Once a minute is enough: a line per tile buries everything else in the log.
+    const lavaNews = 'La lave gagne du terrain.';
+    if (!state.log.some((l) => l.text === lavaNews && state.time - l.t < 60))
+      log(state, lavaNews, 'warn');
   }
 }
 

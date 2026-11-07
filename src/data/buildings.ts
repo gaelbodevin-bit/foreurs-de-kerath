@@ -191,7 +191,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   clinic: {
     tech: 'medicine',
     name: 'Dispensaire',
-    desc: 'Soigne les habitants et remonte le moral général.',
+    desc: 'Remonte le moral général, et soigne vite les unités blessées qui passent à côté.',
     size: 2,
     cost: { ore: 15, crystal: 6, credits: 40 },
     buildTime: 10,

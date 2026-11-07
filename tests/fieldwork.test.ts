@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS } from '../src/data/buildings';
 import { CITY_STORAGE } from '../src/data/progression';
+import { REGIONS, sectorAt } from '../src/data/regions';
 import { STORY_EVENTS } from '../src/data/story';
 import { updateContracts } from '../src/sim/contracts';
 import { UNITS } from '../src/data/units';
@@ -532,5 +533,84 @@ describe('complot expliqué', () => {
     const before = state.city.conspiracy;
     run(state, 6);
     expect(state.city.conspiracy - before).toBeCloseTo(perMinute / 10, 0);
+  });
+});
+
+describe('journal des pertes', () => {
+  it('un mineur mort faute d’air n’est pas annoncé « perdu au combat »', () => {
+    const state = newGame();
+    state.enemies = [];
+    const foreur = state.units.find((u) => u.type === 'foreur')!;
+    foreur.hp = 0.5;
+    state.mods.oxygen = 0;
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    for (let i = 0; i < 20 && state.units.includes(foreur); i++) {
+      // Away from the HQ, where wounds would close up as fast as the air runs out.
+      foreur.x = hq.x + 15.5;
+      state.city.oxygen = 0;
+      run(state, 0.1);
+    }
+    expect(state.units).not.toContain(foreur);
+    const texts = state.log.map((l) => l.text);
+    expect(texts.some((t) => t.includes('faute d’air'))).toBe(true);
+    expect(texts.some((t) => t.includes('perdu au combat'))).toBe(false);
+  });
+
+  it('la lave qui avance ne s’annonce qu’une fois par minute', () => {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    const cx = hq.x + 14;
+    const cy = hq.y;
+    openGround(state, cx, cy, 6);
+    state.tiles[idx(state, cx, cy)].k = 'lava';
+    const sector = sectorAt(cx, cy, state.w, state.h).index;
+    const erosion = REGIONS[sector].erosion;
+    REGIONS[sector].erosion = 1;
+    try {
+      run(state, 8);
+    } finally {
+      REGIONS[sector].erosion = erosion;
+    }
+    expect(state.tiles.filter((t) => t.k === 'lava').length).toBeGreaterThan(3);
+    expect(state.log.filter((l) => l.text === 'La lave gagne du terrain.').length).toBe(1);
+  });
+});
+
+describe('blessés', () => {
+  /** A miner ten tiles from the HQ, on open ground all the way there, and nobody else around. */
+  function minerOutside(): { state: GameState; foreur: Unit; home: { x: number; y: number } } {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    const foreur = state.units.find((u) => u.type === 'foreur')!;
+    state.units = [foreur];
+    state.enemies = [];
+    for (let x = hq.x - 2; x <= hq.x + 14; x++) openGround(state, x, hq.y + 1, 2);
+    foreur.x = hq.x + 12.5;
+    foreur.y = hq.y + 1.5;
+    return { state, foreur, home: { x: hq.x + 1, y: hq.y + 1 } };
+  }
+
+  it('un foreur blessé et menacé se replie vers le QG au lieu de retourner au travail', () => {
+    const { state, foreur, home } = minerOutside();
+    foreur.hp = 15;
+    spawnEnemy(state, 'rongeur', foreur.x + 2, foreur.y);
+    const before = Math.hypot(foreur.x - home.x, foreur.y - home.y);
+    run(state, 2);
+    expect(Math.hypot(foreur.x - home.x, foreur.y - home.y)).toBeLessThan(before - 2);
+  });
+
+  it('les blessés guérissent près du QG, pas au fond des galeries', () => {
+    const { state, foreur } = minerOutside();
+    const max = UNITS.foreur.hp;
+    foreur.hp = 10;
+    run(state, 5);
+    expect(foreur.hp).toBe(10);
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    foreur.x = hq.x + 1.5;
+    foreur.y = hq.y + 2.5;
+    run(state, 10);
+    expect(foreur.hp).toBeGreaterThan(20);
+    run(state, 60);
+    expect(foreur.hp).toBe(max);
   });
 });

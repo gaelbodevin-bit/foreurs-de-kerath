@@ -20,8 +20,13 @@ const MINER_ALERT = 6;
 const MINER_GUARD = 14;
 /** Ticks between two looks at the way to an enemy. */
 const MINER_REPATH = 5;
-/** Share of its health under which a miner stops looking for a fight, and goes back to work. */
+/** Share of its health under which a miner stops looking for a fight, and falls back to the HQ. */
 const MINER_NERVE = 0.4;
+/** Health a unit gets back each second near the HQ, and near a working clinic. */
+export const REST_HEAL = 1.5;
+export const CLINIC_HEAL = 5;
+/** How close to the HQ or a clinic a unit must stand to be looked after, in tiles. */
+const CARE_RADIUS = 4;
 
 /** Picks a seen wall touching the settled area, away from the HQ, and lets it burst open. */
 function findEmergePoint(state: GameState): { x: number; y: number } | null {
@@ -373,7 +378,8 @@ function minerDefence(state: GameState, unit: Unit): boolean {
   }
   if (unit.order !== null) return false;
   const shaken = unit.hp < UNITS[unit.type].hp * MINER_NERVE;
-  const threat = shaken ? null : nearestThreat(state, unit);
+  if (shaken) return fallBack(state, unit);
+  const threat = nearestThreat(state, unit);
   if (!threat) {
     if (unit.chasing) {
       unit.chasing = false;
@@ -435,6 +441,74 @@ function updateTurrets(state: GameState): void {
   }
 }
 
+/**
+ * A wounded miner with an enemy close by heads for the HQ, under the turrets, instead of going back to work
+ * to be finished off. Out of danger, it works again, and heals once back at the HQ.
+ */
+function fallBack(state: GameState, unit: Unit): boolean {
+  const danger = state.enemies.some(
+    (e) =>
+      !e.dormant &&
+      !ENEMIES[e.type].structure &&
+      canSeeEnemy(state, e) &&
+      Math.hypot(e.x - unit.x, e.y - unit.y) <= MINER_ALERT,
+  );
+  const hq = state.buildings.find((b) => b.type === 'hq');
+  if (!danger || !hq) {
+    if (unit.chasing) unit.path = [];
+    unit.chasing = false;
+    return false;
+  }
+  const home = buildingCenter(hq);
+  if (Math.hypot(home.x - unit.x, home.y - unit.y) <= CARE_RADIUS - 1) {
+    unit.path = [];
+    return true;
+  }
+  if (
+    !unit.chasing ||
+    unit.path.length === 0 ||
+    (state.tick + unit.id) % (MINER_REPATH * 4) === 0
+  ) {
+    const path = findPath(
+      state,
+      Math.floor(unit.x),
+      Math.floor(unit.y),
+      Math.floor(home.x),
+      Math.floor(home.y),
+    );
+    if (!path) return false;
+    unit.path = path;
+  }
+  if (unit.jobId !== null) {
+    const path = unit.path;
+    releaseJob(state, unit);
+    unit.path = path;
+  }
+  unit.chasing = true;
+  unit.working = false;
+  moveAlongPath(state, unit, UNITS[unit.type].speed * state.mods.moveSpeed);
+  return true;
+}
+
+/** Once a second: wounds close up at the HQ, and faster at a clinic that has power and staff. */
+function healUnits(state: GameState): void {
+  const carers = state.buildings.filter(
+    (b) => b.built >= 1 && (b.type === 'hq' || (b.type === 'clinic' && b.eff > 0)),
+  );
+  if (carers.length === 0) return;
+  for (const unit of state.units) {
+    const max = UNITS[unit.type].hp;
+    if (unit.hp >= max) continue;
+    let rate = 0;
+    for (const b of carers) {
+      const c = buildingCenter(b);
+      if (Math.hypot(c.x - unit.x, c.y - unit.y) > CARE_RADIUS) continue;
+      rate = Math.max(rate, b.type === 'clinic' ? CLINIC_HEAL * b.eff : REST_HEAL);
+    }
+    unit.hp = Math.min(max, unit.hp + rate);
+  }
+}
+
 export function updateCombat(state: GameState): void {
   updateWaves(state);
   // Enemies and units can both add to these lists, so walk over stable copies.
@@ -446,6 +520,7 @@ export function updateCombat(state: GameState): void {
     }
   }
   updateTurrets(state);
+  if (state.tick % 10 === 0) healUnits(state);
 
   for (const e of [...state.enemies]) {
     if (e.hp > 0) continue;
@@ -468,7 +543,9 @@ export function updateCombat(state: GameState): void {
         ? 'asphyxié par le gaz'
         : unit.fatal === 'rock'
           ? 'enseveli sous un éboulement'
-          : 'perdu au combat';
+          : unit.fatal === 'air'
+            ? 'mort faute d’air : la colonie n’en produit plus'
+            : 'perdu au combat';
     log(state, `${name} ${how}.`, 'bad');
   }
 }

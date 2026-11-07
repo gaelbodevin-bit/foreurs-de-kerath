@@ -150,7 +150,7 @@ export interface Unit {
   /** Has downed tools to go after an enemy. */
   chasing?: boolean;
   /** What dealt the killing blow when it wasn't an enemy, for the death notice. */
-  fatal?: 'gas' | 'rock';
+  fatal?: 'gas' | 'rock' | 'air';
 }
 
 export interface Building {
