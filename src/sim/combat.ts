@@ -1,12 +1,14 @@
 import { BUILDINGS } from '../data/buildings';
 import { REGIONS } from '../data/regions';
+import { WALLS } from '../data/resources';
 import { ENEMIES, UNITS } from '../data/units';
 import { buildingCenter, log, spawnEnemy } from './entities';
-import { idx, inBounds, isWalkableKind, isWallKind, NEIGHBORS4, setTile } from './grid';
+import { idx, inBounds, isWalkableKind, isWallKind, NEIGHBORS4 } from './grid';
 import { distanceField, findPath } from './pathfinding';
 import { rand, randPick } from './rng';
 import type { Building, Enemy, EnemyType, GameState, Unit } from './types';
 import { TICK_SECONDS } from './types';
+import { airTrouble } from './economy';
 import { breakWall, moveAlongPath, releaseJob, updateWorker } from './workers';
 
 const MAX_ROAMING_ENEMIES = 12;
@@ -28,15 +30,19 @@ export const CLINIC_HEAL = 5;
 /** How close to the HQ or a clinic a unit must stand to be looked after, in tiles. */
 const CARE_RADIUS = 4;
 
-/** Picks a seen wall touching the settled area, away from the HQ, and lets it burst open. */
-function findEmergePoint(state: GameState): { x: number; y: number } | null {
+/**
+ * The seen walls touching the settled area, away from the HQ, that a raid can burst out of. Never a
+ * seam: what the miners came for doesn't vanish in a raid, and its drill mark would stay for ever.
+ */
+function emergePoints(state: GameState): number[] {
   const hq = state.buildings.find((b) => b.type === 'hq');
-  if (!hq) return null;
+  if (!hq) return [];
   const dist = distanceField(state, hq.x, hq.y);
   const candidates: number[] = [];
   for (let i = 0; i < state.tiles.length; i++) {
     const tile = state.tiles[i];
     if (!tile.seen || !isWallKind(tile.k) || tile.k === 'solid') continue;
+    if (WALLS[tile.k]?.yield) continue;
     const x = i % state.w;
     const y = Math.floor(i / state.w);
     if (
@@ -47,23 +53,19 @@ function findEmergePoint(state: GameState): { x: number; y: number } | null {
       candidates.push(i);
     }
   }
-  if (candidates.length === 0) return null;
-  const pick = randPick(state, candidates);
-  return { x: pick % state.w, y: Math.floor(pick / state.w) };
+  return candidates;
 }
 
 export function spawnRaid(state: GameState, type: EnemyType, count: number): number {
   let spawned = 0;
-  for (let n = 0; n < count; n++) {
-    const point = findEmergePoint(state);
-    if (!point) break;
-    const tile = state.tiles[idx(state, point.x, point.y)];
-    if (tile.k === 'dirt' || tile.k === 'loose' || tile.k === 'hard') {
-      breakWall(state, point.x, point.y, true);
-    } else {
-      setTile(state, point.x, point.y, 'rubble');
-      tile.rubble = 1;
-    }
+  // Once per raid, not once per enemy: a whole-map search for each of ten made every wave stutter.
+  const points = emergePoints(state);
+  for (let n = 0; n < count && points.length > 0; n++) {
+    const pick = randPick(state, points);
+    points.splice(points.indexOf(pick), 1);
+    const point = { x: pick % state.w, y: Math.floor(pick / state.w) };
+    // Like a miner's drill: the mark goes, the rubble gets a clearing job, what lies behind is seen.
+    breakWall(state, point.x, point.y, true);
     spawnEnemy(state, type, point.x + 0.5, point.y + 0.5);
     state.fx.push({ kind: 'burst', x: point.x + 0.5, y: point.y + 0.5, color: 0xc14b3a });
     spawned++;
@@ -137,7 +139,10 @@ const nearestUnit = (state: GameState, e: Enemy, range: number): Unit | null => 
 };
 
 function destroyBuilding(state: GameState, b: Building): void {
-  state.buildings.splice(state.buildings.indexOf(b), 1);
+  const at = state.buildings.indexOf(b);
+  // Already gone: splice(-1) would take down whatever building was last in the list.
+  if (at < 0) return;
+  state.buildings.splice(at, 1);
   state.networkDirty = true;
   state.jobs = state.jobs.filter((j) => {
     if (j.kind !== 'build' || j.refId !== b.id) return true;
@@ -550,6 +555,8 @@ export function updateCombat(state: GameState): void {
       log(state, `${ENEMIES[e.type].name} détruit !`, 'good');
     }
   }
+  // When the air runs out, the whole crew goes at once: one line for all of them, not fifty that wipe the log.
+  const breathless = new Map<string, number>();
   for (const unit of [...state.units]) {
     if (unit.hp > 0) continue;
     releaseJob(state, unit);
@@ -557,14 +564,25 @@ export function updateCombat(state: GameState): void {
     state.fx.push({ kind: 'burst', x: unit.x, y: unit.y, color: 0xff5050 });
     if (UNITS[unit.type].citizens > 0) state.city.moraleShock -= 4;
     const name = UNITS[unit.type].name;
+    if (unit.fatal === 'air') {
+      breathless.set(name, (breathless.get(name) ?? 0) + 1);
+      continue;
+    }
     const how =
       unit.fatal === 'gas'
         ? 'asphyxié par le gaz'
         : unit.fatal === 'rock'
           ? 'enseveli sous un éboulement'
-          : unit.fatal === 'air'
-            ? 'mort faute d’air : la colonie n’en produit plus'
-            : 'perdu au combat';
+          : 'perdu au combat';
     log(state, `${name} ${how}.`, 'bad');
+  }
+  if (breathless.size > 0) {
+    const total = [...breathless.values()].reduce((a, b) => a + b, 0);
+    const who = [...breathless].map(([name, n]) =>
+      n === 1 ? `1 ${name.toLowerCase()}` : `${n} ${name.toLowerCase()}s`,
+    );
+    const list =
+      who.length > 1 ? `${who.slice(0, -1).join(', ')} et ${who[who.length - 1]}` : who[0];
+    log(state, `${list} mort${total > 1 ? 's' : ''} faute d’air : ${airTrouble(state)}.`, 'bad');
   }
 }

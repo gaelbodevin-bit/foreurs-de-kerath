@@ -3,10 +3,11 @@ import { CONTRACT_INTERVAL, MAX_CONTRACTS, FIRST_CONTRACT_AT } from '../data/pro
 import { RESOURCES, WALLS } from '../data/resources';
 import { ENEMIES } from '../data/units';
 import { spawnRaid } from './combat';
-import { addStock, canAfford, pay } from './economy';
+import { addStock, canAfford, canBearMore, pay } from './economy';
 import { log, newId, spawnUnit } from './entities';
-import { idx } from './grid';
+import { idx, isWalkableKind, NEIGHBORS4 } from './grid';
 import { activeRegions, availableBuildings } from './progress';
+import { crewDrillPower } from './workers';
 import { rand, randPick } from './rng';
 import type { BuildingType, Contract, ContractReward, EnemyType, GameState } from './types';
 
@@ -18,13 +19,61 @@ const totalKills = (state: GameState): number =>
 const randInt = (state: GameState, min: number, max: number): number =>
   min + Math.floor(rand(state) * (max - min + 1));
 
+/** Walls the crew may have to break on the way to a survey or rescue point, at most. */
+const FRONTIER_WALLS = 8;
+
+/**
+ * For each tile, how few walls the crew must break to get there from the HQ, with the drills it has
+ * today (-1 when out of reach): open ground is free, a wall too hard for them is a dead end.
+ */
+function wallsToReach(state: GameState): Int16Array {
+  const n = state.w * state.h;
+  const cost = new Int16Array(n).fill(-1);
+  const hq = state.buildings.find((b) => b.type === 'hq');
+  if (!hq) return cost;
+  const power = crewDrillPower(state);
+  // 0-1 breadth-first: a deque, walkable steps at the front, walls at the back.
+  const deque = new Int32Array(n * 2);
+  let head = n;
+  let tail = n;
+  const start = idx(state, hq.x, hq.y);
+  cost[start] = 0;
+  deque[tail++] = start;
+  while (head < tail) {
+    const cur = deque[head++];
+    const cx = cur % state.w;
+    const cy = Math.floor(cur / state.w);
+    for (const [dx, dy] of NEIGHBORS4) {
+      const nx = cx + dx;
+      const ny = cy + dy;
+      if (nx < 0 || ny < 0 || nx >= state.w || ny >= state.h) continue;
+      const ni = ny * state.w + nx;
+      const tile = state.tiles[ni];
+      const wall = WALLS[tile.k];
+      let step: number;
+      if (isWalkableKind(tile.k)) step = 0;
+      else if (wall && wall.power <= power) step = 1;
+      else continue;
+      const next = cost[cur] + step;
+      if (next > FRONTIER_WALLS || (cost[ni] !== -1 && cost[ni] <= next)) continue;
+      cost[ni] = next;
+      if (step === 0 && head > 0) deque[--head] = ni;
+      else deque[tail++] = ni;
+    }
+  }
+  return cost;
+}
+
 /** A rock tile close to what is already known, that the crew's current tools can actually reach. */
 function frontierTile(state: GameState): { x: number; y: number } | null {
+  const reach = wallsToReach(state);
   for (let tries = 0; tries < 120; tries++) {
     const x = randInt(state, 3, state.w - 4);
     const y = randInt(state, 3, state.h - 4);
     const tile = state.tiles[idx(state, x, y)];
     if (tile.seen || (WALLS[tile.k]?.power ?? 99) > state.mods.drillPower) continue;
+    // A mission lost from the start is worse than none: the way there must go through rock they can break.
+    if (reach[idx(state, x, y)] < 0) continue;
     let near = false;
     for (let dy = -7; dy <= 7 && !near; dy++) {
       for (let dx = -7; dx <= 7 && !near; dx++) {
@@ -159,7 +208,11 @@ function defendDraft(state: GameState): Draft | null {
 }
 
 function refugeesDraft(state: GameState): Draft | null {
-  const amount = randInt(state, 3, 5 + state.cityLevel * 2);
+  // Taking people in follows the same rules as births: air and food to spare.
+  if (!canBearMore(state)) return null;
+  const free = Math.max(0, state.city.housing - Math.floor(state.city.population));
+  // More than the homes already free: otherwise the mission is done before it is read.
+  const amount = free + randInt(state, 3, 5 + state.cityLevel * 2);
   return {
     kind: 'refugees',
     title: 'Réfugiés à la porte',
@@ -253,7 +306,12 @@ function payReward(state: GameState, reward: ContractReward): void {
 
 function complete(state: GameState, c: Contract): void {
   payReward(state, c.reward);
-  if (c.kind === 'refugees') state.city.population += c.amount ?? 0;
+  if (c.kind === 'refugees') {
+    // The homes are ready: who comes in still depends on air and food on the day.
+    if (canBearMore(state)) state.city.population += c.amount ?? 0;
+    else
+      log(state, 'Les réfugiés repartent : la cité n’a ni l’air ni les vivres pour eux.', 'warn');
+  }
   if (c.kind === 'rescue') {
     state.city.population += 1;
     spawnUnit(state, 'foreur', (c.x ?? 0) + 0.5, (c.y ?? 0) + 0.5);

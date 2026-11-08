@@ -229,12 +229,13 @@ export function updateEconomy(state: GameState): void {
     if (!canRun(b, def)) continue;
     if (def.burnTime) {
       const fuel = def.fuel ?? 'crystal';
-      if (b.fuel <= 0 && state.stock[fuel] >= 1) {
+      // A plant short of hands burns its fuel as slowly as it makes current: none at all with nobody in it.
+      if (b.fuel <= 0 && staff > 0 && state.stock[fuel] >= 1) {
         state.stock[fuel] -= 1;
         b.fuel = def.burnTime;
       }
-      if (b.fuel > 0) {
-        b.fuel -= dt;
+      if (b.fuel > 0 && staff > 0) {
+        b.fuel -= dt * staff;
         produced += (def.powerOutput ?? 0) * staff * state.mods.powerOutput;
       }
     } else {
@@ -402,6 +403,40 @@ function feedsGrowers(state: GameState, res: ResourceId, depth = 0): boolean {
   });
 }
 
+/** Whether the city can take more people right now: air and food to spare, as for a birth. */
+export function canBearMore(state: GameState): boolean {
+  const city = state.city;
+  return (
+    city.oxygen > BIRTH_AIR &&
+    city.morale >= 30 &&
+    state.stock.food > 0 &&
+    outputPerMinute(state, 'food') >= appetitePerSecond(state) * 60 &&
+    foodMinutesLeft(state) > BIRTH_FOOD_MINUTES
+  );
+}
+
+/** Why the city runs out of air: no extractor, no current for them, or more mouths than they can serve. */
+export function airTrouble(state: GameState): string {
+  const extractors = state.buildings.filter((b) => b.type === 'oxygen' && b.built >= 1);
+  if (extractors.length === 0) return 'aucun extracteur d’oxygène';
+  if (state.power.ratio < 0.8) return 'les extracteurs manquent de courant';
+  const workers = state.units.filter((u) => UNITS[u.type].citizens > 0).length;
+  const mouths = Math.floor(state.city.population) + workers;
+  return `trop de bouches (${mouths}) pour ${extractors.length} extracteur${extractors.length > 1 ? 's' : ''}`;
+}
+
+/** What the stewards would say to do about hunger, given what the colony already has. */
+function foodAdvice(state: GameState): string {
+  const has = (type: string) => state.buildings.some((b) => b.type === type && b.built >= 1);
+  if (!has('farm') && !has('algae') && !has('vivarium')) return 'il faut une serre (touche N)';
+  if (has('farm') && !has('melter') && state.stock.water < 4)
+    return 'les serres manquent d’eau : il faut un fondoir';
+  if (has('melter') && state.stock.ice < 4 && state.stock.water < 4)
+    return 'les fondoirs manquent de glace : il faut en miner';
+  if (state.power.ratio < 0.8) return 'les serres manquent de courant';
+  return 'les serres ne suivent plus : il en faut d’autres, ou des rations réduites';
+}
+
 /** Once a second: what brings the steward to the governor's door. */
 export function updateFoodWatch(state: GameState): void {
   if (!(state.settlement?.reached ?? false)) return;
@@ -458,9 +493,16 @@ function updateSupplyWatch(state: GameState): void {
       'airShort',
       state.city.oxygen < 40,
       state.city.oxygen > 60,
-      'L’air de la cité s’épuise : il faut des extracteurs d’oxygène alimentés en courant.',
+      `L’air de la cité s’épuise : ${airTrouble(state)}.`,
     );
   }
+  // #4 Once per shortage: each delivery that lifts the stock over the line and back must not ring again.
+  alarm(
+    'foodLow',
+    state.stock.food < LOW_FOOD,
+    state.stock.food > LOW_FOOD * 3,
+    `Nourriture presque épuisée : ${foodAdvice(state)}.`,
+  );
 }
 
 function updateCity(state: GameState, inputs: CityInputs): void {
@@ -476,16 +518,7 @@ function updateCity(state: GameState, inputs: CityInputs): void {
   // Food.
   // The expedition lives on its rations: hunger only starts once there is a city to feed.
   const fed = !(state.settlement?.reached ?? true);
-  const foodBefore = state.stock.food;
-  state.stock.food = Math.max(0, foodBefore - appetitePerSecond(state) * dt);
-  if (foodBefore >= LOW_FOOD && state.stock.food < LOW_FOOD) {
-    log(
-      state,
-      'Nourriture presque épuisée : il faut de la glace, un fondoir et une serre (touche N).',
-      'warn',
-    );
-    state.fx.push({ kind: 'sound', id: 'alert' });
-  }
+  state.stock.food = Math.max(0, state.stock.food - appetitePerSecond(state) * dt);
   const starving = !fed && state.stock.food <= 0;
 
   // Taxes and upkeep.

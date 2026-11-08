@@ -231,7 +231,9 @@ function assignJob(state: GameState, unit: Unit): void {
   if (!path) return;
   best.unitId = unit.id;
   unit.jobId = best.id;
-  unit.path = path;
+  // Already on the right tile but off its middle (after a chase, say): a step to the centre puts the work
+  // in reach. With no step at all, the job would be dropped and taken again, for ever.
+  unit.path = path.length > 0 ? path : [bestTile];
   if (best.kind === 'haul') {
     const pickup = state.pickups.find((p) => p.id === best.refId);
     if (pickup) pickup.claimedBy = unit.id;
@@ -565,7 +567,7 @@ function runHaul(state: GameState, unit: Unit, job: Job, speed: number): void {
           Math.floor(pickup.x),
           Math.floor(pickup.y),
         );
-        if (!path || path.length === 0) {
+        if (!path) {
           // Whatever is out of reach is not lost, it waits for a new route.
           pickup.claimedBy = null;
           job.unitId = null;
@@ -573,7 +575,9 @@ function runHaul(state: GameState, unit: Unit, job: Job, speed: number): void {
           unit.thinkIn = 30;
           return;
         }
-        unit.path = path;
+        // Same tile, just not close enough: walk to the middle of it, where the load lies within reach.
+        unit.path =
+          path.length > 0 ? path : [idx(state, Math.floor(pickup.x), Math.floor(pickup.y))];
       }
       moveAlongPath(state, unit, speed);
       return;

@@ -97,10 +97,13 @@ export function sabotage(state: GameState, count: number): void {
   const targets = state.buildings.filter((b) => b.built >= 1 && b.type !== 'hq');
   for (let i = 0; i < count && targets.length > 0; i++) {
     const b = randPick(state, targets);
+    targets.splice(targets.indexOf(b), 1);
     b.sabotaged = 40;
     damageBuilding(state, b, BUILDINGS[b.type].hp * 0.3);
     state.fx.push({ kind: 'burst', x: b.x + 0.5, y: b.y + 0.5, color: 0xffa040 });
-    log(state, `Sabotage : ${BUILDINGS[b.type].name} hors service pour 40 s.`, 'bad');
+    // Brought down outright: the ruin has already been reported.
+    if (state.buildings.includes(b))
+      log(state, `Sabotage : ${BUILDINGS[b.type].name} hors service pour 40 s.`, 'bad');
   }
   state.fx.push({ kind: 'sound', id: 'alert' }, { kind: 'voice', id: 'sabotage' });
 }

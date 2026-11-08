@@ -7,6 +7,7 @@ import { updateContracts } from '../src/sim/contracts';
 import { UNITS } from '../src/data/units';
 import { computeLightMap } from '../src/render/lightMap';
 import {
+  airTrouble,
   appetitePerSecond,
   foodMinutesLeft,
   hasRoomFor,
@@ -17,7 +18,8 @@ import {
 import { createBuilding, spawnEnemy, spawnPickup } from '../src/sim/entities';
 import { designateArea, placeBuilding, placePath, roadEnd } from '../src/sim/game';
 import { idx } from '../src/sim/grid';
-import { answerEvent, STORY_GAP, updateStory } from '../src/sim/storyEngine';
+import { answerEvent, sabotage, STORY_GAP, updateStory } from '../src/sim/storyEngine';
+import { spawnRaid } from '../src/sim/combat';
 import { addJob, breakWall, crewCanReachWall } from '../src/sim/workers';
 import type { GameState, Unit } from '../src/sim/types';
 import { instantBuilding, newGame, run } from './helpers';
@@ -721,5 +723,100 @@ describe('fourmilière, suite', () => {
     state.stock.water = 6;
     state.stock.ice = 4;
     expect(foodMinutesLeft(state)).toBeLessThan(Infinity);
+  });
+});
+
+describe('peaufinage des parties longues', () => {
+  it('une centrale sans personne ne brûle pas son cristal', () => {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    openGround(state, hq.x + 5, hq.y + 1, 3);
+    Object.assign(state.stock, { ore: 200, stone: 200, crystal: 50, credits: 500 });
+    instantBuilding(state, 'generator', hq.x + 3, hq.y);
+    state.city.population = 0;
+    const crystal = state.stock.crystal;
+    run(state, 120);
+    expect(state.stock.crystal).toBe(crystal);
+  });
+
+  it('un sabotage ne frappe pas deux fois le même bâtiment, et ne fait disparaître rien d’autre', () => {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    openGround(state, hq.x + 5, hq.y + 1, 3);
+    Object.assign(state.stock, { ore: 200, stone: 200, crystal: 50, credits: 500 });
+    instantBuilding(state, 'farm', hq.x + 3, hq.y);
+    const farm = state.buildings[state.buildings.length - 1];
+    farm.hp = BUILDINGS.farm.hp * 0.25;
+    const site = createBuilding(state, 'habitat', hq.x + 6, hq.y, 0.3);
+    sabotage(state, 2);
+    expect(state.buildings).toContain(hq);
+    expect(state.buildings).toContain(site);
+    expect(state.buildings).not.toContain(farm);
+    expect(state.log.filter((l) => l.text.includes('Sabotage')).length).toBe(0);
+    expect(state.log.filter((l) => l.text.includes('Bâtiment détruit')).length).toBe(1);
+  });
+
+  it('quand l’air manque, les morts de l’équipe tiennent en une ligne avec la vraie cause', () => {
+    const state = newGame();
+    state.enemies = [];
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    state.mods.oxygen = 0;
+    for (const u of state.units) u.hp = 0.5;
+    for (let i = 0; i < 20 && state.units.some((u) => UNITS[u.type].citizens > 0); i++) {
+      for (const u of state.units) u.x = hq.x + 15.5;
+      state.city.oxygen = 0;
+      run(state, 0.1);
+    }
+    const lines = state.log.filter((l) => l.text.includes('faute d’air'));
+    expect(lines.length).toBe(1);
+    expect(lines[0].text).toMatch(/^\d+ \S+ .*morts faute d’air : /);
+    expect(lines[0].text).toContain(airTrouble(state));
+  });
+
+  it('l’alerte nourriture ne sonne qu’une fois par pénurie', () => {
+    const state = newGame();
+    state.settlement!.reached = true;
+    state.city.population = 20;
+    for (let i = 0; i < 6; i++) {
+      state.stock.food = 13;
+      run(state, 10);
+    }
+    expect(state.log.filter((l) => l.text.startsWith('Nourriture presque épuisée')).length).toBe(1);
+  });
+
+  it('un raid ne sort jamais d’un filon, et ne laisse pas de marque de forage orpheline', () => {
+    const state = newGame(23);
+    run(state, 30);
+    for (let n = 0; n < 6; n++) spawnRaid(state, 'rongeur', 3);
+    for (const job of state.jobs.filter((j) => j.kind === 'drill')) {
+      expect(state.tiles[idx(state, job.x, job.y)].k).not.toBe('rubble');
+    }
+  });
+
+  it('un foreur posé de travers près de la roche marquée va se placer au lieu de tourner en rond', () => {
+    const { state, foreur } = loneMiner();
+    const tx = Math.floor(foreur.x);
+    const ty = Math.floor(foreur.y);
+    state.tiles[idx(state, tx + 1, ty)].k = 'dirt';
+    // On the access tile, but at its far edge: 1.49 from the wall's middle.
+    foreur.x = tx + 0.01;
+    foreur.y = ty + 0.5;
+    designateArea(state, tx + 1, ty, tx + 1, ty);
+    run(state, 12);
+    expect(state.tiles[idx(state, tx + 1, ty)].k).not.toBe('dirt');
+  });
+
+  it('les réfugiés demandent plus de logements qu’il n’y en a, et restent dehors sans air', () => {
+    const state = newGame();
+    state.settlement!.reached = true;
+    state.city.housing = 60;
+    state.city.population = 20;
+    state.city.oxygen = 20;
+    state.contracts = [];
+    for (let i = 0; i < 40; i++) {
+      state.nextContractAt = 0;
+      updateContracts(state);
+    }
+    expect(state.contracts.filter((c) => c.kind === 'refugees')).toEqual([]);
   });
 });

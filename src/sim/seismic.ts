@@ -152,7 +152,9 @@ export function strike(
 
   const heavy = fallenTiles.length > 0 || damaged > 0;
   const effects = [
-    fallenTiles.length > 0 ? `${fallenTiles.length} cases éboulées` : '',
+    fallenTiles.length > 0
+      ? `${fallenTiles.length} case${fallenTiles.length > 1 ? 's' : ''} éboulée${fallenTiles.length > 1 ? 's' : ''}`
+      : '',
     damaged > 0
       ? `${damaged} bâtiment${damaged > 1 ? 's' : ''} touché${damaged > 1 ? 's' : ''}`
       : '',
