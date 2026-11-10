@@ -9,7 +9,10 @@ import { computeLightMap } from '../src/render/lightMap';
 import {
   airTrouble,
   appetitePerSecond,
+  BIRTH_FUEL_MINUTES,
+  FEW_PEOPLE,
   foodMinutesLeft,
+  fuelMinutesLeft,
   hasRoomFor,
   storageCapacity,
   updateNetwork,
@@ -22,6 +25,7 @@ import {
   placeBuilding,
   placePath,
   roadEnd,
+  trainUnit,
 } from '../src/sim/game';
 import { idx } from '../src/sim/grid';
 import { answerEvent, sabotage, STORY_GAP, updateStory } from '../src/sim/storyEngine';
@@ -917,5 +921,71 @@ describe('une cité qui se vide', () => {
     state.city.population = 0;
     run(state, 1);
     expect(airTrouble(state)).toContain('trop peu d’habitants');
+  });
+});
+
+describe('naissances et combustible', () => {
+  function fedCity(crystal: number): GameState {
+    const state = newGame();
+    state.settlement!.reached = true;
+    state.enemies = [];
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    openGround(state, hq.x + 6, hq.y + 1, 7);
+    Object.assign(state.stock, { ore: 400, stone: 400, crystal: 50 });
+    for (let i = 0; i < 3; i++) instantBuilding(state, 'generator', hq.x + 2 + i * 2, hq.y);
+    // Farms with water to spare, and room to grow: only the fuel can hold births back.
+    instantBuilding(state, 'farm', hq.x + 2, hq.y + 2);
+    instantBuilding(state, 'farm', hq.x + 4, hq.y + 2);
+    for (let i = 0; i < 4; i++) instantBuilding(state, 'habitat', hq.x + 2 + i, hq.y - 1);
+    state.stock.water = 500;
+    state.city.population = 20;
+    state.stock.food = 2000;
+    state.stock.crystal = crystal;
+    return state;
+  }
+
+  it('pas de naissance sans cristal d’avance pour les centrales, et le joueur sait pourquoi', () => {
+    const state = fedCity(4);
+    let peak = 0;
+    for (let i = 0; i < 60; i++) {
+      state.stock.crystal = 4;
+      state.city.oxygen = 100;
+      state.city.morale = Math.max(state.city.morale, 70);
+      run(state, 1);
+      peak = Math.max(peak, state.city.population);
+    }
+    expect(peak).toBeLessThanOrEqual(20);
+    expect(fuelMinutesLeft(state).minutes).toBeLessThan(BIRTH_FUEL_MINUTES);
+    expect(state.log.filter((l) => l.text.startsWith('Naissances suspendues')).length).toBe(1);
+  });
+
+  it('avec du cristal d’avance, la cité grandit', () => {
+    const state = fedCity(400);
+    let peak = 0;
+    for (let i = 0; i < 60; i++) {
+      state.stock.crystal = 400;
+      state.city.oxygen = 100;
+      state.city.morale = Math.max(state.city.morale, 70);
+      run(state, 1);
+      peak = Math.max(peak, state.city.population);
+    }
+    expect(peak).toBeGreaterThan(20);
+  });
+});
+
+describe('former des unités', () => {
+  it('ne vide pas la cité : ses derniers habitants restent chez eux', () => {
+    const state = newGame();
+    state.settlement!.reached = true;
+    Object.assign(state.stock, { ore: 500, crystal: 500, credits: 500 });
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    // A tick, so that the HQ is running.
+    run(state, 1);
+    state.city.population = FEW_PEOPLE + 1;
+    expect(trainUnit(state, hq.id, 'foreur').ok).toBe(true);
+    const refused = trainUnit(state, hq.id, 'foreur');
+    expect(refused.ok).toBe(false);
+    expect(refused.reason).toContain(`${FEW_PEOPLE} habitants`);
+    expect(state.city.population).toBe(FEW_PEOPLE);
   });
 });

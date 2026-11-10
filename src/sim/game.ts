@@ -9,6 +9,7 @@ import { updateCombat } from './combat';
 import {
   addStock,
   canAfford,
+  FEW_PEOPLE,
   pay,
   storageCapacity,
   updateEconomy,
@@ -605,6 +606,16 @@ export function trainUnit(state: GameState, buildingId: number, type: UnitType):
   const def = UNITS[type];
   if (!canAfford(state, def.cost)) return { ok: false, reason: 'Ressources insuffisantes.' };
   if (state.city.population < def.citizens) return { ok: false, reason: 'Pas assez de citoyens.' };
+  // Once settled, the city is the colony: its last few are kept home, or nobody would run it.
+  if (
+    state.settlement?.reached &&
+    def.citizens > 0 &&
+    state.city.population - def.citizens < FEW_PEOPLE
+  )
+    return {
+      ok: false,
+      reason: `La cité doit garder au moins ${FEW_PEOPLE} habitants : attendez qu’elle grandisse.`,
+    };
   pay(state, def.cost);
   state.city.population -= def.citizens;
   b.queue.push(type);

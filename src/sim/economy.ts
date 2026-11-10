@@ -219,7 +219,7 @@ export function updateEconomy(state: GameState): void {
     }
   }
   if (state.settlement?.reached) city.housing += CITY_HOUSING;
-  const staff = city.jobs === 0 ? 1 : Math.min(1, Math.floor(city.population) / city.jobs);
+  const staff = staffing(state);
 
   // Power comes first: every other building's output depends on it.
   let produced = 0;
@@ -417,6 +417,39 @@ const foodKeepsUp = (state: GameState): boolean =>
   state.city.population < FEW_PEOPLE ||
   outputPerMinute(state, 'food') >= appetitePerSecond(state) * 60;
 
+/** Minutes of fuel the power plants need ahead before the city takes in more people. */
+export const BIRTH_FUEL_MINUTES = 5;
+
+/** What each fuel the plants burn per minute: as fast as their crew works them, as in updateEconomy. */
+function fuelBurnPerMinute(state: GameState): Partial<Record<ResourceId, number>> {
+  const burn: Partial<Record<ResourceId, number>> = {};
+  const crew = staffing(state);
+  for (const b of state.buildings) {
+    const def = BUILDINGS[b.type];
+    if (b.built < 1 || !def.burnTime) continue;
+    const fuel = def.fuel ?? 'crystal';
+    burn[fuel] = (burn[fuel] ?? 0) + (60 / def.burnTime) * crew;
+  }
+  return burn;
+}
+
+/** The fuel that runs out first, and in how many minutes: Infinity with no plant to feed. */
+export function fuelMinutesLeft(state: GameState): { fuel: ResourceId | null; minutes: number } {
+  let worst: { fuel: ResourceId | null; minutes: number } = { fuel: null, minutes: Infinity };
+  for (const [fuel, perMinute] of Object.entries(fuelBurnPerMinute(state)) as [
+    ResourceId,
+    number,
+  ][]) {
+    const minutes = state.stock[fuel] / perMinute;
+    if (minutes < worst.minutes) worst = { fuel, minutes };
+  }
+  return worst;
+}
+
+/** Fuel enough ahead for one more mouth. The last few, who hardly run the plants, are let off. */
+const fuelAhead = (state: GameState): boolean =>
+  state.city.population < FEW_PEOPLE || fuelMinutesLeft(state).minutes > BIRTH_FUEL_MINUTES;
+
 /** Whether the city can take more people right now: air and food to spare, as for a birth. */
 export function canBearMore(state: GameState): boolean {
   const city = state.city;
@@ -425,7 +458,8 @@ export function canBearMore(state: GameState): boolean {
     city.morale >= 30 &&
     state.stock.food > 0 &&
     foodKeepsUp(state) &&
-    foodMinutesLeft(state) > BIRTH_FOOD_MINUTES
+    foodMinutesLeft(state) > BIRTH_FOOD_MINUTES &&
+    fuelAhead(state)
   );
 }
 
@@ -493,14 +527,10 @@ function updateSupplyWatch(state: GameState): void {
     }
   };
 
-  const burn: Partial<Record<ResourceId, number>> = {};
-  for (const b of state.buildings) {
-    const def = BUILDINGS[b.type];
-    if (b.built < 1 || !def.burnTime) continue;
-    const fuel = def.fuel ?? 'crystal';
-    burn[fuel] = (burn[fuel] ?? 0) + 60 / def.burnTime;
-  }
-  for (const [fuel, perMinute] of Object.entries(burn) as [ResourceId, number][]) {
+  for (const [fuel, perMinute] of Object.entries(fuelBurnPerMinute(state)) as [
+    ResourceId,
+    number,
+  ][]) {
     const minutes = state.stock[fuel] / perMinute;
     const name = RESOURCES[fuel].name.toLowerCase();
     alarm(
@@ -508,6 +538,18 @@ function updateSupplyWatch(state: GameState): void {
       minutes < FUEL_ALARM_MINUTES,
       minutes > FUEL_ALARM_MINUTES * 2,
       `Réserve de ${name} : moins de ${FUEL_ALARM_MINUTES} min pour les centrales. Sans elles, plus de courant ni d’oxygène.`,
+    );
+  }
+
+  // Said once, so the player knows why the city has stopped growing.
+  const ahead = fuelMinutesLeft(state);
+  if (ahead.fuel) {
+    const name = RESOURCES[ahead.fuel].name.toLowerCase();
+    alarm(
+      'birthFuel',
+      ahead.minutes <= BIRTH_FUEL_MINUTES && Math.floor(state.city.population) < state.city.housing,
+      ahead.minutes > BIRTH_FUEL_MINUTES * 2,
+      `Naissances suspendues : moins de ${BIRTH_FUEL_MINUTES} min de ${name} pour les centrales. Il en faut d’avance pour que la cité grandisse.`,
     );
   }
 
@@ -623,7 +665,9 @@ function updateCity(state: GameState, inputs: CityInputs): void {
     healthy &&
     city.growthT >= growthEvery &&
     foodKeepsUp(state) &&
-    foodMinutesLeft(state) > BIRTH_FOOD_MINUTES
+    foodMinutesLeft(state) > BIRTH_FOOD_MINUTES &&
+    // Nor faster than the plants can be fed: each newcomer breathes air that runs on their fuel.
+    fuelAhead(state)
   ) {
     city.growthT = 0;
     city.population += 1;
