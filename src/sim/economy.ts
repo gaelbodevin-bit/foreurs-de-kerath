@@ -246,7 +246,7 @@ export function updateEconomy(state: GameState): void {
   const ratio = demand === 0 ? 1 : Math.min(1, produced / demand);
   state.power = { produced, demand, ratio };
 
-  const strike = city.morale < 25 ? 0.5 : 1;
+  const strike = city.morale < STRIKE_MORALE ? 0.5 : 1;
   const overtime = city.policies.overtime ? 1.25 : 1;
 
   let oxygenFlow = state.settlement?.reached ? CITY_OXYGEN : 0;
@@ -403,6 +403,20 @@ function feedsGrowers(state: GameState, res: ResourceId, depth = 0): boolean {
   });
 }
 
+/** Below this morale, the city works at half pace. */
+const STRIKE_MORALE = 25;
+
+/** Below this, the city can't staff its own farms: newcomers live on the stores until they can. */
+export const FEW_PEOPLE = 5;
+
+/**
+ * Whether the farms keep up with the colony's appetite. A city down to its last few is let off: with
+ * nobody to work them the farms make nothing, and asking them to keep up would shut it for good.
+ */
+const foodKeepsUp = (state: GameState): boolean =>
+  state.city.population < FEW_PEOPLE ||
+  outputPerMinute(state, 'food') >= appetitePerSecond(state) * 60;
+
 /** Whether the city can take more people right now: air and food to spare, as for a birth. */
 export function canBearMore(state: GameState): boolean {
   const city = state.city;
@@ -410,16 +424,31 @@ export function canBearMore(state: GameState): boolean {
     city.oxygen > BIRTH_AIR &&
     city.morale >= 30 &&
     state.stock.food > 0 &&
-    outputPerMinute(state, 'food') >= appetitePerSecond(state) * 60 &&
+    foodKeepsUp(state) &&
     foodMinutesLeft(state) > BIRTH_FOOD_MINUTES
   );
+}
+
+/** Share of the city's jobs that have someone in them. */
+const staffing = (state: GameState): number =>
+  state.city.jobs === 0 ? 1 : Math.min(1, Math.floor(state.city.population) / state.city.jobs);
+
+/** When the buildings stand idle for want of hands, that is the trouble, whatever else is missing. */
+function handsShort(state: GameState): string | null {
+  if (staffing(state) >= 0.5) return null;
+  const people = Math.floor(state.city.population);
+  return `trop peu d’habitants pour faire tourner les bâtiments (${people} pour ${state.city.jobs} postes)`;
 }
 
 /** Why the city runs out of air: no extractor, no current for them, or more mouths than they can serve. */
 export function airTrouble(state: GameState): string {
   const extractors = state.buildings.filter((b) => b.type === 'oxygen' && b.built >= 1);
   if (extractors.length === 0) return 'aucun extracteur d’oxygène';
+  const hands = handsShort(state);
+  if (hands) return hands;
+  if (extractors.every((b) => b.sabotaged > 0)) return 'les extracteurs sont sabotés';
   if (state.power.ratio < 0.8) return 'les extracteurs manquent de courant';
+  if (state.city.morale < STRIKE_MORALE) return 'la grève : le moral est trop bas';
   const workers = state.units.filter((u) => UNITS[u.type].citizens > 0).length;
   const mouths = Math.floor(state.city.population) + workers;
   return `trop de bouches (${mouths}) pour ${extractors.length} extracteur${extractors.length > 1 ? 's' : ''}`;
@@ -433,6 +462,8 @@ function foodAdvice(state: GameState): string {
     return 'les serres manquent d’eau : il faut un fondoir';
   if (has('melter') && state.stock.ice < 4 && state.stock.water < 4)
     return 'les fondoirs manquent de glace : il faut en miner';
+  const hands = handsShort(state);
+  if (hands) return hands;
   if (state.power.ratio < 0.8) return 'les serres manquent de courant';
   return 'les serres ne suivent plus : il en faut d’autres, ou des rations réduites';
 }
@@ -572,7 +603,11 @@ function updateCity(state: GameState, inputs: CityInputs): void {
     { label: 'Sûreté', value: -inputs.securityPressure * 60 },
   ];
   city.conspiracyWhy = plot.filter((f) => Math.abs(f.value) >= 0.05);
-  const perSecond = plot.reduce((sum, f) => sum + f.value, 0) / 60;
+  // An empty city hatches no plot: what is left of the meter only fades.
+  const plotters = Math.floor(city.population) >= 1;
+  const perSecond = plotters
+    ? plot.reduce((sum, f) => sum + f.value, 0) / 60
+    : -Math.abs(inputs.securityPressure) - 0.05;
   city.conspiracy = Math.max(0, Math.min(100, city.conspiracy + perSecond * dt));
 
   // Population.
@@ -587,14 +622,16 @@ function updateCity(state: GameState, inputs: CityInputs): void {
     roomy &&
     healthy &&
     city.growthT >= growthEvery &&
-    outputPerMinute(state, 'food') >= appetitePerSecond(state) * 60 &&
+    foodKeepsUp(state) &&
     foodMinutesLeft(state) > BIRTH_FOOD_MINUTES
   ) {
     city.growthT = 0;
     city.population += 1;
   }
-  city.declineT += dt;
   const dying = starving || city.oxygen <= 0 || city.morale < 10;
+  // The clock only runs while someone can die: a newcomer to an empty city gets a full respite.
+  if (dying && city.population >= 1) city.declineT += dt;
+  else city.declineT = 0;
   if (dying && city.population > 0 && city.declineT >= DEATH_EVERY) {
     city.declineT = 0;
     city.population -= 1;
@@ -606,7 +643,8 @@ function updateCity(state: GameState, inputs: CityInputs): void {
   }
   if (city.oxygen <= 0 && state.tick % 10 === 0) {
     for (const u of state.units) {
-      if (UNITS[u.type].citizens > 0) u.hp -= 1;
+      if (UNITS[u.type].citizens === 0) continue;
+      u.hp -= 1;
       if (u.hp <= 0) u.fatal = 'air';
     }
   }

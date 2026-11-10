@@ -74,6 +74,8 @@ export function updateStory(state: GameState): void {
 /** Climbing past each threshold costs the player a blow; a full meter means an uprising. */
 function updateConspiracyStages(state: GameState): void {
   const city = state.city;
+  // Nobody left in the city: nobody to rise.
+  if (Math.floor(city.population) < 1) return;
   const stage =
     city.conspiracy >= 100 ? 3 : city.conspiracy >= 70 ? 2 : city.conspiracy >= 40 ? 1 : 0;
   if (stage <= city.conspiracyStage) {
@@ -95,6 +97,7 @@ function updateConspiracyStages(state: GameState): void {
 
 export function sabotage(state: GameState, count: number): void {
   const targets = state.buildings.filter((b) => b.built >= 1 && b.type !== 'hq');
+  if (count <= 0 || targets.length === 0) return;
   for (let i = 0; i < count && targets.length > 0; i++) {
     const b = randPick(state, targets);
     targets.splice(targets.indexOf(b), 1);

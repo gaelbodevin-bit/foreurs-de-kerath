@@ -108,8 +108,11 @@ export function crewCanReachWall(state: GameState, x: number, y: number): boolea
     }
   }
   const target = idx(state, x, y);
+  // Rock already marked and bridges already planned: both will be a way through.
   const marked = new Set(
-    state.jobs.filter((j) => j.kind === 'drill').map((j) => idx(state, j.x, j.y)),
+    state.jobs
+      .filter((j) => j.kind === 'drill' || j.kind === 'bridge')
+      .map((j) => idx(state, j.x, j.y)),
   );
   marked.delete(target);
   for (let head = 0; head < queue.length; head++) {

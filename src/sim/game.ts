@@ -295,6 +295,36 @@ const tileIsUnder = (type: BuildingType, bx: number, by: number, x: number, y: n
   return x >= bx && y >= by && x < bx + size && y < by + size;
 };
 
+/** How long the reached city may stand empty before the colony is lost: time for refugees or a rescue. */
+export const EMPTY_CITY_GRACE = 180;
+
+/**
+ * Once the city is reached, it is the colony: with nobody in it, no plant, farm or extractor runs. The
+ * player is warned once, and has a few minutes to bring someone in before the game ends.
+ */
+function updateEmptyCity(state: GameState): boolean {
+  const city = state.city;
+  if (!state.settlement?.reached || city.population >= 1) {
+    city.emptyT = undefined;
+    return false;
+  }
+  if (city.emptyT === undefined) {
+    city.emptyT = 0;
+    log(
+      state,
+      `La cité est vide : sans réfugiés ni naissance d’ici ${EMPTY_CITY_GRACE / 60} min, la colonie est perdue.`,
+      'bad',
+    );
+    state.fx.push({ kind: 'sound', id: 'alert' });
+  }
+  // Called once a second.
+  city.emptyT += 1;
+  if (city.emptyT < EMPTY_CITY_GRACE) return false;
+  state.outcome = 'lost';
+  state.outcomeReason = 'La cité s’est vidée : plus personne pour faire tourner la colonie.';
+  return true;
+}
+
 function updateOutcome(state: GameState): void {
   if (!state.buildings.some((b) => b.type === 'hq')) {
     state.outcome = 'lost';
@@ -306,6 +336,7 @@ function updateOutcome(state: GameState): void {
     state.outcomeReason = 'Il ne reste plus personne dans la colonie.';
     return;
   }
+  if (updateEmptyCity(state)) return;
   if (isWorldConquered(state) && state.story.pending.length === 0) {
     state.outcome = 'won';
     state.outcomeReason = 'Kerath est sous votre contrôle.';

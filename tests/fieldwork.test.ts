@@ -16,7 +16,13 @@ import {
   wouldConnect,
 } from '../src/sim/economy';
 import { createBuilding, spawnEnemy, spawnPickup } from '../src/sim/entities';
-import { designateArea, placeBuilding, placePath, roadEnd } from '../src/sim/game';
+import {
+  designateArea,
+  EMPTY_CITY_GRACE,
+  placeBuilding,
+  placePath,
+  roadEnd,
+} from '../src/sim/game';
 import { idx } from '../src/sim/grid';
 import { answerEvent, sabotage, STORY_GAP, updateStory } from '../src/sim/storyEngine';
 import { spawnRaid } from '../src/sim/combat';
@@ -553,6 +559,9 @@ describe('journal des pertes', () => {
       run(state, 0.1);
     }
     expect(state.units).not.toContain(foreur);
+    // Told once the air is back.
+    state.city.oxygen = 50;
+    run(state, 0.1);
     const texts = state.log.map((l) => l.text);
     expect(texts.some((t) => t.includes('faute d’air'))).toBe(true);
     expect(texts.some((t) => t.includes('perdu au combat'))).toBe(false);
@@ -767,6 +776,11 @@ describe('peaufinage des parties longues', () => {
       state.city.oxygen = 0;
       run(state, 0.1);
     }
+    // The line waits for the crisis to play out, so that late victims join it.
+    for (let i = 0; i < 25; i++) {
+      state.city.oxygen = 0;
+      run(state, 1);
+    }
     const lines = state.log.filter((l) => l.text.includes('faute d’air'));
     expect(lines.length).toBe(1);
     expect(lines[0].text).toMatch(/^\d+ \S+ .*morts faute d’air : /);
@@ -818,5 +832,90 @@ describe('peaufinage des parties longues', () => {
       updateContracts(state);
     }
     expect(state.contracts.filter((c) => c.kind === 'refugees')).toEqual([]);
+  });
+});
+
+describe('une cité qui se vide', () => {
+  it('prévient une fois, puis perd la partie si personne ne revient', () => {
+    const state = newGame();
+    state.settlement!.reached = true;
+    state.city.population = 0;
+    // No stores to live on: nobody is born to fill it again.
+    state.stock.food = 0;
+    run(state, 60);
+    expect(state.outcome).toBe('playing');
+    expect(state.log.filter((l) => l.text.startsWith('La cité est vide')).length).toBe(1);
+    run(state, EMPTY_CITY_GRACE);
+    expect(state.outcome).toBe('lost');
+    expect(state.outcomeReason).toContain('La cité s’est vidée');
+  });
+
+  it('un nouvel arrivant à temps sauve la colonie', () => {
+    const state = newGame();
+    state.settlement!.reached = true;
+    state.city.population = 0;
+    run(state, 60);
+    state.city.population = 3;
+    Object.assign(state.stock, { food: 300 });
+    run(state, EMPTY_CITY_GRACE);
+    expect(state.outcome).toBe('playing');
+  });
+
+  it('les derniers habitants vivent sur les réserves et font encore des enfants', () => {
+    const state = newGame();
+    state.settlement!.reached = true;
+    state.enemies = [];
+    state.city.population = 2;
+    state.city.morale = 70;
+    state.city.oxygen = 100;
+    state.stock.food = 400;
+    let peak = state.city.population;
+    for (let i = 0; i < 120; i++) {
+      state.city.morale = Math.max(state.city.morale, 60);
+      run(state, 1);
+      peak = Math.max(peak, state.city.population);
+    }
+    expect(peak).toBeGreaterThan(2);
+  });
+
+  it('un rescapé arrivé dans une cité affamée a le temps de manger avant de mourir', () => {
+    const state = newGame();
+    state.settlement!.reached = true;
+    state.city.population = 0;
+    state.stock.food = 0;
+    run(state, 120);
+    state.city.population = 1;
+    run(state, 10);
+    expect(state.city.population).toBeGreaterThanOrEqual(1);
+  });
+
+  it('ni complot ni soulèvement dans une cité sans habitants', () => {
+    const state = newGame();
+    state.settlement!.reached = true;
+    state.city.population = 0;
+    state.city.conspiracy = 95;
+    state.city.morale = 0;
+    run(state, 60);
+    expect(state.city.conspiracy).toBeLessThan(95);
+    expect(state.log.some((l) => l.text.startsWith('Soulèvement'))).toBe(false);
+  });
+
+  it('un sabotage sans cible ne sonne pas l’alarme', () => {
+    const state = newGame();
+    state.buildings = state.buildings.filter((b) => b.type === 'hq');
+    state.fx = [];
+    sabotage(state, 2);
+    expect(state.fx.some((f) => f.kind === 'voice')).toBe(false);
+  });
+
+  it('l’alerte d’air dit qu’il manque des bras quand les bâtiments sont vides', () => {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    openGround(state, hq.x + 5, hq.y + 1, 3);
+    instantBuilding(state, 'oxygen', hq.x + 3, hq.y);
+    instantBuilding(state, 'farm', hq.x + 4, hq.y + 2);
+    state.city.population = 0;
+    run(state, 1);
+    expect(airTrouble(state)).toContain('trop peu d’habitants');
   });
 });

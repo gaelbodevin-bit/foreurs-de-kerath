@@ -281,6 +281,8 @@ export interface CityState {
   conspiracy: number;
   growthT: number;
   declineT: number;
+  /** Seconds the reached city has stood empty; the colony is lost when it runs out. */
+  emptyT?: number;
   housing: number;
   jobs: number;
   /** Peak conspiracy threshold already punished, so each one only fires once per climb. */
@@ -424,6 +426,8 @@ export interface GameState {
   candidates: Councillor[];
   nextCandidatesAt: number;
   governorTrait: GovernorTraitId | null;
+  /** Deaths for want of air not yet reported: one line per crisis, not one per victim. */
+  airDeaths?: { names: Record<string, number>; since: number };
   outcome: 'playing' | 'won' | 'lost';
   outcomeReason: string;
   log: LogEntry[];

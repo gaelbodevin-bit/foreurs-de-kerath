@@ -555,8 +555,7 @@ export function updateCombat(state: GameState): void {
       log(state, `${ENEMIES[e.type].name} détruit !`, 'good');
     }
   }
-  // When the air runs out, the whole crew goes at once: one line for all of them, not fifty that wipe the log.
-  const breathless = new Map<string, number>();
+  // When the air runs out, the whole crew goes within seconds: one line for all of them, not fifty.
   for (const unit of [...state.units]) {
     if (unit.hp > 0) continue;
     releaseJob(state, unit);
@@ -565,7 +564,8 @@ export function updateCombat(state: GameState): void {
     if (UNITS[unit.type].citizens > 0) state.city.moraleShock -= 4;
     const name = UNITS[unit.type].name;
     if (unit.fatal === 'air') {
-      breathless.set(name, (breathless.get(name) ?? 0) + 1);
+      const tally = (state.airDeaths ??= { names: {}, since: state.time });
+      tally.names[name] = (tally.names[name] ?? 0) + 1;
       continue;
     }
     const how =
@@ -576,13 +576,24 @@ export function updateCombat(state: GameState): void {
           : 'perdu au combat';
     log(state, `${name} ${how}.`, 'bad');
   }
-  if (breathless.size > 0) {
-    const total = [...breathless.values()].reduce((a, b) => a + b, 0);
-    const who = [...breathless].map(([name, n]) =>
-      n === 1 ? `1 ${name.toLowerCase()}` : `${n} ${name.toLowerCase()}s`,
-    );
-    const list =
-      who.length > 1 ? `${who.slice(0, -1).join(', ')} et ${who[who.length - 1]}` : who[0];
-    log(state, `${list} mort${total > 1 ? 's' : ''} faute d’air : ${airTrouble(state)}.`, 'bad');
-  }
+  reportAirDeaths(state);
+}
+
+/** Seconds of deaths gathered into one line: the crew doesn't all run out of breath on the same tick. */
+const AIR_DEATHS_WINDOW = 20;
+
+/** One line for the crew lost to a want of air, once the air is back or the window is over. */
+function reportAirDeaths(state: GameState): void {
+  const tally = state.airDeaths;
+  if (!tally) return;
+  if (state.city.oxygen <= 0 && state.time - tally.since < AIR_DEATHS_WINDOW) return;
+  state.airDeaths = undefined;
+  const entries = Object.entries(tally.names);
+  const total = entries.reduce((sum, [, n]) => sum + n, 0);
+  if (total === 0) return;
+  const who = entries.map(([name, n]) =>
+    n === 1 ? `1 ${name.toLowerCase()}` : `${n} ${name.toLowerCase()}s`,
+  );
+  const list = who.length > 1 ? `${who.slice(0, -1).join(', ')} et ${who[who.length - 1]}` : who[0];
+  log(state, `${list} mort${total > 1 ? 's' : ''} faute d’air : ${airTrouble(state)}.`, 'bad');
 }
