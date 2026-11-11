@@ -75,10 +75,22 @@ export function spawnRaid(state: GameState, type: EnemyType, count: number): num
 
 function updateWaves(state: GameState): void {
   if (state.time < state.waves.nextAt) return;
-  // The raids come from the deepest front open at the moment, and never grow past a limit.
-  const open = REGIONS.filter((r) => state.sectorStart[r.id] !== undefined);
-  const def = open[open.length - 1].waves;
-  const size = Math.min(MAX_RAID, Math.round(def.size + def.growth * state.waves.count));
+  // The raids come from the deepest front open at the moment, and never grow past a limit. A front
+  // only sends its first raid once its own delay has run, and the fronts of one rank take turns.
+  const ready = REGIONS.filter((r) => {
+    const opened = state.sectorStart[r.id];
+    return opened !== undefined && state.time >= opened + (opened === 0 ? 0 : r.waves.first);
+  });
+  if (ready.length === 0) return;
+  const deepest = Math.max(...ready.map((r) => r.tier));
+  const front = randPick(
+    state,
+    ready.filter((r) => r.tier === deepest),
+  );
+  const def = front.waves;
+  const sent = (state.waves.byFront ??= {});
+  const size = Math.min(MAX_RAID, Math.round(def.size + def.growth * (sent[front.id] ?? 0)));
+  sent[front.id] = (sent[front.id] ?? 0) + 1;
   const hordes = new Map<EnemyType, number>();
   for (let i = 0; i < size; i++) {
     const type = randPick(state, def.pool);

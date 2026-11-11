@@ -3,7 +3,7 @@ import { BUILDINGS, buildersFor } from '../src/data/buildings';
 import { CITY_STORAGE } from '../src/data/progression';
 import { REGIONS, sectorAt } from '../src/data/regions';
 import { STORY_EVENTS } from '../src/data/story';
-import { updateContracts } from '../src/sim/contracts';
+import { defendDraft, updateContracts } from '../src/sim/contracts';
 import { UNITS } from '../src/data/units';
 import { computeLightMap } from '../src/render/lightMap';
 import {
@@ -29,7 +29,7 @@ import {
 } from '../src/sim/game';
 import { idx } from '../src/sim/grid';
 import { answerEvent, sabotage, STORY_GAP, updateStory } from '../src/sim/storyEngine';
-import { spawnRaid } from '../src/sim/combat';
+import { spawnRaid, updateCombat } from '../src/sim/combat';
 import { addJob, breakWall, crewCanReachWall } from '../src/sim/workers';
 import type { GameState, Unit } from '../src/sim/types';
 import { instantBuilding, newGame, run } from './helpers';
@@ -987,5 +987,46 @@ describe('former des unités', () => {
     expect(refused.ok).toBe(false);
     expect(refused.reason).toContain(`${FEW_PEOPLE} habitants`);
     expect(state.city.population).toBe(FEW_PEOPLE);
+  });
+});
+
+describe('raids et incursions', () => {
+  it('pas de mission d’incursion pendant une panne, ni avec des tourelles éteintes', () => {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    openGround(state, hq.x + 5, hq.y + 1, 4);
+    Object.assign(state.stock, { ore: 200, crystal: 50 });
+    for (let i = 0; i < 4; i++) instantBuilding(state, 'turret', hq.x + 2 + i, hq.y + 2);
+    state.power = { produced: 4, demand: 40, ratio: 0.1 };
+    expect(defendDraft(state)).toBeNull();
+    state.power = { produced: 40, demand: 40, ratio: 1 };
+    for (const b of state.buildings) if (b.type === 'turret') b.eff = 0;
+    state.units = state.units.filter((u) => u.type !== 'garde');
+    expect(defendDraft(state)).toBeNull();
+  });
+
+  it('un front qui s’ouvre attend son délai, puis commence petit', () => {
+    const state = newGame(3);
+    state.enemies = [];
+    run(state, 30);
+    const opened = state.time;
+    for (const id of ['lumen', 'abyss', 'glass', 'ice']) state.sectorStart[id] = opened;
+    state.waves.count = 14;
+    state.waves.byFront = { ash: 14 };
+    state.waves.nextAt = state.time;
+    updateCombat(state);
+    // Too soon for the new fronts: the raid still comes from the old one.
+    expect(state.waves.byFront.ash).toBe(15);
+    const later =
+      opened + Math.max(...REGIONS.filter((r) => r.tier === 1).map((r) => r.waves.first));
+    state.time = later;
+    state.waves.nextAt = later;
+    const before = state.enemies.length;
+    updateCombat(state);
+    const fresh = Object.entries(state.waves.byFront).filter(([id]) => id !== 'ash');
+    expect(fresh).toHaveLength(1);
+    expect(fresh[0][1]).toBe(1);
+    const front = REGIONS.find((r) => r.id === fresh[0][0])!;
+    expect(state.enemies.length - before).toBeLessThanOrEqual(front.waves.size);
   });
 });

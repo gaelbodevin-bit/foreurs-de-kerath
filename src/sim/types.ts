@@ -307,6 +307,8 @@ export interface PowerState {
 export interface WaveState {
   nextAt: number;
   count: number;
+  /** Raids each front has sent so far: a new front starts small, whatever the others have grown to. */
+  byFront?: Record<string, number>;
 }
 
 export interface StoryState {

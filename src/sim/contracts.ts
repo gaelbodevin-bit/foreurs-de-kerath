@@ -182,11 +182,15 @@ function rescueDraft(state: GameState): Draft | null {
   };
 }
 
-function defendDraft(state: GameState): Draft | null {
-  // A raid the colony can't answer isn't a mission, it's the end of the game.
-  const turrets = state.buildings.filter((b) => b.type === 'turret' && b.built >= 1).length;
+export function defendDraft(state: GameState): Draft | null {
+  // A raid the colony can't answer isn't a mission, it's the end of the game. Only turrets that can
+  // fire count, and nobody sends one into a blackout or a city running out of air.
+  if (state.power.ratio < 0.8 || state.city.oxygen < 40) return null;
+  const turrets = state.buildings
+    .filter((b) => (b.type === 'turret' || b.type === 'bigturret') && b.built >= 1)
+    .reduce((sum, b) => sum + b.eff, 0);
   const guards = state.units.filter((u) => u.type === 'garde').length;
-  const defence = turrets * 2 + guards;
+  const defence = Math.floor(turrets * 2 + guards);
   if (defence < 3) return null;
   const pool = activeRegions(state).flatMap((r) => r.waves.pool);
   const type: EnemyType = randPick(state, pool.length > 0 ? pool : ['rongeur']);
