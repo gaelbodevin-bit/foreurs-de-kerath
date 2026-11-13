@@ -9,6 +9,7 @@ import { computeLightMap } from '../src/render/lightMap';
 import {
   airTrouble,
   appetitePerSecond,
+  canBearMore,
   BIRTH_FUEL_MINUTES,
   FEW_PEOPLE,
   foodMinutesLeft,
@@ -466,6 +467,10 @@ describe('alertes de pénurie', () => {
     const hq = state.buildings.find((b) => b.type === 'hq')!;
     openGround(state, hq.x, hq.y, 8);
     instantBuilding(state, 'generator', hq.x + 2, hq.y);
+    // Two labs: more than the HQ alone can carry, so the plant has work to do.
+    for (const r of Object.keys(state.stock) as (keyof typeof state.stock)[]) state.stock[r] = 500;
+    instantBuilding(state, 'lab', hq.x - 2, hq.y);
+    instantBuilding(state, 'lab', hq.x, hq.y + 2);
     state.stock.crystal = 2;
     run(state, 2);
     const fuel = () => state.log.filter((l) => l.text.startsWith('Réserve de cristal')).length;
@@ -916,8 +921,8 @@ describe('une cité qui se vide', () => {
     const state = newGame();
     const hq = state.buildings.find((b) => b.type === 'hq')!;
     openGround(state, hq.x + 5, hq.y + 1, 3);
-    instantBuilding(state, 'oxygen', hq.x + 3, hq.y);
-    instantBuilding(state, 'farm', hq.x + 4, hq.y + 2);
+    instantBuilding(state, 'oxygen', hq.x + 2, hq.y);
+    instantBuilding(state, 'farm', hq.x + 2, hq.y + 1);
     state.city.population = 0;
     run(state, 1);
     expect(airTrouble(state)).toContain('trop peu d’habitants');
@@ -1028,5 +1033,120 @@ describe('raids et incursions', () => {
     expect(fresh[0][1]).toBe(1);
     const front = REGIONS.find((r) => r.id === fresh[0][0])!;
     expect(state.enemies.length - before).toBeLessThanOrEqual(front.waves.size);
+  });
+});
+
+describe('courant, personnel et moral', () => {
+  const setup = () => {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    openGround(state, hq.x, hq.y, 9);
+    for (const r of Object.keys(state.stock) as (keyof typeof state.stock)[]) state.stock[r] = 500;
+    state.city.population = 20;
+    return { state, hq };
+  };
+
+  it('une centrale dont le réseau n’a pas besoin reste en veille et ne brûle rien', () => {
+    const { state, hq } = setup();
+    instantBuilding(state, 'generator', hq.x + 2, hq.y);
+    const plant = state.buildings[state.buildings.length - 1];
+    run(state, 3);
+    expect(plant.standby).toBe(true);
+    expect(state.stock.crystal).toBe(500);
+    expect(fuelMinutesLeft(state).minutes).toBe(Infinity);
+
+    instantBuilding(state, 'lab', hq.x - 2, hq.y);
+    instantBuilding(state, 'lab', hq.x, hq.y + 2);
+    run(state, 3);
+    expect(plant.standby).toBe(false);
+    expect(state.stock.crystal).toBeLessThan(500);
+  });
+
+  it('la recherche du réseau renforce aussi la géothermie', () => {
+    const { state, hq } = setup();
+    instantBuilding(state, 'geothermal', hq.x + 2, hq.y);
+    state.mods.powerOutput = 1.25;
+    run(state, 0.5);
+    expect(state.power.produced).toBeCloseTo(BUILDINGS.hq.powerOutput! + 10 * 1.25);
+  });
+
+  it('un bâtiment hors réseau ne prend pas de bras aux autres', () => {
+    const { state, hq } = setup();
+    run(state, 0.5);
+    const jobs = state.city.jobs;
+    instantBuilding(state, 'lab', hq.x + 7, hq.y + 7);
+    run(state, 0.5);
+    expect(state.buildings[state.buildings.length - 1].connected).toBe(false);
+    expect(state.city.jobs).toBe(jobs);
+  });
+
+  it('pas de réfugiés quand les extracteurs ne suivraient pas', () => {
+    const { state } = setup();
+    run(state, 0.5);
+    state.city.airFlow = 0.03;
+    expect(canBearMore(state, 5)).toBe(false);
+    state.city.airFlow = -0.1;
+    expect(canBearMore(state, 1)).toBe(false);
+  });
+
+  it('le deuil pèse, mais ne fait pas tomber le moral sans fond', () => {
+    const { state } = setup();
+    const model = state.units.find((u) => UNITS[u.type].citizens > 0)!;
+    for (let i = 0; i < 30; i++)
+      state.units.push({ ...model, id: 90000 + i, hp: -100, jobId: null, path: [] });
+    state.city.moraleShock = 0;
+    updateCombat(state);
+    expect(state.city.moraleShock).toBeLessThan(0);
+    expect(state.city.moraleShock).toBeGreaterThanOrEqual(-20);
+  });
+
+  it('la grève n’arrête pas les extracteurs d’oxygène', () => {
+    const { state, hq } = setup();
+    instantBuilding(state, 'oxygen', hq.x + 2, hq.y);
+    instantBuilding(state, 'lab', hq.x - 2, hq.y);
+    state.city.morale = 5;
+    run(state, 0.2);
+    const [o2, lab] = state.buildings.slice(-2);
+    expect(lab.eff).toBeGreaterThan(0);
+    expect(o2.eff).toBeCloseTo(lab.eff * 2);
+  });
+});
+
+describe('centrales à sec et veille', () => {
+  it('une centrale à sec dont le réseau n’a pas besoin ne bloque ni les naissances ni les alarmes', () => {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    openGround(state, hq.x, hq.y, 9);
+    for (const r of Object.keys(state.stock) as (keyof typeof state.stock)[]) state.stock[r] = 500;
+    instantBuilding(state, 'geothermal', hq.x + 2, hq.y);
+    instantBuilding(state, 'generator', hq.x - 2, hq.y);
+    state.stock.crystal = 0;
+    state.city.population = 20;
+    run(state, 3);
+    const plant = state.buildings.find((b) => b.type === 'generator')!;
+    expect(plant.standby).toBe(true);
+    expect(fuelMinutesLeft(state).minutes).toBe(Infinity);
+    expect(state.log.some((l) => l.text.startsWith('Réserve de cristal'))).toBe(false);
+    expect(state.log.some((l) => l.text.startsWith('Naissances suspendues'))).toBe(false);
+  });
+
+  it('la centrale qui a encore du combustible passe avant celle qui doit en prendre', () => {
+    const state = newGame();
+    const hq = state.buildings.find((b) => b.type === 'hq')!;
+    openGround(state, hq.x, hq.y, 9);
+    for (const r of Object.keys(state.stock) as (keyof typeof state.stock)[]) state.stock[r] = 500;
+    instantBuilding(state, 'generator', hq.x + 2, hq.y);
+    instantBuilding(state, 'generator', hq.x - 2, hq.y);
+    instantBuilding(state, 'lab', hq.x, hq.y + 2);
+    instantBuilding(state, 'lab', hq.x, hq.y - 2);
+    const [first, second] = state.buildings.filter((b) => b.type === 'generator');
+    first.fuel = 0;
+    second.fuel = 40;
+    state.city.population = 20;
+    const crystal = state.stock.crystal;
+    run(state, 0.1);
+    expect(state.stock.crystal).toBe(crystal);
+    expect(first.standby).toBe(true);
+    expect(second.standby).toBe(false);
   });
 });

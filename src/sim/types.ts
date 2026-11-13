@@ -146,6 +146,9 @@ export interface Unit {
   skin?: string;
   /** Ticks before this unit looks for a job again. */
   thinkIn: number;
+  /** Idle searches in a row that found the open jobs all out of reach, and the job list they saw. */
+  idleMisses?: number;
+  idleKey?: string;
   working: boolean;
   /** Has downed tools to go after an enemy. */
   chasing?: boolean;
@@ -168,6 +171,8 @@ export interface Building {
   progress: number;
   /** Fuel left in seconds (power plants). */
   fuel: number;
+  /** A plant the grid has no use for right now: it waits, burning nothing. */
+  standby?: boolean;
   sabotaged: number;
   queue: UnitType[];
   queueT: number;
@@ -274,6 +279,8 @@ export interface CityState {
   /** Eventful morale swing that decays over time. */
   moraleShock: number;
   oxygen: number;
+  /** Air gained per second at the last update, after every mouth has breathed. */
+  airFlow?: number;
   taxLevel: 0 | 1 | 2 | 3;
   /** Index into RATIONS. */
   ration: 0 | 1 | 2;

@@ -573,7 +573,12 @@ export function updateCombat(state: GameState): void {
     releaseJob(state, unit);
     state.units.splice(state.units.indexOf(unit), 1);
     state.fx.push({ kind: 'burst', x: unit.x, y: unit.y, color: 0xff5050 });
-    if (UNITS[unit.type].citizens > 0) state.city.moraleShock -= 4;
+    // Each death weighs, but grief has a floor: a disaster mustn't drag the city into a strike on its own.
+    if (UNITS[unit.type].citizens > 0)
+      state.city.moraleShock = Math.max(
+        state.city.moraleShock - 4,
+        Math.min(state.city.moraleShock, GRIEF_FLOOR),
+      );
     const name = UNITS[unit.type].name;
     if (unit.fatal === 'air') {
       const tally = (state.airDeaths ??= { names: {}, since: state.time });
@@ -590,6 +595,9 @@ export function updateCombat(state: GameState): void {
   }
   reportAirDeaths(state);
 }
+
+/** How low the deaths alone can drag the city's mood: grief weighs, but doesn't start a strike by itself. */
+const GRIEF_FLOOR = -20;
 
 /** Seconds of deaths gathered into one line: the crew doesn't all run out of breath on the same tick. */
 const AIR_DEATHS_WINDOW = 20;

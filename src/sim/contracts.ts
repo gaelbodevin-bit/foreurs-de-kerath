@@ -312,7 +312,7 @@ function complete(state: GameState, c: Contract): void {
   payReward(state, c.reward);
   if (c.kind === 'refugees') {
     // The homes are ready: who comes in still depends on air and food on the day.
-    if (canBearMore(state)) state.city.population += c.amount ?? 0;
+    if (canBearMore(state, c.amount ?? 1)) state.city.population += c.amount ?? 0;
     else
       log(state, 'Les réfugiés repartent : la cité n’a ni l’air ni les vivres pour eux.', 'warn');
   }

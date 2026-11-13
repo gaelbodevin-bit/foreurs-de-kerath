@@ -197,6 +197,16 @@ function jobIsOpen(state: GameState, unit: Unit, job: Job): boolean {
 
 /** Ticks before an idle worker who found nothing to do looks again. */
 const IDLE_RETHINK = 15;
+/** The longest an idle worker waits between searches while the job list stays the same. */
+const IDLE_RETHINK_MAX = 80;
+
+/** Changes whenever a job is added, taken off the list, or handed back by whoever had it. */
+function jobListKey(state: GameState): string {
+  const last = state.jobs.length > 0 ? state.jobs[state.jobs.length - 1].id : 0;
+  let free = 0;
+  for (const j of state.jobs) if (j.unitId === null) free++;
+  return `${state.jobs.length}:${last}:${free}`;
+}
 
 function assignJob(state: GameState, unit: Unit): void {
   const open = state.jobs.filter((j) => jobIsOpen(state, unit, j));
@@ -329,9 +339,19 @@ export function updateWorker(state: GameState, unit: Unit): void {
     unit.working = false;
     if (--unit.thinkIn <= 0) {
       unit.thinkIn = 5;
-      assignJob(state, unit);
       // Nothing in reach: a whole-map search twice a second for nothing adds up with a big crew.
-      if (unit.jobId === null) unit.thinkIn = IDLE_RETHINK;
+      // While the jobs stay the same, each fruitless search waits longer; a new job starts afresh.
+      const key = jobListKey(state);
+      if (unit.idleKey !== key) unit.idleMisses = 0;
+      assignJob(state, unit);
+      if (unit.jobId === null) {
+        unit.idleKey = key;
+        unit.idleMisses = (unit.idleMisses ?? 0) + 1;
+        unit.thinkIn = Math.min(IDLE_RETHINK_MAX, IDLE_RETHINK * unit.idleMisses);
+      } else {
+        unit.idleMisses = 0;
+        unit.idleKey = undefined;
+      }
     }
     return;
   }

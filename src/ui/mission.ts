@@ -1215,7 +1215,9 @@ export class MissionScreen {
             ? `Saboté (${Math.ceil(building.sabotaged)} s)`
             : needsGrid && !building.connected
               ? 'Hors de portée du réseau : reliez-le par le sol technique à une source, ou bâtissez une centrale plus près.'
-              : `Rendement : ${Math.round(building.eff * 100)} %`;
+              : building.standby
+                ? 'En veille : le réseau a assez de courant sans elle, elle ne brûle rien.'
+                : `Rendement : ${Math.round(building.eff * 100)} %`;
       const sig = `b${building.id}${status}${Math.floor(building.hp)}${building.queue.length}${state.city.population}${Math.floor(state.stock.credits)}`;
       this.patch(
         this.selection,

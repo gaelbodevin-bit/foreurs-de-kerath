@@ -196,6 +196,9 @@ describe('gisements', () => {
     run(state, 30);
     expect(state.stock.oil).toBeGreaterThan(1);
     state.stock.oil = 5;
+    // Labs against the HQ: more demand than it carries alone, so the plant is needed.
+    createBuilding(state, 'lab', hx + 1, hy - 2, 1);
+    createBuilding(state, 'lab', hx - 1, hy + 1, 1);
     const plant = createBuilding(state, 'fuelplant', hx + 2, hy + 1, 1);
     run(state, 2);
     expect(plant.fuel).toBeGreaterThan(0);

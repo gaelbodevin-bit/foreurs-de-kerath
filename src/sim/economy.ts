@@ -194,10 +194,21 @@ export function wouldConnect(state: GameState, type: BuildingType, x: number, y:
   return false;
 }
 
+/** A fuel plant with nothing left in it and nothing in store to put in. */
+function outOfFuel(state: GameState, b: Building, def = BUILDINGS[b.type]): boolean {
+  return !!def.burnTime && b.fuel <= 0 && state.stock[def.fuel ?? 'crystal'] < 1;
+}
+
+/** What the grid research boosts: the plants, not the HQ's or an outpost's backup supply. */
+const isPlant = (b: Building): boolean => b.type !== 'hq' && b.type !== 'camp';
+
 function canRun(b: Building, def: BuildingDef): boolean {
   if (b.built < 1 || b.sabotaged > 0) return false;
   return !needsGrid(def) || b.connected;
 }
+
+/** Air one person breathes per second. */
+const AIR_PER_MOUTH = 0.01;
 
 const MORALE_BASE = 52;
 /** Below this morale, discontent feeds the plot. */
@@ -213,7 +224,8 @@ export function updateEconomy(state: GameState): void {
   for (const b of state.buildings) {
     if (b.built < 1) continue;
     const def = BUILDINGS[b.type];
-    city.jobs += def.jobs ?? 0;
+    // A building that stands idle (cut off, sabotaged, a plant waiting or out of fuel) needs nobody.
+    if (canRun(b, def) && !b.standby && !outOfFuel(state, b, def)) city.jobs += def.jobs ?? 0;
     if (def.housing) {
       city.housing += def.housing + (b.type === 'habitat' ? state.mods.housing : 0);
     }
@@ -221,27 +233,40 @@ export function updateEconomy(state: GameState): void {
   if (state.settlement?.reached) city.housing += CITY_HOUSING;
   const staff = staffing(state);
 
-  // Power comes first: every other building's output depends on it.
+  // Power comes first: every other building's output depends on it. What burns nothing runs
+  // first; the fuel plants only make up the rest, and one the grid can do without waits.
   let produced = 0;
   let demand = 0;
+  const plants: Building[] = [];
   for (const b of state.buildings) {
     const def = BUILDINGS[b.type];
+    b.standby = false;
     if (!canRun(b, def)) continue;
-    if (def.burnTime) {
-      const fuel = def.fuel ?? 'crystal';
-      // A plant short of hands burns its fuel as slowly as it makes current: none at all with nobody in it.
-      if (b.fuel <= 0 && staff > 0 && state.stock[fuel] >= 1) {
-        state.stock[fuel] -= 1;
-        b.fuel = def.burnTime;
-      }
-      if (b.fuel > 0 && staff > 0) {
-        b.fuel -= dt * staff;
-        produced += (def.powerOutput ?? 0) * staff * state.mods.powerOutput;
-      }
-    } else {
-      produced += def.powerOutput ?? 0;
-    }
     demand += def.power ?? 0;
+    if (def.burnTime) plants.push(b);
+    else produced += (def.powerOutput ?? 0) * (isPlant(b) ? state.mods.powerOutput : 1);
+  }
+  // Those with fuel already burning go first, then those that can take some from the store; a dry
+  // one comes last, so it never keeps a full one waiting.
+  const rank = (b: Building) => (b.fuel > 0 ? 0 : outOfFuel(state, b) ? 2 : 1);
+  plants.sort((a, b) => rank(a) - rank(b));
+  for (const b of plants) {
+    const def = BUILDINGS[b.type];
+    // Not needed, dry or not: it waits, and its fuel (or the lack of it) holds nothing back.
+    if (produced >= demand) {
+      b.standby = true;
+      continue;
+    }
+    const fuel = def.fuel ?? 'crystal';
+    // A plant short of hands burns its fuel as slowly as it makes current: none at all with nobody in it.
+    if (b.fuel <= 0 && staff > 0 && state.stock[fuel] >= 1) {
+      state.stock[fuel] -= 1;
+      b.fuel = def.burnTime ?? 0;
+    }
+    if (b.fuel > 0 && staff > 0) {
+      b.fuel -= dt * staff;
+      produced += (def.powerOutput ?? 0) * staff * state.mods.powerOutput;
+    }
   }
   const ratio = demand === 0 ? 1 : Math.min(1, produced / demand);
   state.power = { produced, demand, ratio };
@@ -264,8 +289,10 @@ export function updateEconomy(state: GameState): void {
     }
     const powerFactor = (def.power ?? 0) > 0 ? ratio : 1;
     const staffFactor = (def.jobs ?? 0) > 0 ? staff : 1;
-    b.eff = powerFactor * staffFactor * strike;
+    // Strikers down tools, but nobody stops the air they breathe themselves.
+    b.eff = powerFactor * staffFactor * (def.oxygen ? 1 : strike);
     if (b.type === 'hq') b.eff = 1;
+    if (b.standby || outOfFuel(state, b, def)) b.eff = 0;
 
     oxygenFlow += (def.oxygen ?? 0) * b.eff;
     securityPressure += (def.conspiracy ?? 0) * b.eff;
@@ -426,7 +453,8 @@ function fuelBurnPerMinute(state: GameState): Partial<Record<ResourceId, number>
   const crew = staffing(state);
   for (const b of state.buildings) {
     const def = BUILDINGS[b.type];
-    if (b.built < 1 || !def.burnTime) continue;
+    // A plant cut off or waiting on standby burns nothing; one the grid needs counts, dry or not.
+    if (!def.burnTime || !canRun(b, def) || b.standby) continue;
     const fuel = def.fuel ?? 'crystal';
     burn[fuel] = (burn[fuel] ?? 0) + (60 / def.burnTime) * crew;
   }
@@ -451,9 +479,13 @@ const fuelAhead = (state: GameState): boolean =>
   state.city.population < FEW_PEOPLE || fuelMinutesLeft(state).minutes > BIRTH_FUEL_MINUTES;
 
 /** Whether the city can take more people right now: air and food to spare, as for a birth. */
-export function canBearMore(state: GameState): boolean {
+export function canBearMore(state: GameState, newcomers = 1): boolean {
   const city = state.city;
+  // The extractors must keep up with the newcomers too, not just the air already in the tunnels.
+  const flow = city.airFlow ?? 0;
   return (
+    flow > 0 &&
+    flow >= newcomers * AIR_PER_MOUTH &&
     city.oxygen > BIRTH_AIR &&
     city.morale >= 30 &&
     state.stock.food > 0 &&
@@ -482,7 +514,6 @@ export function airTrouble(state: GameState): string {
   if (hands) return hands;
   if (extractors.every((b) => b.sabotaged > 0)) return 'les extracteurs sont sabotés';
   if (state.power.ratio < 0.8) return 'les extracteurs manquent de courant';
-  if (state.city.morale < STRIKE_MORALE) return 'la grève : le moral est trop bas';
   const workers = state.units.filter((u) => UNITS[u.type].citizens > 0).length;
   const mouths = Math.floor(state.city.population) + workers;
   return `trop de bouches (${mouths}) pour ${extractors.length} extracteur${extractors.length > 1 ? 's' : ''}`;
@@ -527,10 +558,13 @@ function updateSupplyWatch(state: GameState): void {
     }
   };
 
-  for (const [fuel, perMinute] of Object.entries(fuelBurnPerMinute(state)) as [
-    ResourceId,
-    number,
-  ][]) {
+  // A fuel no plant burns any more (all on standby, or none left) has nothing to warn about.
+  const burning = fuelBurnPerMinute(state);
+  for (const fuel of RESOURCE_IDS) {
+    if (burning[fuel] === undefined && flags[`fuelShort_${fuel}`])
+      flags[`fuelShort_${fuel}`] = false;
+  }
+  for (const [fuel, perMinute] of Object.entries(burning) as [ResourceId, number][]) {
     const minutes = state.stock[fuel] / perMinute;
     const name = RESOURCES[fuel].name.toLowerCase();
     alarm(
@@ -543,7 +577,8 @@ function updateSupplyWatch(state: GameState): void {
 
   // Said once, so the player knows why the city has stopped growing.
   const ahead = fuelMinutesLeft(state);
-  if (ahead.fuel) {
+  if (!ahead.fuel) flags.birthFuel = false;
+  else {
     const name = RESOURCES[ahead.fuel].name.toLowerCase();
     alarm(
       'birthFuel',
@@ -585,7 +620,8 @@ function updateCity(state: GameState, inputs: CityInputs): void {
   const mouths = city.population + workers;
 
   // Oxygen.
-  const o2Flow = inputs.oxygenFlow * state.mods.oxygen - mouths * 0.01;
+  const o2Flow = inputs.oxygenFlow * state.mods.oxygen - mouths * AIR_PER_MOUTH;
+  city.airFlow = o2Flow;
   city.oxygen = Math.min(100, Math.max(0, city.oxygen + o2Flow * dt));
 
   // Food.
